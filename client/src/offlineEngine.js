@@ -30,6 +30,10 @@ for (const c of [...CARD_DATA.standard, ...CARD_DATA.unique]) LOOKUP.set(c.id, c
 
 function getTemplate(id) { return LOOKUP.get(id); }
 
+function randomStat(min, max) {
+  return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+
 function shuffle(arr) {
   const a = [...arr];
   for (let i = a.length - 1; i > 0; i--) {
@@ -42,11 +46,15 @@ function shuffle(arr) {
 function makeBattleCard(templateId, instanceId) {
   const t = getTemplate(templateId);
   if (!t) return null;
+  const isUnique = t.type === 'unique';
+  const attack = isUnique ? randomStat(10, 25) : (t.attack || 0);
+  const maxHp = isUnique ? randomStat(30, 100) : (t.hp || 0);
+  const cooldown = isUnique ? randomStat(10, 30) : (t.cooldown || 0);
   return {
     instanceId, templateId, name: t.name, type: t.type || 'unique',
-    attack: t.attack || 0, defense: t.defense || 0,
-    maxHp: t.hp || 0, hp: t.hp || 0,
-    cooldown: t.cooldown || 0, cooldownRemaining: t.cooldown || 0,
+    attack, defense: t.defense || 0,
+    maxHp, hp: maxHp,
+    cooldown, cooldownRemaining: cooldown,
     effect: t.effect, value: t.value, alive: true, role: null,
   };
 }
