@@ -48,20 +48,28 @@ export function findFusion(inputIds) {
   return null;
 }
 
+function randomStat(min, max) {
+  return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+
 export function createBattleCard(templateId, instanceId) {
   const template = getCardTemplate(templateId);
   if (!template) return null;
+  const isUnique = template.type === 'unique';
+  const attack = isUnique ? randomStat(10, 25) : (template.attack || 0);
+  const maxHp = isUnique ? randomStat(30, 100) : (template.hp || 0);
+  const cooldown = isUnique ? randomStat(10, 30) : (template.cooldown || 0);
   return {
     instanceId,
     templateId,
     name: template.name,
     type: template.type,
-    attack: template.attack || 0,
+    attack,
     defense: template.defense || 0,
-    maxHp: template.hp || 0,
-    hp: template.hp || 0,
-    cooldown: template.cooldown || 0,
-    cooldownRemaining: template.cooldown || 0,
+    maxHp,
+    hp: maxHp,
+    cooldown,
+    cooldownRemaining: cooldown,
     effect: template.effect,
     value: template.value,
     description: template.description,

@@ -1,0 +1,10 @@
+{
+  "name": "Card Fusion Battle",
+  "short_name": "Card Battle",
+  "description": "Offline NPC card battle prototype",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#1a1a2e",
+  "theme_color": "#1a1a2e",
+  "orientation": "any"
+}
