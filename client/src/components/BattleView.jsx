@@ -10,8 +10,6 @@ export default function BattleView({
   onReplace,
   onMainMenu,
 }) {
-  const [bossId, setBossId] = useState(null);
-  const [fieldIds, setFieldIds] = useState([]);
   const [targetMode, setTargetMode] = useState(null);
   const [replaceMode, setReplaceMode] = useState(null);
 
@@ -39,18 +37,9 @@ export default function BattleView({
 
   const me = players?.find((p) => p.id === 'player') || players?.[0];
 
-  const toggleField = (id) => {
-    if (bossId === id) return;
-    setFieldIds((prev) => {
-      if (prev.includes(id)) return prev.filter((x) => x !== id);
-      if (prev.length >= 3) return prev;
-      return [...prev, id];
-    });
-  };
-
-  const handleSetupConfirm = () => {
-    if (!bossId || fieldIds.length !== 3) return;
-    onSetup(bossId, fieldIds);
+  const handleBossSelect = (cardId) => {
+    const fieldIds = myHand.filter((c) => c.instanceId !== cardId).map((c) => c.instanceId);
+    onSetup(cardId, fieldIds);
   };
 
   const canAttackWith = (attacker) => {
@@ -104,50 +93,21 @@ export default function BattleView({
           <h2 style={{ fontFamily: 'var(--font-display)', color: 'var(--accent-gold)', marginBottom: 12 }}>
             Deployment Phase
           </h2>
-          <p>Select 1 card as your <strong>Boss</strong> (attacks only after all 3 fighters fall) and 3 fighters for the field.</p>
+          <p>Click <strong>Boss</strong> on one card. The other three become your fighters automatically.</p>
         </div>
 
         <div className="hand-cards" style={{ justifyContent: 'center', margin: '20px 0' }}>
           {myHand?.map((card) => (
             <div key={card.instanceId} style={{ textAlign: 'center' }}>
-              <GameCard
-                card={card}
-                selected={bossId === card.instanceId || fieldIds.includes(card.instanceId)}
-              />
-              <div style={{ display: 'flex', gap: 4, marginTop: 6, justifyContent: 'center' }}>
-                <button
-                  className={bossId === card.instanceId ? 'btn-gold' : 'btn-secondary'}
-                  style={{ padding: '4px 8px', fontSize: 11 }}
-                  onClick={() => {
-                    setFieldIds((prev) => prev.filter((id) => id !== card.instanceId));
-                    setBossId(card.instanceId);
-                  }}
-                >
-                  Boss
-                </button>
-                <button
-                  className={fieldIds.includes(card.instanceId) ? 'btn-primary' : 'btn-secondary'}
-                  style={{ padding: '4px 8px', fontSize: 11 }}
-                  onClick={() => {
-                    if (bossId === card.instanceId) setBossId(null);
-                    toggleField(card.instanceId);
-                  }}
-                  disabled={bossId === card.instanceId}
-                >
-                  Field
-                </button>
-              </div>
+              <GameCard card={card} />
+              <button
+                className="btn-gold setup-boss-btn"
+                onClick={() => handleBossSelect(card.instanceId)}
+              >
+                Boss
+              </button>
             </div>
           ))}
-        </div>
-
-        <div style={{ textAlign: 'center' }}>
-          <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 12 }}>
-            Boss: {bossId ? '✓' : '—'} | Field: {fieldIds.length}/3
-          </p>
-          <button className="btn-primary" onClick={handleSetupConfirm} disabled={!bossId || fieldIds.length !== 3}>
-            Confirm Deployment
-          </button>
         </div>
       </div>
     );

@@ -69,7 +69,7 @@ function makeBattleCard(templateId, instanceId) {
   const isUnique = t.type === 'unique';
   const attack = isUnique ? randomStat(10, 25) : (t.attack || 0);
   const maxHp = isUnique ? randomStat(30, 100) : (t.hp || 0);
-  const cooldown = isUnique ? randomStat(10, 30) : (t.cooldown || 0);
+  const cooldown = isUnique ? randomStat(10, 60) : (t.cooldown || 0);
   return {
     instanceId, templateId, name: t.name, type: t.type || 'unique',
     attack, defense: t.defense || 0,
