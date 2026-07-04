@@ -1012,6 +1012,29 @@ input:focus {
   color: var(--accent-green);
 }
 
+.boss-magic-btn.haste-btn {
+  border-color: rgba(241, 196, 15, 0.5);
+  color: var(--accent-gold);
+}
+
+.boss-magic-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  filter: grayscale(0.6);
+}
+
+.boss-magic-btn:disabled:hover {
+  border-color: var(--border);
+  background: var(--bg-dark);
+}
+
+.boss-magic-spent {
+  font-size: 9px;
+  color: var(--text-secondary);
+  text-align: center;
+  font-style: italic;
+}
+
 .queued-attack-banner {
   background: rgba(52, 152, 219, 0.12);
   border-color: rgba(52, 152, 219, 0.35);

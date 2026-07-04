@@ -17,6 +17,7 @@ import {
   offlineDismissReplacement,
   offlineBossSlow,
   offlineBossHeal,
+  offlineBossHaste,
   getOfflineState,
   stopTicks,
   clearBattleAnimations,
@@ -81,6 +82,11 @@ export default function App() {
     offlineBossHeal(offlineGameRef.current, targetId);
   };
 
+  const handleBossHaste = (targetId) => {
+    if (!offlineGameRef.current) return;
+    offlineBossHaste(offlineGameRef.current, targetId);
+  };
+
   const handleLeaveBattle = () => {
     if (offlineGameRef.current) clearBattleAnimations(offlineGameRef.current);
     stopTicks();
@@ -123,6 +129,7 @@ export default function App() {
           onDismissReplacement={handleDismissReplacement}
           onBossSlow={handleBossSlow}
           onBossHeal={handleBossHeal}
+          onBossHaste={handleBossHaste}
           onMainMenu={handleLeaveBattle}
         />
       )}
