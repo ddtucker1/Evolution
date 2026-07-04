@@ -407,22 +407,6 @@ export default function BattleView({
         </div>
       )}
 
-      <div className="deck-draw-zone">
-        <div
-          className={`deck-pile${drawReady ? ' draw-ready' : ''}`}
-          onClick={() => !battleLocked && drawReady && onDraw()}
-        >
-          <div className="deck-pile-label">Play Deck</div>
-          <div className="deck-pile-count">{deckRemaining} cards</div>
-          <div className="draw-timer-bar">
-            <div className="draw-timer-fill" style={{ width: `${drawProgress}%` }} />
-          </div>
-          <div className="draw-timer-text">
-            {drawReady ? 'Click to draw!' : `${drawTimerMax - drawTimer}s until draw`}
-          </div>
-        </div>
-      </div>
-
       {animationInProgress && pendingPlayerAttack && (
         <div className="attack-banner queued-attack-banner">
           {pendingPlayerAttack.isChain
@@ -454,6 +438,21 @@ export default function BattleView({
         )}
         <div className="player-zone">
           <h3>Your Battlefield</h3>
+          <div className="deck-draw-zone">
+            <div
+              className={`deck-pile${drawReady ? ' draw-ready' : ''}`}
+              onClick={() => !battleLocked && drawReady && onDraw()}
+            >
+              <div className="deck-pile-label">Play Deck</div>
+              <div className="deck-pile-count">{deckRemaining} cards</div>
+              <div className="draw-timer-bar">
+                <div className="draw-timer-fill" style={{ width: `${drawProgress}%` }} />
+              </div>
+              <div className="draw-timer-text">
+                {drawReady ? 'Click to draw!' : `${drawTimerMax - drawTimer}s until draw`}
+              </div>
+            </div>
+          </div>
           {renderBattlefield(myPlayer, true)}
           {!bossCanAttack && myPlayer.boss?.alive && (
             <p className="boss-hint">Boss locked until all 3 fighters are defeated</p>
