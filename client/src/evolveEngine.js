@@ -1,4 +1,4 @@
-import { CARD_TIMER_MIN, CARD_TIMER_MAX, getLibraryCooldownSeconds } from './offlineEngine';
+import { CARD_TIMER_MIN, CARD_TIMER_MAX, getTimerPreview } from './offlineEngine';
 
 const ABILITY_POOL = [
   {
@@ -78,8 +78,8 @@ export function getCardLevel(card) {
 }
 
 function getCardTimer(card) {
-  if (card.timer != null) return card.timer;
-  return getLibraryCooldownSeconds(card.id);
+  if (card.timer != null) return Math.round(card.timer);
+  return getTimerPreview(card.attack);
 }
 
 function computeOutputLevel(card1, card2) {

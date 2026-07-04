@@ -1,31 +1,52 @@
+import {
+  computeBaseStats,
+  calculateBattleTimer,
+  getTimerPreview,
+  isBaseCardId,
+} from '../../shared/baseCardStats.js';
+
+const BASE_CARD_DEFINITIONS = [
+  { id: 'uni_knight', name: 'Steel Knight', weights: { attack: 12, defense: 14, health: 40 } },
+  { id: 'uni_archer', name: 'Shadow Archer', weights: { attack: 16, defense: 8, health: 30 } },
+  { id: 'uni_mage', name: 'Flame Mage', weights: { attack: 18, defense: 6, health: 28 } },
+  { id: 'uni_golem', name: 'Stone Golem', weights: { attack: 10, defense: 18, health: 50 } },
+  { id: 'uni_rogue', name: 'Night Rogue', weights: { attack: 15, defense: 10, health: 32 } },
+  { id: 'uni_paladin', name: 'Holy Paladin', weights: { attack: 13, defense: 15, health: 42 } },
+  { id: 'uni_berserker', name: 'Blood Berserker', weights: { attack: 20, defense: 5, health: 35 } },
+  { id: 'uni_druid', name: 'Forest Druid', weights: { attack: 11, defense: 12, health: 38 } },
+  { id: 'uni_wraith', name: 'Soul Wraith', weights: { attack: 17, defense: 7, health: 26 } },
+  { id: 'uni_titan', name: 'Storm Titan', weights: { attack: 19, defense: 12, health: 45 } },
+  { id: 'uni_phoenix', name: 'Ember Phoenix', weights: { attack: 16, defense: 9, health: 33 } },
+  { id: 'uni_serpent', name: 'Viper Serpent', weights: { attack: 14, defense: 11, health: 31 } },
+  { id: 'uni_monk', name: 'Iron Monk', weights: { attack: 13, defense: 13, health: 36 } },
+  { id: 'uni_samurai', name: 'Blade Samurai', weights: { attack: 17, defense: 11, health: 34 } },
+  { id: 'uni_necromancer', name: 'Dark Necromancer', weights: { attack: 16, defense: 7, health: 29 } },
+  { id: 'uni_ranger', name: 'Wild Ranger', weights: { attack: 15, defense: 9, health: 33 } },
+  { id: 'uni_shaman', name: 'Spirit Shaman', weights: { attack: 12, defense: 11, health: 37 } },
+  { id: 'uni_vampire', name: 'Crimson Vampire', weights: { attack: 18, defense: 8, health: 31 } },
+  { id: 'uni_dragon', name: 'Sky Dragon', weights: { attack: 21, defense: 10, health: 44 } },
+  { id: 'uni_elementalist', name: 'Prism Elementalist', weights: { attack: 14, defense: 10, health: 35 } },
+];
+
 const CARD_DATA = {
-  unique: [
-    { id: 'uni_knight', name: 'Steel Knight', attack: 12, defense: 14, hp: 40 },
-    { id: 'uni_archer', name: 'Shadow Archer', attack: 16, defense: 8, hp: 30 },
-    { id: 'uni_mage', name: 'Flame Mage', attack: 18, defense: 6, hp: 28 },
-    { id: 'uni_golem', name: 'Stone Golem', attack: 10, defense: 18, hp: 50 },
-    { id: 'uni_rogue', name: 'Night Rogue', attack: 15, defense: 10, hp: 32 },
-    { id: 'uni_paladin', name: 'Holy Paladin', attack: 13, defense: 15, hp: 42 },
-    { id: 'uni_berserker', name: 'Blood Berserker', attack: 20, defense: 5, hp: 35 },
-    { id: 'uni_druid', name: 'Forest Druid', attack: 11, defense: 12, hp: 38 },
-    { id: 'uni_wraith', name: 'Soul Wraith', attack: 17, defense: 7, hp: 26 },
-    { id: 'uni_titan', name: 'Storm Titan', attack: 19, defense: 12, hp: 45 },
-    { id: 'uni_phoenix', name: 'Ember Phoenix', attack: 16, defense: 9, hp: 33 },
-    { id: 'uni_serpent', name: 'Viper Serpent', attack: 14, defense: 11, hp: 31 },
-    { id: 'uni_monk', name: 'Iron Monk', attack: 13, defense: 13, hp: 36 },
-    { id: 'uni_samurai', name: 'Blade Samurai', attack: 17, defense: 11, hp: 34 },
-    { id: 'uni_necromancer', name: 'Dark Necromancer', attack: 16, defense: 7, hp: 29 },
-    { id: 'uni_ranger', name: 'Wild Ranger', attack: 15, defense: 9, hp: 33 },
-    { id: 'uni_shaman', name: 'Spirit Shaman', attack: 12, defense: 11, hp: 37 },
-    { id: 'uni_vampire', name: 'Crimson Vampire', attack: 18, defense: 8, hp: 31 },
-    { id: 'uni_dragon', name: 'Sky Dragon', attack: 21, defense: 10, hp: 44 },
-    { id: 'uni_elementalist', name: 'Prism Elementalist', attack: 14, defense: 10, hp: 35 },
-  ],
+  unique: BASE_CARD_DEFINITIONS.map((def) => {
+    const stats = computeBaseStats(def.weights.attack, def.weights.defense, def.weights.health);
+    return {
+      id: def.id,
+      name: def.name,
+      attack: stats.attack,
+      defense: stats.defense,
+      hp: stats.hp,
+      isBase: true,
+    };
+  }),
 };
 
+const baseAttacks = CARD_DATA.unique.map((c) => c.attack);
+const CARD_TIMER_MIN = Math.min(...baseAttacks) * 2 - 2;
+const CARD_TIMER_MAX = Math.max(...baseAttacks) * 2 + 2;
+
 const DRAW_TIMER_MAX = 70;
-const CARD_TIMER_MIN = 10;
-const CARD_TIMER_MAX = 60;
 const DEATH_ANIMATION_MS = 6000;
 const DEATH_SHAKE_MS = 3000;
 const PLAY_DECK_SIZE = 10;
@@ -51,10 +72,6 @@ export function registerEvolvedCards(cards) {
   }
 }
 
-function randomStat(min, max) {
-  return Math.floor(Math.random() * (max - min + 1)) + min;
-}
-
 function shuffle(arr) {
   const a = [...arr];
   for (let i = a.length - 1; i > 0; i--) {
@@ -68,29 +85,28 @@ function getAttackAnimationMs() {
   return ATTACK_ANIM_MS;
 }
 
-export function getLibraryCooldownSeconds(cardKey) {
-  let hash = 0;
-  for (let i = 0; i < cardKey.length; i++) {
-    hash = ((hash << 5) - hash) + cardKey.charCodeAt(i);
-    hash |= 0;
+export function getLibraryCooldownSeconds(card) {
+  if (typeof card === 'string') {
+    const template = getTemplate(card);
+    return getTimerPreview(template?.attack ?? 0);
   }
-  return CARD_TIMER_MIN + (Math.abs(hash) % (CARD_TIMER_MAX - CARD_TIMER_MIN + 1));
+  return getTimerPreview(card?.attack ?? 0);
 }
 
 export function calculateAttackDamage(attacker, defender) {
-  return Math.max(0, attacker.attack - defender.defense);
+  return Math.max(0, Math.round(attacker.attack) - Math.round(defender.defense));
 }
 
 function makeBattleCard(templateId, instanceId) {
   const t = getTemplate(templateId);
   if (!t) return null;
   const isEvolved = templateId.startsWith('evo_');
-  const attack = isEvolved ? t.attack : randomStat(10, 25);
-  const defense = isEvolved ? t.defense : randomStat(1, 10);
-  const maxHp = isEvolved ? t.hp : randomStat(30, 100);
+  const attack = Math.round(t.attack);
+  const defense = Math.round(t.defense);
+  const maxHp = Math.round(t.hp);
   const cooldown = isEvolved && t.timer != null
-    ? t.timer
-    : randomStat(CARD_TIMER_MIN, CARD_TIMER_MAX);
+    ? Math.round(t.timer)
+    : calculateBattleTimer(attack);
   return {
     instanceId, templateId, name: t.name, type: 'unique',
     attack, defense,
@@ -98,6 +114,7 @@ function makeBattleCard(templateId, instanceId) {
     cooldown, cooldownRemaining: cooldown,
     alive: true, role: null,
     ability: t.ability || null,
+    isBase: isBaseCardId(templateId),
   };
 }
 
@@ -815,4 +832,4 @@ export function getOfflineState(game) {
   return toPrivateState(game, 'player');
 }
 
-export { CARD_DATA, CARD_TIMER_MIN, CARD_TIMER_MAX, PLAY_DECK_SIZE };
+export { CARD_DATA, CARD_TIMER_MIN, CARD_TIMER_MAX, PLAY_DECK_SIZE, getTimerPreview };

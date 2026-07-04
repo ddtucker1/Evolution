@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import GameCard from './GameCard';
-import { CARD_TIMER_MIN, CARD_TIMER_MAX, getLibraryCooldownSeconds } from '../offlineEngine';
+import { getTimerPreview } from '../offlineEngine';
 import { previewEvolve, getCardLevel, getLevelLabel } from '../evolveEngine';
 import {
   PLAY_DECK_SIZE,
@@ -80,7 +80,7 @@ export default function Library({ profile, onProfileChange, onMainMenu }) {
             {mode === 'deck' ? (
               <>
                 You have {uniqueCatalogCards.length} unique cards. Tap cards to add or remove them from your play deck (choose {PLAY_DECK_SIZE}).
-                {' '}Each card shows a sample cooldown between <strong>{CARD_TIMER_MIN}–{CARD_TIMER_MAX} seconds</strong> before it can attack again in battle.
+                {' '}Each card&apos;s attack timer is <strong>attack × 2 seconds</strong> (±2s random variance in battle).
               </>
             ) : (
               <>
@@ -145,7 +145,9 @@ export default function Library({ profile, onProfileChange, onMainMenu }) {
           const isEvolved = card_id.startsWith('evo_');
           const cardLevel = catalog ? getCardLevel(catalog) : 0;
           const levelLabel = getLevelLabel(cardLevel);
-          const timerPreview = catalog?.timer ?? getLibraryCooldownSeconds(key);
+          const timerPreview = catalog?.timer != null
+            ? Math.round(catalog.timer)
+            : getTimerPreview(catalog?.attack ?? 0);
 
           return (
             <div
@@ -175,6 +177,7 @@ export default function Library({ profile, onProfileChange, onMainMenu }) {
                   timer: catalog?.timer,
                   ability: catalog?.ability,
                   alive: true,
+                  isBase: !isEvolved,
                 }}
                 selected={selected}
                 showCooldown={false}
