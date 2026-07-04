@@ -13,6 +13,7 @@ import {
   offlineAttack,
   offlineDrawCard,
   offlineReplace,
+  offlineDismissReplacement,
   getOfflineState,
   stopTicks,
   clearBattleAnimations,
@@ -61,6 +62,11 @@ export default function App() {
     offlineReplace(offlineGameRef.current, handCardId, slotIndex);
   };
 
+  const handleDismissReplacement = () => {
+    if (!offlineGameRef.current) return;
+    offlineDismissReplacement(offlineGameRef.current);
+  };
+
   const handleLeaveBattle = () => {
     if (offlineGameRef.current) clearBattleAnimations(offlineGameRef.current);
     stopTicks();
@@ -100,6 +106,7 @@ export default function App() {
           onAttack={handleAttack}
           onDraw={handleDraw}
           onReplace={handleReplace}
+          onDismissReplacement={handleDismissReplacement}
           onMainMenu={handleLeaveBattle}
         />
       )}

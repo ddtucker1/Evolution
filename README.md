@@ -10,8 +10,8 @@ Play against the CPU on your laptop. No login, no internet required.
 - **Random card stats** each battle: Attack 10–25, HP 30–100, Timer 10–60 seconds
 - **Boss rule** — your Boss can only attack after all 3 fighters are defeated
 - **Replacements** — deploy a fighter from your hand when a field slot opens (3 per match)
-- **Draw timer** — every 30 seconds, click your play deck to draw a card into your hand
-- **Attack animations** — 1 second for low damage, up to 4 seconds for heavy hits (timers pause during attacks)
+- **Draw timer** — every 90 seconds, click your play deck to draw a card into your hand
+- **Attack animations** — 4 seconds per attack (timers pause during attacks)
 
 ## Play on your laptop
 
@@ -52,8 +52,8 @@ Then open **http://localhost:4173**.
 3. Click **Main Menu** → **Battle**
 4. Deploy 1 Boss + 3 fighters from your opening draw
 5. When card timers are ready, attack. Boss attacks only after all fighters fall
-6. When the **play deck timer** fills (30s), click it to draw a card
-7. If a fighter dies, tap a fighter in your hand, then tap an empty field slot (max 3 replacements)
+6. When the **play deck timer** fills (90s), click it to draw a card
+7. If a fighter dies, choose a replacement from your hand when prompted (max 3 replacements)
 8. Destroy the enemy Boss to win
 
 ## Tech stack
