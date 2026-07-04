@@ -1363,6 +1363,21 @@ input:focus {
   color: var(--accent-gold);
 }
 
+.boss-magic-btn.attack2x-btn {
+  border-color: rgba(231, 76, 60, 0.5);
+  color: #e74c3c;
+}
+
+.boss-magic-btn.defense-halved-btn {
+  border-color: rgba(155, 89, 182, 0.5);
+  color: var(--accent-purple);
+}
+
+.boss-magic-btn.poison-all-btn {
+  border-color: rgba(46, 204, 113, 0.5);
+  color: var(--accent-green);
+}
+
 .boss-magic-btn:disabled {
   opacity: 0.45;
   cursor: not-allowed;
@@ -1454,6 +1469,16 @@ input:focus {
 .status-effect.status-haste {
   background: rgba(241, 196, 15, 0.92);
   color: #1a1a2e;
+}
+
+.status-effect.status-attack2x {
+  background: rgba(231, 76, 60, 0.92);
+  color: #fff;
+}
+
+.status-effect.status-defense-halved {
+  background: rgba(155, 89, 182, 0.92);
+  color: #fff;
 }
 
 .boss-magic-btn.ability-used,
