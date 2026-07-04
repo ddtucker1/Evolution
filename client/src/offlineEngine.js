@@ -126,6 +126,7 @@ function createPlayer(id, username, deckIds) {
     drawTimerMax: DRAW_TIMER_MAX,
     replacementsUsed: 0,
     maxReplacements: MAX_REPLACEMENTS,
+    bossAbilityUsed: false,
   };
 }
 
@@ -152,6 +153,15 @@ function canBossAttack(player) {
 
 function canBossBeTargeted(player) {
   return canBossAttack(player);
+}
+
+function canUseBossAbility(player) {
+  return player.boss?.alive && !player.bossAbilityUsed;
+}
+
+function markBossAbilityUsed(player, abilityName) {
+  player.bossAbilityUsed = true;
+  if (abilityName) player.bossAbilityType = abilityName;
 }
 
 function getAttackableTargets(opponent) {
@@ -469,6 +479,7 @@ function toPrivateState(game, playerId) {
     deckRemaining: me.deck.length,
     bossCanAttack,
     opponentBossCanAttack,
+    bossAbilityAvailable: canUseBossAbility(me),
     opponent: {
       id: opp.id,
       username: opp.username,
@@ -566,6 +577,7 @@ function startTicks(game) {
     }
 
     runNpcDrawAndReplace(game);
+    runNpcBossMagic(game);
     runNpcAI(game);
 
     const w = checkWinner(game.players[0], game.players[1]);
@@ -578,6 +590,52 @@ function runNpcDrawAndReplace(game) {
   const npc = game.players[1];
   if (npc.drawTimer >= npc.drawTimerMax) drawCardForPlayer(game, npc, 'CPU');
   if (tryReplaceFromHand(npc)) game.log.push('CPU deployed a replacement fighter');
+}
+
+function runNpcBossMagic(game) {
+  if (isBattlePaused(game) || game.winnerId) return;
+  const npc = game.players[1];
+  const human = game.players[0];
+  if (!canUseBossAbility(npc)) return;
+
+  const damagedFighters = getAliveFieldFighters(npc).filter((c) => c.hp < c.maxHp);
+  if (damagedFighters.length) {
+    const target = damagedFighters.reduce((a, b) => (
+      a.hp / a.maxHp < b.hp / b.maxHp ? a : b
+    ));
+    applyBossHeal(npc, target);
+    game.log.push(`CPU boss healed ${target.name}`);
+    return;
+  }
+
+  const playerCards = getFieldCards(human).filter((c) => c.alive);
+  const slowTarget = playerCards.length
+    ? playerCards.reduce((a, b) => (a.cooldownRemaining < b.cooldownRemaining ? a : b))
+    : null;
+  if (slowTarget && slowTarget.cooldownRemaining <= slowTarget.cooldown * 0.6) {
+    applyBossSlow(npc, slowTarget);
+    game.log.push(`CPU boss slowed ${slowTarget.name}`);
+    return;
+  }
+
+  const hasteCandidates = getFieldCards(npc).filter((c) => c.alive && c.cooldownRemaining > 2);
+  if (hasteCandidates.length) {
+    const target = hasteCandidates.reduce((a, b) => (
+      a.cooldownRemaining > b.cooldownRemaining ? a : b
+    ));
+    applyBossHaste(npc, target);
+    game.log.push(`CPU boss hastened ${target.name}`);
+    return;
+  }
+
+  if (slowTarget) {
+    applyBossSlow(npc, slowTarget);
+    game.log.push(`CPU boss slowed ${slowTarget.name}`);
+  } else if (getAliveFieldFighters(npc).length) {
+    const target = getAliveFieldFighters(npc)[0];
+    applyBossHeal(npc, target);
+    game.log.push(`CPU boss healed ${target.name}`);
+  }
 }
 
 function runNpcAI(game) {
@@ -674,33 +732,69 @@ export function offlineAttack(game, attackerId, defenderId) {
   return beginAttackAnimation(game, attacker, defender, 'You');
 }
 
-export function offlineBossSlow(game, targetInstanceId) {
-  if (game.phase !== 'battle' || game.winnerId) return { success: false };
-  const player = game.players[0];
-  const opp = game.players[1];
-  if (!player.boss?.alive) return { success: false, message: 'Boss is not available' };
-  const target = getFieldCards(opp).find((c) => c.instanceId === targetInstanceId);
-  if (!target?.alive) return { success: false, message: 'Invalid target' };
-  if (target.role === 'boss' && !canBossBeTargeted(opp)) {
-    return { success: false, message: 'Boss is protected until all fighters are defeated' };
-  }
+function applyBossSlow(owner, target) {
   target.cooldownRemaining = Math.min(
     target.cooldown,
     Math.max(target.cooldownRemaining, 1) * 2,
   );
+  markBossAbilityUsed(owner, 'slow');
+}
+
+function applyBossHeal(owner, target) {
+  target.hp = target.maxHp;
+  markBossAbilityUsed(owner, 'heal');
+}
+
+function applyBossHaste(owner, target) {
+  target.cooldownRemaining = Math.max(0, Math.floor(target.cooldownRemaining / 2));
+  markBossAbilityUsed(owner, 'haste');
+}
+
+function resolveBossAbility(game, owner, ability, targetInstanceId) {
+  if (game.phase !== 'battle' || game.winnerId || isBattlePaused(game)) {
+    return { success: false };
+  }
+  if (!canUseBossAbility(owner)) {
+    return { success: false, message: 'Boss ability already used this battle' };
+  }
+
+  if (ability === 'slow') {
+    const opp = game.players.find((p) => p.id !== owner.id);
+    const target = getFieldCards(opp).find((c) => c.instanceId === targetInstanceId);
+    if (!target?.alive) return { success: false, message: 'Invalid target' };
+    if (target.role === 'boss' && !canBossBeTargeted(opp)) {
+      return { success: false, message: 'Boss is protected until all fighters are defeated' };
+    }
+    applyBossSlow(owner, target);
+    game.log.push(`${owner.username} boss slowed ${target.name}`);
+  } else if (ability === 'heal') {
+    const target = getAliveFieldFighters(owner).find((c) => c.instanceId === targetInstanceId);
+    if (!target) return { success: false, message: 'Select one of your fighters' };
+    applyBossHeal(owner, target);
+    game.log.push(`${owner.username} boss healed ${target.name}`);
+  } else if (ability === 'haste') {
+    const target = getFieldCards(owner).find((c) => c.instanceId === targetInstanceId);
+    if (!target?.alive) return { success: false, message: 'Invalid target' };
+    applyBossHaste(owner, target);
+    game.log.push(`${owner.username} boss hastened ${target.name}`);
+  } else {
+    return { success: false };
+  }
+
   if (game.onUpdate) game.onUpdate(toPrivateState(game, 'player'));
   return { success: true };
 }
 
+export function offlineBossSlow(game, targetInstanceId) {
+  return resolveBossAbility(game, game.players[0], 'slow', targetInstanceId);
+}
+
 export function offlineBossHeal(game, targetInstanceId) {
-  if (game.phase !== 'battle' || game.winnerId) return { success: false };
-  const player = game.players[0];
-  if (!player.boss?.alive) return { success: false, message: 'Boss is not available' };
-  const target = getAliveFieldFighters(player).find((c) => c.instanceId === targetInstanceId);
-  if (!target) return { success: false, message: 'Select one of your fighters' };
-  target.hp = target.maxHp;
-  if (game.onUpdate) game.onUpdate(toPrivateState(game, 'player'));
-  return { success: true };
+  return resolveBossAbility(game, game.players[0], 'heal', targetInstanceId);
+}
+
+export function offlineBossHaste(game, targetInstanceId) {
+  return resolveBossAbility(game, game.players[0], 'haste', targetInstanceId);
 }
 
 export function stopTicks() {

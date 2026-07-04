@@ -11,6 +11,7 @@ export default function BattleView({
   onDismissReplacement,
   onBossSlow,
   onBossHeal,
+  onBossHaste,
   onMainMenu,
 }) {
   const [targetMode, setTargetMode] = useState(null);
@@ -42,6 +43,7 @@ export default function BattleView({
     maxReplacements,
     bossCanAttack,
     opponentBossCanAttack,
+    bossAbilityAvailable,
   } = gameState;
 
   const me = players?.find((p) => p.id === 'player') || players?.[0];
@@ -72,10 +74,17 @@ export default function BattleView({
   };
 
   const handleMagicTargetSelect = (target) => {
-    if (!magicMode) return;
+    if (!magicMode || !bossAbilityAvailable) return;
     if (magicMode === 'slow') onBossSlow(target.instanceId);
     else if (magicMode === 'heal') onBossHeal(target.instanceId);
+    else if (magicMode === 'haste') onBossHaste(target.instanceId);
     setMagicMode(null);
+  };
+
+  const startBossMagic = (mode) => {
+    if (!bossAbilityAvailable || battleLocked) return;
+    setTargetMode(null);
+    setMagicMode(mode);
   };
 
   const handleReplaceSlotClick = (slotIndex) => {
@@ -156,6 +165,13 @@ export default function BattleView({
 
   const getHealTargets = () => getAliveFieldFighters(myPlayer.field);
 
+  const getHasteTargets = () => {
+    const fighters = getAliveFieldFighters(myPlayer.field);
+    if (fighters.length) return fighters;
+    if (myPlayer.boss?.alive && bossCanAttack) return [myPlayer.boss];
+    return [];
+  };
+
   const renderBattlefield = (player, isPlayer) => {
     const aliveFighters = countAliveFighters(player.field);
     const boss = player.boss;
@@ -172,23 +188,30 @@ export default function BattleView({
             <button
               type="button"
               className="boss-magic-btn slow-btn"
-              onClick={() => {
-                setTargetMode(null);
-                setMagicMode('slow');
-              }}
+              disabled={!bossAbilityAvailable || battleLocked}
+              onClick={() => startBossMagic('slow')}
             >
               Slow Timer
             </button>
             <button
               type="button"
               className="boss-magic-btn heal-btn"
-              onClick={() => {
-                setTargetMode(null);
-                setMagicMode('heal');
-              }}
+              disabled={!bossAbilityAvailable || battleLocked}
+              onClick={() => startBossMagic('heal')}
             >
               Heal Fighter
             </button>
+            <button
+              type="button"
+              className="boss-magic-btn haste-btn"
+              disabled={!bossAbilityAvailable || battleLocked}
+              onClick={() => startBossMagic('haste')}
+            >
+              Haste Timer
+            </button>
+            {!bossAbilityAvailable && (
+              <span className="boss-magic-spent">Ability used this battle</span>
+            )}
           </div>
         )}
       </div>
@@ -448,6 +471,28 @@ export default function BattleView({
                 />
               )) : (
                 <p className="replace-hint">No fighters available to heal</p>
+              )}
+            </div>
+            <button className="btn-secondary" style={{ width: '100%' }} onClick={() => setMagicMode(null)}>Cancel</button>
+          </div>
+        </div>
+      )}
+
+      {magicMode === 'haste' && (
+        <div className="target-overlay" onClick={() => setMagicMode(null)}>
+          <div className="target-panel" onClick={(e) => e.stopPropagation()}>
+            <h3>Haste Timer — choose ally</h3>
+            <p className="replace-hint">Halves the target&apos;s remaining cooldown</p>
+            <div className="field-cards" style={{ marginBottom: 16 }}>
+              {getHasteTargets().length > 0 ? getHasteTargets().map((card) => (
+                <GameCard
+                  key={card.instanceId}
+                  card={card}
+                  showCooldown
+                  onClick={() => handleMagicTargetSelect(card)}
+                />
+              )) : (
+                <p className="replace-hint">No attackers available to hasten</p>
               )}
             </div>
             <button className="btn-secondary" style={{ width: '100%' }} onClick={() => setMagicMode(null)}>Cancel</button>
