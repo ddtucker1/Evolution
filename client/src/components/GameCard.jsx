@@ -66,6 +66,12 @@ export default function GameCard({
         </div>
         ATK: {card.attack ?? 0}
         <br />
+        {card.ability?.label && (
+          <>
+            <span className="card-ability">{card.ability.label}</span>
+            <br />
+          </>
+        )}
         <div className="stat-row">
           <span className="timer-stat">Timer: {timerLabel}</span>
           {showCooldown && timerMax > 0 && (

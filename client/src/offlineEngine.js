@@ -12,6 +12,14 @@ const CARD_DATA = {
     { id: 'uni_titan', name: 'Storm Titan', attack: 19, defense: 12, hp: 45 },
     { id: 'uni_phoenix', name: 'Ember Phoenix', attack: 16, defense: 9, hp: 33 },
     { id: 'uni_serpent', name: 'Viper Serpent', attack: 14, defense: 11, hp: 31 },
+    { id: 'uni_monk', name: 'Iron Monk', attack: 13, defense: 13, hp: 36 },
+    { id: 'uni_samurai', name: 'Blade Samurai', attack: 17, defense: 11, hp: 34 },
+    { id: 'uni_necromancer', name: 'Dark Necromancer', attack: 16, defense: 7, hp: 29 },
+    { id: 'uni_ranger', name: 'Wild Ranger', attack: 15, defense: 9, hp: 33 },
+    { id: 'uni_shaman', name: 'Spirit Shaman', attack: 12, defense: 11, hp: 37 },
+    { id: 'uni_vampire', name: 'Crimson Vampire', attack: 18, defense: 8, hp: 31 },
+    { id: 'uni_dragon', name: 'Sky Dragon', attack: 21, defense: 10, hp: 44 },
+    { id: 'uni_elementalist', name: 'Prism Elementalist', attack: 14, defense: 10, hp: 35 },
   ],
 };
 
@@ -36,6 +44,12 @@ function nextInstanceId(prefix, templateId) {
 }
 
 function getTemplate(id) { return LOOKUP.get(id); }
+
+export function registerEvolvedCards(cards) {
+  for (const c of cards || []) {
+    LOOKUP.set(c.id, c);
+  }
+}
 
 function randomStat(min, max) {
   return Math.floor(Math.random() * (max - min + 1)) + min;
@@ -70,15 +84,18 @@ export function calculateAttackDamage(attacker, defender) {
 function makeBattleCard(templateId, instanceId) {
   const t = getTemplate(templateId);
   if (!t) return null;
-  const attack = randomStat(10, 25);
-  const maxHp = randomStat(30, 100);
+  const isEvolved = templateId.startsWith('evo_');
+  const attack = isEvolved ? t.attack : randomStat(10, 25);
+  const defense = isEvolved ? t.defense : randomStat(1, 10);
+  const maxHp = isEvolved ? t.hp : randomStat(30, 100);
   const cooldown = randomStat(CARD_TIMER_MIN, CARD_TIMER_MAX);
   return {
     instanceId, templateId, name: t.name, type: 'unique',
-    attack, defense: randomStat(1, 10),
+    attack, defense,
     maxHp, hp: maxHp,
     cooldown, cooldownRemaining: cooldown,
     alive: true, role: null,
+    ability: t.ability || null,
   };
 }
 
@@ -113,7 +130,7 @@ function createPlayer(id, username, deckIds) {
 }
 
 function npcDeck() {
-  const ids = ['uni_knight', 'uni_archer', 'uni_mage', 'uni_golem', 'uni_rogue', 'uni_paladin', 'uni_berserker', 'uni_druid', 'uni_wraith', 'uni_titan'];
+  const ids = CARD_DATA.unique.map((c) => c.id);
   const deck = [];
   for (let i = 0; i < PLAY_DECK_SIZE; i++) deck.push(ids[i % ids.length]);
   return deck;
@@ -200,6 +217,7 @@ function sanitize(card, revealed) {
     role: card.role,
     alive: card.alive,
     type: card.type,
+    ability: card.ability || null,
     bossLocked: false,
   };
 }
@@ -255,6 +273,57 @@ function completeDeathAnimation(game) {
   }
 }
 
+function applyFlatDamage(card, amount) {
+  if (!card?.alive || amount <= 0) return false;
+  card.hp -= amount;
+  if (card.hp <= 0) {
+    card.hp = 0;
+    card.alive = false;
+    return true;
+  }
+  return false;
+}
+
+function applyAttackAbility(game, attackerRef, defenderRef) {
+  const ability = attackerRef?.card?.ability;
+  if (!ability) return;
+
+  const attackerPlayer = attackerRef.player;
+  const defenderPlayer = game.players.find((p) => p.id !== attackerPlayer.id);
+
+  switch (ability.type) {
+    case 'piercing_aoe': {
+      const others = getAliveFieldFighters(defenderPlayer)
+        .filter((c) => c.instanceId !== defenderRef.card.instanceId);
+      for (const target of others) {
+        applyFlatDamage(target, ability.value);
+      }
+      break;
+    }
+    case 'heal_companions': {
+      const companions = getAliveFieldFighters(attackerPlayer)
+        .filter((c) => c.instanceId !== attackerRef.card.instanceId);
+      for (const ally of companions) {
+        ally.hp = Math.min(ally.maxHp, ally.hp + ability.value);
+      }
+      break;
+    }
+    case 'lifesteal': {
+      attackerRef.card.hp = Math.min(
+        attackerRef.card.maxHp,
+        attackerRef.card.hp + ability.value,
+      );
+      break;
+    }
+    case 'armor_break': {
+      defenderRef.card.defense = Math.max(0, defenderRef.card.defense - ability.value);
+      break;
+    }
+    default:
+      break;
+  }
+}
+
 function completeAttackAnimation(game) {
   const anim = game.attackAnimation;
   if (!anim) return;
@@ -270,6 +339,7 @@ function completeAttackAnimation(game) {
       defenderRef.card.hp = 0;
       defenderRef.card.alive = false;
     }
+    applyAttackAbility(game, attackerRef, defenderRef);
     attackerRef.card.cooldownRemaining = attackerRef.card.cooldown;
 
     if (killed) {

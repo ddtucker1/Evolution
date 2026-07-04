@@ -9,6 +9,7 @@ import {
 } from './api';
 import {
   createOfflineGame,
+  registerEvolvedCards,
   offlineSetup,
   offlineAttack,
   offlineDrawCard,
@@ -36,6 +37,7 @@ export default function App() {
     if (!battleReady) return;
     stopTicks();
     const deck = getPlayDeckIds(profile);
+    registerEvolvedCards(profile.evolvedCards || []);
     const game = createOfflineGame(deck);
     game.onUpdate = (state) => setGameState(state);
     offlineGameRef.current = game;
