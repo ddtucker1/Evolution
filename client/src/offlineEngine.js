@@ -96,6 +96,8 @@ const PLAY_DECK_SIZE = 10;
 const MAX_REPLACEMENTS = 3;
 const ATTACK_ANIM_MS = 4000;
 const EFFECT_DURATION_MS = 2 * 60 * 1000;
+const BOSS_PHASE2_TIME = 4 * 60;
+const BOSS_POISON_DURATION_MS = 60 * 1000;
 
 const LOOKUP = new Map();
 for (const c of CARD_DATA.unique) LOOKUP.set(c.id, c);
@@ -198,7 +200,10 @@ function createPlayer(id, username, deckIds) {
     drawTimerMax: DRAW_TIMER_MAX,
     replacementsUsed: 0,
     maxReplacements: MAX_REPLACEMENTS,
-    bossAbilitiesUsed: { slow: false, heal: false, haste: false },
+    bossAbilitiesUsed: {
+      slow: false, heal: false, haste: false,
+      attack2x: false, defenseHalved: false, poisonAll: false,
+    },
   };
 }
 
@@ -300,18 +305,40 @@ function canBossBeTargeted(player) {
   return canBossAttack(player);
 }
 
-function hasUsedBossAbility(player) {
+function defaultBossAbilitiesUsed() {
+  return {
+    slow: false, heal: false, haste: false,
+    attack2x: false, defenseHalved: false, poisonAll: false,
+  };
+}
+
+function getBossMagicPhase(game) {
+  return (game.battleElapsed || 0) >= BOSS_PHASE2_TIME ? 2 : 1;
+}
+
+function hasUsedBossAbilityPhase1(player) {
   const used = player.bossAbilitiesUsed;
   return !!(used?.slow || used?.heal || used?.haste);
 }
 
-function canUseBossAbility(player) {
-  return player.boss?.alive && !hasUsedBossAbility(player);
+function hasUsedBossAbilityPhase2(player) {
+  const used = player.bossAbilitiesUsed;
+  return !!(used?.attack2x || used?.defenseHalved || used?.poisonAll);
+}
+
+function hasUsedBossAbility(player, game) {
+  return getBossMagicPhase(game) === 2
+    ? hasUsedBossAbilityPhase2(player)
+    : hasUsedBossAbilityPhase1(player);
+}
+
+function canUseBossAbility(player, game) {
+  return player.boss?.alive && !hasUsedBossAbility(player, game);
 }
 
 function markBossAbilityUsed(game, player, abilityName, targetName = '') {
   if (!player.bossAbilitiesUsed) {
-    player.bossAbilitiesUsed = { slow: false, heal: false, haste: false };
+    player.bossAbilitiesUsed = defaultBossAbilitiesUsed();
   }
   player.bossAbilitiesUsed.slow = true;
   player.bossAbilitiesUsed.heal = true;
@@ -323,6 +350,15 @@ function markBossAbilityUsed(game, player, abilityName, targetName = '') {
     targetName,
     at: Date.now(),
   };
+}
+
+function markBossAbilityUsedPhase2(player) {
+  if (!player.bossAbilitiesUsed) {
+    player.bossAbilitiesUsed = defaultBossAbilitiesUsed();
+  }
+  player.bossAbilitiesUsed.attack2x = true;
+  player.bossAbilitiesUsed.defenseHalved = true;
+  player.bossAbilitiesUsed.poisonAll = true;
 }
 
 function getAttackableTargets(opponent) {
@@ -415,6 +451,8 @@ function sanitize(card, revealed) {
     slowed: !!card.slowed,
     hasted: !!card.hasted,
     poisoned: !!card.poisoned,
+    attackDoubled: !!card.attackDoubled,
+    defenseHalved: !!card.defenseHalved,
     level: card.level ?? 0,
     isBase: !!card.isBase,
     bossLocked: false,
@@ -726,10 +764,12 @@ function toPrivateState(game, playerId) {
       drawTimer: p.drawTimer,
       drawTimerMax: p.drawTimerMax,
       drawReady: p.drawTimer >= p.drawTimerMax && p.deck.length > 0,
-      bossAbilitiesUsed: { ...(p.bossAbilitiesUsed || { slow: false, heal: false, haste: false }) },
+      bossAbilitiesUsed: { ...(p.bossAbilitiesUsed || defaultBossAbilitiesUsed()) },
     })),
     log: game.log.slice(-20),
     winnerId: game.winnerId,
+    battleElapsed: game.battleElapsed || 0,
+    bossMagicPhase: getBossMagicPhase(game),
     attackAnimation: game.attackAnimation ? { ...game.attackAnimation } : null,
     deathAnimation: game.deathAnimation ? { ...game.deathAnimation } : null,
     pendingPlayerAttack: game.pendingPlayerAttack ? { ...game.pendingPlayerAttack } : null,
@@ -747,8 +787,10 @@ function toPrivateState(game, playerId) {
     deckRemaining: me.deck.length,
     bossCanAttack,
     opponentBossCanAttack,
-    bossAbilitiesUsed: { ...(me.bossAbilitiesUsed || { slow: false, heal: false, haste: false }) },
+    bossAbilitiesUsed: { ...(me.bossAbilitiesUsed || defaultBossAbilitiesUsed()) },
     bossAbilityEvent: game.bossAbilityEvent ? { ...game.bossAbilityEvent } : null,
+    bossMagicPhase: getBossMagicPhase(game),
+    battleElapsed: game.battleElapsed || 0,
     bossPhase: isBossPhase(game),
     opponent: {
       id: opp.id,
@@ -760,7 +802,7 @@ function toPrivateState(game, playerId) {
       replacementsUsed: opp.replacementsUsed,
       drawTimer: opp.drawTimer,
       drawTimerMax: opp.drawTimerMax,
-      bossAbilitiesUsed: { ...(opp.bossAbilitiesUsed || { slow: false, heal: false, haste: false }) },
+      bossAbilitiesUsed: { ...(opp.bossAbilitiesUsed || defaultBossAbilitiesUsed()) },
     },
   };
 }
@@ -783,6 +825,7 @@ export function createOfflineGame(deckIds) {
     deathTimeout: null,
     pendingReplacement: null,
     pendingPlayerAttack: null,
+    battleElapsed: 0,
   };
   return game;
 }
@@ -882,6 +925,8 @@ function startTicks(game) {
       return;
     }
 
+    game.battleElapsed = (game.battleElapsed || 0) + 1;
+
     for (const p of game.players) {
       for (const c of getFieldCards(p)) {
         if (!isCardReady(c)) c.cooldownElapsed = Math.min(c.cooldown, (c.cooldownElapsed || 0) + 1);
@@ -910,10 +955,15 @@ function runNpcBossMagic(game) {
   const npc = game.players[1];
   const human = game.players[0];
 
+  if (getBossMagicPhase(game) === 2) {
+    runNpcBossMagicPhase2(game, npc, human);
+    return;
+  }
+
   const fighters = getAliveFieldFighters(npc);
   const needsHeal = fighters.some((c) => c.hp < c.maxHp)
     || (isBossOnlyPhase(npc) && npc.boss.hp < npc.boss.maxHp);
-  if (canUseBossAbility(npc) && needsHeal) {
+  if (canUseBossAbility(npc, game) && needsHeal) {
     applyBossHeal(game, npc);
     game.log.push(`CPU boss healed ${fighters.length ? 'all fighters' : npc.boss.name}`);
     return;
@@ -924,7 +974,7 @@ function runNpcBossMagic(game) {
     ? playerCards.reduce((a, b) => (getCooldownRemaining(a) < getCooldownRemaining(b) ? a : b))
     : null;
   if (
-    canUseBossAbility(npc)
+    canUseBossAbility(npc, game)
     && slowTarget
     && getCooldownRemaining(slowTarget) <= slowTarget.cooldown * 0.6
   ) {
@@ -934,7 +984,7 @@ function runNpcBossMagic(game) {
   }
 
   const hasteCandidates = getFieldCards(npc).filter((c) => c.alive && getCooldownRemaining(c) > 2);
-  if (canUseBossAbility(npc) && hasteCandidates.length) {
+  if (canUseBossAbility(npc, game) && hasteCandidates.length) {
     const target = hasteCandidates.reduce((a, b) => (
       getCooldownRemaining(a) > getCooldownRemaining(b) ? a : b
     ));
@@ -943,9 +993,45 @@ function runNpcBossMagic(game) {
     return;
   }
 
-  if (canUseBossAbility(npc) && slowTarget) {
+  if (canUseBossAbility(npc, game) && slowTarget) {
     applyBossSlow(game, npc, slowTarget);
     game.log.push(`CPU boss slowed ${slowTarget.name}`);
+  }
+}
+
+function runNpcBossMagicPhase2(game, npc, human) {
+  if (!canUseBossAbility(npc, game)) return;
+
+  const enemyFighters = getAliveFieldFighters(human);
+  if (enemyFighters.length >= 2) {
+    applyBossPoisonAll(game, npc, human);
+    game.log.push('CPU boss poisoned all enemy fighters');
+    return;
+  }
+
+  const enemyCards = getFieldCards(human).filter((c) => c.alive);
+  const defenseTarget = enemyCards.length
+    ? enemyCards.reduce((a, b) => (b.defense > a.defense ? b : a))
+    : null;
+  if (defenseTarget && defenseTarget.defense > 0) {
+    applyBossDefenseHalved(game, npc, defenseTarget);
+    game.log.push(`CPU boss halved ${defenseTarget.name}'s defense`);
+    return;
+  }
+
+  const allyCards = getFieldCards(npc).filter((c) => c.alive && !c.attackDoubled);
+  const attackTarget = allyCards.length
+    ? allyCards.reduce((a, b) => (b.attack > a.attack ? b : a))
+    : null;
+  if (attackTarget) {
+    applyBossAttack2x(game, npc, attackTarget);
+    game.log.push(`CPU boss doubled ${attackTarget.name}'s attack`);
+    return;
+  }
+
+  if (enemyFighters.length) {
+    applyBossPoisonAll(game, npc, human);
+    game.log.push('CPU boss poisoned all enemy fighters');
   }
 }
 
@@ -1162,12 +1248,42 @@ function applyBossHaste(game, owner, target) {
   markBossAbilityUsed(game, owner, 'haste', target.name);
 }
 
+function applyBossAttack2x(game, owner, target) {
+  if (!target.attackDoubled) {
+    target.attackDoubled = true;
+    target.attack = Math.floor(target.attack * 2);
+  }
+  markBossAbilityUsedPhase2(owner);
+}
+
+function applyBossDefenseHalved(game, owner, target) {
+  if (!target.defenseHalved) {
+    target.defenseHalved = true;
+    target.defense = Math.max(0, Math.floor(target.defense / 2));
+  }
+  markBossAbilityUsedPhase2(owner);
+}
+
+function applyBossPoisonAll(game, owner, opponent) {
+  const fighters = getAliveFieldFighters(opponent);
+  const expiresAt = Date.now() + BOSS_POISON_DURATION_MS;
+  for (const fighter of fighters) {
+    fighter.poisoned = true;
+    fighter.poisonTicks = 0;
+    fighter.poisonExpiresAt = expiresAt;
+  }
+  markBossAbilityUsedPhase2(owner);
+}
+
 function resolveBossAbility(game, owner, ability, targetInstanceId) {
   if (game.phase !== 'battle' || game.winnerId) {
     return { success: false };
   }
-  if (!canUseBossAbility(owner)) {
+  if (!canUseBossAbility(owner, game)) {
     return { success: false, message: 'Boss abilities already used this battle' };
+  }
+  if (getBossMagicPhase(game) !== 1) {
+    return { success: false, message: 'Phase 1 abilities no longer available' };
   }
 
   if (ability === 'slow') {
@@ -1200,6 +1316,47 @@ function resolveBossAbility(game, owner, ability, targetInstanceId) {
   return { success: true };
 }
 
+function resolveBossAbilityPhase2(game, owner, ability, targetInstanceId) {
+  if (game.phase !== 'battle' || game.winnerId) {
+    return { success: false };
+  }
+  if (getBossMagicPhase(game) !== 2) {
+    return { success: false, message: 'Phase 2 abilities not yet available' };
+  }
+  if (!canUseBossAbility(owner, game)) {
+    return { success: false, message: 'Boss abilities already used this phase' };
+  }
+
+  if (ability === 'attack2x') {
+    const target = getFieldCards(owner).find((c) => c.instanceId === targetInstanceId);
+    if (!target?.alive) return { success: false, message: 'Invalid target' };
+    if (target.attackDoubled) return { success: false, message: 'Attack already doubled' };
+    applyBossAttack2x(game, owner, target);
+    game.log.push(`${owner.username} boss doubled ${target.name}'s attack`);
+  } else if (ability === 'defenseHalved') {
+    const opp = game.players.find((p) => p.id !== owner.id);
+    const target = getFieldCards(opp).find((c) => c.instanceId === targetInstanceId);
+    if (!target?.alive) return { success: false, message: 'Invalid target' };
+    if (target.role === 'boss' && !canBossBeTargeted(opp)) {
+      return { success: false, message: 'Boss is protected until all fighters are defeated' };
+    }
+    if (target.defenseHalved) return { success: false, message: 'Defense already halved' };
+    applyBossDefenseHalved(game, owner, target);
+    game.log.push(`${owner.username} boss halved ${target.name}'s defense`);
+  } else if (ability === 'poisonAll') {
+    const opp = game.players.find((p) => p.id !== owner.id);
+    const fighters = getAliveFieldFighters(opp);
+    if (!fighters.length) return { success: false, message: 'No enemy fighters to poison' };
+    applyBossPoisonAll(game, owner, opp);
+    game.log.push(`${owner.username} boss poisoned all enemy fighters`);
+  } else {
+    return { success: false };
+  }
+
+  if (game.onUpdate) game.onUpdate(toPrivateState(game, 'player'));
+  return { success: true };
+}
+
 export function offlineBossSlow(game, targetInstanceId) {
   return resolveBossAbility(game, game.players[0], 'slow', targetInstanceId);
 }
@@ -1210,6 +1367,18 @@ export function offlineBossHeal(game) {
 
 export function offlineBossHaste(game, targetInstanceId) {
   return resolveBossAbility(game, game.players[0], 'haste', targetInstanceId);
+}
+
+export function offlineBossAttack2x(game, targetInstanceId) {
+  return resolveBossAbilityPhase2(game, game.players[0], 'attack2x', targetInstanceId);
+}
+
+export function offlineBossDefenseHalved(game, targetInstanceId) {
+  return resolveBossAbilityPhase2(game, game.players[0], 'defenseHalved', targetInstanceId);
+}
+
+export function offlineBossPoisonAll(game) {
+  return resolveBossAbilityPhase2(game, game.players[0], 'poisonAll');
 }
 
 export function stopTicks() {
