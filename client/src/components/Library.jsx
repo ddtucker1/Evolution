@@ -51,9 +51,11 @@ export default function Library({ profile, onProfileChange, onMainMenu }) {
       }
     };
 
+    const ascending = sortBy === 'timer';
+
     return [...uniqueCatalogCards].sort((a, b) => {
       const diff = getSortValue(a.card_id) - getSortValue(b.card_id);
-      if (diff !== 0) return diff;
+      if (diff !== 0) return ascending ? diff : -diff;
       return a.card_id.localeCompare(b.card_id);
     });
   }, [uniqueCatalogCards, profile, sortBy]);

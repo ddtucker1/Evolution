@@ -468,6 +468,8 @@ input:focus {
   border-radius: var(--radius);
   padding: 16px;
   border: 1px solid var(--border);
+  position: relative;
+  overflow: hidden;
 }
 
 .player-zone h3 {
@@ -1749,4 +1751,32 @@ input:focus {
 @keyframes chain-fire-embers {
   0% { transform: translateY(0); opacity: 0.7; }
   100% { transform: translateY(-18px); opacity: 0.35; }
+}
+
+.player-zone.blood-splattered {
+  border-color: rgba(139, 0, 0, 0.55);
+}
+
+.blood-splatter-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.blood-splatter-svg {
+  width: 100%;
+  height: 100%;
+  opacity: 0.88;
+  filter: drop-shadow(0 0 6px rgba(80, 0, 0, 0.35));
+}
+
+.player-zone.blood-splattered > *:not(.blood-splatter-overlay) {
+  position: relative;
+  z-index: 1;
+}
+
+.player-zone.blood-splattered .game-card {
+  filter: saturate(0.75) brightness(0.88);
 }

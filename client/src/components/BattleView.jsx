@@ -2,6 +2,7 @@ import { useState, useRef } from 'react';
 import GameCard from './GameCard';
 import AttackArrow from './AttackArrow';
 import ChainFireAnimation from './ChainFireAnimation';
+import BloodSplatter from './BloodSplatter';
 
 export default function BattleView({
   gameState,
@@ -543,20 +544,6 @@ export default function BattleView({
         </div>
       )}
 
-      {animationInProgress && pendingPlayerAttack && (
-        <div className="attack-banner queued-attack-banner">
-          {pendingPlayerAttack.isChain
-            ? 'Chain attack queued — will execute when the current animation finishes'
-            : 'Attack queued — will execute when the current animation finishes'}
-        </div>
-      )}
-
-      {deathAnimation && (
-        <div className="attack-banner death-banner">
-          Card destroyed — shake and fade animation playing
-        </div>
-      )}
-
       <div className="battlefield" ref={battlefieldRef}>
         {attackAnimation && (
           <>
@@ -572,7 +559,8 @@ export default function BattleView({
             />
           </>
         )}
-        <div className="player-zone">
+        <div className={`player-zone${winnerId && winnerId !== me?.id && winnerId !== 'player' ? ' blood-splattered' : ''}`}>
+          {winnerId && winnerId !== me?.id && winnerId !== 'player' && <BloodSplatter />}
           <div className="player-zone-header">
             <h3>Your Battlefield</h3>
             <div className="deck-draw-zone">
@@ -597,7 +585,8 @@ export default function BattleView({
           )}
         </div>
 
-        <div className="player-zone">
+        <div className={`player-zone${winnerId && (winnerId === me?.id || winnerId === 'player') ? ' blood-splattered' : ''}`}>
+          {winnerId && (winnerId === me?.id || winnerId === 'player') && <BloodSplatter />}
           <h3>{oppPlayer?.username || 'CPU Opponent'}</h3>
           {renderBattlefield(oppPlayer || { boss: null, field: [null, null, null] }, false)}
           {oppAliveFighters > 0 && oppPlayer?.boss?.alive && (
