@@ -53,7 +53,8 @@ async function resolveTrackUrl(mode) {
   for (const base of bases) {
     const files = await fetchTrackList(base);
     if (files.length > 0) {
-      return `${base}/${encodeURIComponent(files[0])}`;
+      const pick = files[Math.floor(Math.random() * files.length)];
+      return `${base}/${encodeURIComponent(pick)}`;
     }
   }
   return null;
