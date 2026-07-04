@@ -1,5 +1,5 @@
-import { CARD_DATA, PLAY_DECK_SIZE } from './offlineEngine';
-import { createEvolvedCard } from './evolveEngine';
+import { CARD_DATA, PLAY_DECK_SIZE, getLibraryCooldownSeconds } from './offlineEngine';
+import { createEvolvedCard, getCardLevel } from './evolveEngine';
 
 export { PLAY_DECK_SIZE };
 
@@ -55,8 +55,15 @@ export function getOfflineProfile() {
   return data ? JSON.parse(data) : null;
 }
 
+function migrateEvolvedCard(card) {
+  if (!card) return card;
+  const level = getCardLevel(card);
+  const timer = card.timer ?? getLibraryCooldownSeconds(card.id);
+  return { ...card, level, timer };
+}
+
 function migrateProfile(profile) {
-  const evolvedCards = profile.evolvedCards || [];
+  const evolvedCards = (profile.evolvedCards || []).map(migrateEvolvedCard);
   let collection = ensureFullCollection(profile.collection || profile.cards || buildStarterCollection());
   collection = collection.filter((c) => isPlayableCardId(c.card_id, { ...profile, evolvedCards }));
   const playDeck = (profile.playDeck || []).filter((id) => isPlayableCardId(id, { ...profile, evolvedCards }));

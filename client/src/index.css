@@ -852,6 +852,33 @@ input:focus {
   left: auto;
 }
 
+.level-badge {
+  background: var(--accent-purple);
+  right: 4px;
+  left: auto;
+}
+
+.game-card .card-level-badge {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  font-size: 9px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: var(--accent-purple);
+  color: #fff;
+  font-weight: 700;
+  z-index: 2;
+}
+
+.level-bonus-text {
+  font-size: 11px;
+  color: var(--accent-gold);
+  text-align: center;
+  margin-bottom: 8px;
+  line-height: 1.4;
+}
+
 .evolve-badge {
   background: var(--accent-red);
 }

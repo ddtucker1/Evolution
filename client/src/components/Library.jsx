@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import GameCard from './GameCard';
 import { CARD_TIMER_MIN, CARD_TIMER_MAX, getLibraryCooldownSeconds } from '../offlineEngine';
-import { previewEvolve } from '../evolveEngine';
+import { previewEvolve, getCardLevel, getLevelLabel } from '../evolveEngine';
 import {
   PLAY_DECK_SIZE,
   getCatalogCard,
@@ -84,7 +84,8 @@ export default function Library({ profile, onProfileChange, onMainMenu }) {
               </>
             ) : (
               <>
-                Select two cards to sacrifice. They will merge into a new evolved fighter with averaged stats and a special attack ability.
+                Select two cards to sacrifice. Two basic cards or a basic plus Level 1 card produce a Level 1 fighter.
+                Two Level 1 cards evolve into Level 2, gaining a random +2 stat boost or a 2-second timer reduction.
               </>
             )}
           </p>
@@ -142,6 +143,9 @@ export default function Library({ profile, onProfileChange, onMainMenu }) {
           const canAdd = playDeck.length < PLAY_DECK_SIZE && inDeck < owned;
           const canSelectEvolve = mode === 'evolve' && (selected || evolveSelection.length < 2);
           const isEvolved = card_id.startsWith('evo_');
+          const cardLevel = catalog ? getCardLevel(catalog) : 0;
+          const levelLabel = getLevelLabel(cardLevel);
+          const timerPreview = catalog?.timer ?? getLibraryCooldownSeconds(key);
 
           return (
             <div
@@ -160,7 +164,6 @@ export default function Library({ profile, onProfileChange, onMainMenu }) {
             >
               {mode === 'deck' && inDeck > 0 && <span className="deck-badge">{inDeck} in deck</span>}
               {mode === 'evolve' && selected && <span className="deck-badge evolve-badge">Sacrifice</span>}
-              {isEvolved && <span className="deck-badge evolved-badge">Evolved</span>}
               <GameCard
                 card={{
                   name: catalog?.name || card_id,
@@ -169,12 +172,14 @@ export default function Library({ profile, onProfileChange, onMainMenu }) {
                   defense: catalog?.defense,
                   hp: catalog?.hp,
                   maxHp: catalog?.hp,
+                  timer: catalog?.timer,
                   ability: catalog?.ability,
                   alive: true,
                 }}
                 selected={selected}
                 showCooldown={false}
-                cooldownPreview={getLibraryCooldownSeconds(key)}
+                cooldownPreview={timerPreview}
+                levelLabel={levelLabel}
               />
             </div>
           );
@@ -189,7 +194,8 @@ export default function Library({ profile, onProfileChange, onMainMenu }) {
           {evolvePreview ? (
             <div className="evolve-preview">
               <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 12 }}>
-                Preview of the evolved card (stats are averaged; ability is chosen from the fusion):
+                Preview of the evolved card (stats are averaged from parents
+                {evolvePreview.level === 2 ? '; Level 2 bonus applied' : ''}):
               </p>
               <div className="evolve-preview-card">
                 <GameCard
@@ -200,17 +206,23 @@ export default function Library({ profile, onProfileChange, onMainMenu }) {
                     defense: evolvePreview.defense,
                     hp: evolvePreview.hp,
                     maxHp: evolvePreview.hp,
+                    timer: evolvePreview.timer,
                     ability: evolvePreview.ability,
                     alive: true,
                   }}
                   showCooldown={false}
+                  cooldownPreview={evolvePreview.timer}
+                  levelLabel={getLevelLabel(evolvePreview.level)}
                 />
               </div>
+              {evolvePreview.level2Bonus && (
+                <p className="level-bonus-text">Level 2 bonus: {evolvePreview.level2Bonus.label}</p>
+              )}
               <p className="ability-text">{evolvePreview.ability.label}</p>
             </div>
           ) : (
             <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 12 }}>
-              Select two cards above. Their attack, defense, and HP will be averaged into a new evolved fighter with a special ability.
+              Select two cards above. Basic + basic or basic + Level 1 creates Level 1. Two Level 1 cards create Level 2 with a random stat boost.
             </p>
           )}
           <button
