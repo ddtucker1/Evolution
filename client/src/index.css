@@ -798,6 +798,64 @@ input:focus {
   font-weight: 700;
 }
 
+.evolve-panel {
+  margin-top: 20px;
+  padding: 16px;
+  background: var(--bg-elevated);
+  border-radius: var(--radius);
+  border: 1px dashed var(--accent-purple);
+}
+
+.evolve-preview {
+  margin-bottom: 12px;
+}
+
+.evolve-preview-card {
+  max-width: 160px;
+  margin: 0 auto 8px;
+}
+
+.ability-text {
+  font-size: 11px;
+  color: var(--accent-purple);
+  text-align: center;
+  margin-bottom: 12px;
+  line-height: 1.4;
+}
+
+.card-ability {
+  display: block;
+  font-size: 9px;
+  color: var(--accent-purple);
+  line-height: 1.3;
+  margin: 4px 0;
+}
+
+.evolve-counter {
+  color: var(--accent-purple);
+  border: 1px solid var(--accent-purple);
+}
+
+.library-card-wrap.evolve-selected {
+  transform: scale(0.98);
+  outline: 2px solid var(--accent-purple);
+  border-radius: var(--radius);
+}
+
+.library-card-wrap.evolved-card .game-card {
+  border-color: var(--accent-purple);
+}
+
+.evolved-badge {
+  background: var(--accent-purple);
+  right: 4px;
+  left: auto;
+}
+
+.evolve-badge {
+  background: var(--accent-red);
+}
+
 .success-toast {
   position: static;
   transform: none;

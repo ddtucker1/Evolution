@@ -1,13 +1,49 @@
 import { CARD_DATA, PLAY_DECK_SIZE } from './offlineEngine';
+import { createEvolvedCard } from './evolveEngine';
 
 export { PLAY_DECK_SIZE };
 
+const LIBRARY_SIZE = 20;
+
 function buildStarterCollection() {
-  return CARD_DATA.unique.map((c) => ({ card_id: c.id, quantity: 2 }));
+  return CARD_DATA.unique.map((c) => ({ card_id: c.id, quantity: 1 }));
 }
 
-function isUniqueCardId(cardId) {
+function isCatalogCardId(cardId) {
   return !!CARD_DATA.unique.find((c) => c.id === cardId);
+}
+
+function isEvolvedCardId(cardId, profile) {
+  return cardId.startsWith('evo_') && !!profile?.evolvedCards?.find((c) => c.id === cardId);
+}
+
+function isPlayableCardId(cardId, profile) {
+  return isCatalogCardId(cardId) || isEvolvedCardId(cardId, profile);
+}
+
+function decrementCollection(collection, cardId) {
+  const idx = collection.findIndex((c) => c.card_id === cardId);
+  if (idx < 0) return collection;
+  const entry = collection[idx];
+  if (entry.quantity <= 1) {
+    return [...collection.slice(0, idx), ...collection.slice(idx + 1)];
+  }
+  return collection.map((c, i) => (i === idx ? { ...c, quantity: c.quantity - 1 } : c));
+}
+
+function removeOneFromPlayDeck(playDeck, cardId) {
+  const deck = [...playDeck];
+  const idx = deck.indexOf(cardId);
+  if (idx >= 0) deck.splice(idx, 1);
+  return deck;
+}
+
+function ensureFullCollection(collection) {
+  const map = new Map((collection || []).map((c) => [c.card_id, c.quantity]));
+  for (const c of CARD_DATA.unique) {
+    if (!map.has(c.id)) map.set(c.id, 1);
+  }
+  return Array.from(map.entries()).map(([card_id, quantity]) => ({ card_id, quantity }));
 }
 
 export function saveOfflineProfile(profile) {
@@ -20,17 +56,15 @@ export function getOfflineProfile() {
 }
 
 function migrateProfile(profile) {
-  if (profile.collection) {
-    const collection = (profile.collection || []).filter((c) => isUniqueCardId(c.card_id));
-    const playDeck = (profile.playDeck || []).filter((id) => isUniqueCardId(id));
-    return { ...profile, collection, playDeck };
-  }
-  const collection = profile.cards || buildStarterCollection();
+  const evolvedCards = profile.evolvedCards || [];
+  let collection = ensureFullCollection(profile.collection || profile.cards || buildStarterCollection());
+  collection = collection.filter((c) => isPlayableCardId(c.card_id, { ...profile, evolvedCards }));
+  const playDeck = (profile.playDeck || []).filter((id) => isPlayableCardId(id, { ...profile, evolvedCards }));
   return {
-    id: profile.id || 'offline_user',
-    username: profile.username || 'Player',
-    collection: collection.filter((c) => isUniqueCardId(c.card_id)),
-    playDeck: (profile.playDeck || []).filter((id) => isUniqueCardId(id)),
+    ...profile,
+    collection,
+    playDeck,
+    evolvedCards,
   };
 }
 
@@ -42,6 +76,7 @@ export function getOrCreateOfflineProfile() {
       username: 'Player',
       collection: buildStarterCollection(),
       playDeck: [],
+      evolvedCards: [],
     };
     saveOfflineProfile(profile);
   }
@@ -71,7 +106,7 @@ export function countInPlayDeck(playDeck, cardId) {
 }
 
 export function togglePlayDeckCard(profile, cardId) {
-  if (!isUniqueCardId(cardId)) return profile;
+  if (!isPlayableCardId(cardId, profile)) return profile;
   const playDeck = [...(profile.playDeck || [])];
   const inDeck = playDeck.filter((id) => id === cardId).length;
   const owned = getCollectionCount(profile, cardId);
@@ -94,6 +129,48 @@ export function clearPlayDeck(profile) {
   return next;
 }
 
-export function getCatalogCard(cardId) {
+export function getCatalogCard(cardId, profile = null) {
+  const evolved = profile?.evolvedCards?.find((c) => c.id === cardId);
+  if (evolved) return evolved;
   return CARD_DATA.unique.find((c) => c.id === cardId);
 }
+
+export function getLibraryCardCount(profile) {
+  const catalogCount = CARD_DATA.unique.length;
+  const evolvedCount = profile?.evolvedCards?.length || 0;
+  return catalogCount + evolvedCount;
+}
+
+export function evolveCards(profile, cardId1, cardId2) {
+  if (!cardId1 || !cardId2) {
+    return { profile, error: 'Select two cards to sacrifice.' };
+  }
+  if (cardId1 === cardId2 && getCollectionCount(profile, cardId1) < 2) {
+    return { profile, error: 'Select two different cards to sacrifice.' };
+  }
+
+  const catalog1 = getCatalogCard(cardId1, profile);
+  const catalog2 = getCatalogCard(cardId2, profile);
+  if (!catalog1 || !catalog2) {
+    return { profile, error: 'Invalid cards selected.' };
+  }
+  if (getCollectionCount(profile, cardId1) < 1 || getCollectionCount(profile, cardId2) < 1) {
+    return { profile, error: 'You do not own both selected cards.' };
+  }
+
+  const evolved = createEvolvedCard(catalog1, catalog2);
+  let collection = decrementCollection(profile.collection || [], cardId1);
+  collection = decrementCollection(collection, cardId2);
+  collection.push({ card_id: evolved.id, quantity: 1 });
+
+  let playDeck = [...(profile.playDeck || [])];
+  playDeck = removeOneFromPlayDeck(playDeck, cardId1);
+  playDeck = removeOneFromPlayDeck(playDeck, cardId2);
+
+  const evolvedCards = [...(profile.evolvedCards || []), evolved];
+  const next = { ...profile, collection, playDeck, evolvedCards };
+  saveOfflineProfile(next);
+  return { profile: next, evolved };
+}
+
+export { LIBRARY_SIZE };
