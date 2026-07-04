@@ -9,6 +9,7 @@ export default function GameCard({
   isDying = false,
   pendingDamage = 0,
   cooldownPreview = null,
+  levelLabel = null,
 }) {
   if (card?.hidden) {
     return (
@@ -31,8 +32,9 @@ export default function GameCard({
   const maxHp = card.maxHp || 0;
   const currentHp = Math.max(0, (card.hp ?? maxHp) - (isHit ? pendingDamage : 0));
   const hpPercent = maxHp > 0 ? (currentHp / maxHp) * 100 : 0;
-  const timerLabel = cooldownPreview != null
-    ? `${cooldownPreview}s`
+  const displayTimer = cooldownPreview ?? card.timer ?? null;
+  const timerLabel = displayTimer != null
+    ? `${displayTimer}s`
     : (timerMax > 0 ? `${timerMax}s` : '—');
 
   const classes = [
@@ -51,6 +53,7 @@ export default function GameCard({
 
   return (
     <div className={classes} onClick={disabled ? undefined : onClick}>
+      {levelLabel && <span className="card-level-badge">{levelLabel}</span>}
       {card.role && <span className="card-role">{card.role}</span>}
       <div className="card-name">{card.name}</div>
       <div className="card-stats">

@@ -88,7 +88,9 @@ function makeBattleCard(templateId, instanceId) {
   const attack = isEvolved ? t.attack : randomStat(10, 25);
   const defense = isEvolved ? t.defense : randomStat(1, 10);
   const maxHp = isEvolved ? t.hp : randomStat(30, 100);
-  const cooldown = randomStat(CARD_TIMER_MIN, CARD_TIMER_MAX);
+  const cooldown = isEvolved && t.timer != null
+    ? t.timer
+    : randomStat(CARD_TIMER_MIN, CARD_TIMER_MAX);
   return {
     instanceId, templateId, name: t.name, type: 'unique',
     attack, defense,
