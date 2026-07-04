@@ -537,14 +537,6 @@ export function clearAttackAnimation(game) {
   if (game) game.attackAnimation = null;
 }
 
-export function clearAttackAnimation(game) {
-  if (game?.attackTimeout) {
-    clearTimeout(game.attackTimeout);
-    game.attackTimeout = null;
-  }
-  if (game) game.attackAnimation = null;
-}
-
 export function getOfflineState(game) {
   return toPrivateState(game, 'player');
 }
