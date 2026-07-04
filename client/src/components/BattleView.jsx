@@ -8,7 +8,7 @@ export default function BattleView({ gameState, onSetup, onAttack, onUseStandard
 
   if (!gameState) return null;
 
-  const { phase, myHand, mySupportHand, myBoss, myField, opponent, log, winnerId, players } = gameState;
+  const { phase, myHand, mySupportHand, myBoss, myField, opponent, log, winnerId, players, attackAnimation } = gameState;
   const me = players?.find(p => p.id !== opponent?.id && p.username !== 'CPU Opponent') || players?.[0];
 
   const toggleField = (id) => {
@@ -26,7 +26,7 @@ export default function BattleView({ gameState, onSetup, onAttack, onUseStandard
   };
 
   const handleAttackClick = (attacker) => {
-    if (attacker.cooldownRemaining > 0 || !attacker.alive) return;
+    if (attackAnimation || attacker.cooldownRemaining > 0 || !attacker.alive) return;
     setTargetMode({ type: 'attack', attacker });
   };
 
@@ -108,9 +108,23 @@ export default function BattleView({ gameState, onSetup, onAttack, onUseStandard
 
   const myPlayer = { boss: myBoss || me?.boss, field: myField?.length ? myField : (me?.field || []) };
   const oppPlayer = opponent || players?.find(p => p.id !== me?.id);
+  const battleLocked = !!attackAnimation || !!winnerId;
+
+  const cardAnimProps = (card) => ({
+    isAttacking: attackAnimation?.attackerInstanceId === card?.instanceId,
+    isHit: attackAnimation?.defenderInstanceId === card?.instanceId,
+  });
 
   return (
     <div>
+      {attackAnimation && (
+        <div className="attack-banner">
+          Attack in progress — all timers paused
+          {attackAnimation.damage > 0 && (
+            <span className="attack-banner-damage"> · {attackAnimation.damage} damage incoming</span>
+          )}
+        </div>
+      )}
       {winnerId && (
         <div className="card" style={{ textAlign: 'center', marginBottom: 16, borderColor: 'var(--accent-gold)' }}>
           <h2 style={{ fontFamily: 'var(--font-display)', color: 'var(--accent-gold)' }}>
@@ -128,7 +142,9 @@ export default function BattleView({ gameState, onSetup, onAttack, onUseStandard
               <GameCard
                 card={myPlayer.boss}
                 showCooldown
-                onClick={() => phase === 'battle' && !winnerId && handleAttackClick(myPlayer.boss)}
+                disabled={battleLocked}
+                {...cardAnimProps(myPlayer.boss)}
+                onClick={() => phase === 'battle' && !battleLocked && handleAttackClick(myPlayer.boss)}
               />
             )}
             {(myPlayer.field || []).map(card => (
@@ -136,7 +152,9 @@ export default function BattleView({ gameState, onSetup, onAttack, onUseStandard
                 key={card.instanceId}
                 card={card}
                 showCooldown
-                onClick={() => phase === 'battle' && !winnerId && handleAttackClick(card)}
+                disabled={battleLocked}
+                {...cardAnimProps(card)}
+                onClick={() => phase === 'battle' && !battleLocked && handleAttackClick(card)}
               />
             ))}
           </div>
@@ -145,15 +163,23 @@ export default function BattleView({ gameState, onSetup, onAttack, onUseStandard
         <div className="player-zone">
           <h3>{oppPlayer?.username || 'Opponent'}</h3>
           <div className="field-cards">
-            {oppPlayer?.boss && <GameCard card={oppPlayer.boss} showCooldown />}
+            {oppPlayer?.boss && (
+              <GameCard card={oppPlayer.boss} showCooldown disabled={battleLocked} {...cardAnimProps(oppPlayer.boss)} />
+            )}
             {(oppPlayer?.field || []).map(card => (
-              <GameCard key={card.instanceId || card.hidden} card={card} showCooldown />
+              <GameCard
+                key={card.instanceId || card.hidden}
+                card={card}
+                showCooldown
+                disabled={battleLocked}
+                {...cardAnimProps(card)}
+              />
             ))}
           </div>
         </div>
       </div>
 
-      {mySupportHand?.length > 0 && phase === 'battle' && !winnerId && (
+      {mySupportHand?.length > 0 && phase === 'battle' && !battleLocked && (
         <div className="hand-area">
           <h4>Support Cards — tap to use</h4>
           <div className="hand-cards">
