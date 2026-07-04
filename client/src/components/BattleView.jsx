@@ -6,7 +6,6 @@ export default function BattleView({
   gameState,
   onSetup,
   onAttack,
-  onUseStandard,
   onDraw,
   onReplace,
   onMainMenu,
@@ -57,18 +56,9 @@ export default function BattleView({
     setTargetMode({ type: 'attack', attacker });
   };
 
-  const handleStandardClick = (card) => {
-    if (card.used) return;
-    setTargetMode({ type: 'standard', card });
-  };
-
-  const handleTargetSelect = (target, targetPlayerId) => {
+  const handleTargetSelect = (target) => {
     if (!targetMode) return;
-    if (targetMode.type === 'attack') {
-      onAttack(targetMode.attacker.instanceId, target.instanceId);
-    } else {
-      onUseStandard(targetMode.card.instanceId, target.instanceId, targetPlayerId);
-    }
+    onAttack(targetMode.attacker.instanceId, target.instanceId);
     setTargetMode(null);
   };
 
@@ -85,7 +75,7 @@ export default function BattleView({
   };
 
   const startReplace = (handCard) => {
-    if (handCard.type !== 'unique' || replacementsUsed >= maxReplacements) return;
+    if (replacementsUsed >= maxReplacements) return;
     setReplaceMode({ handCardId: handCard.instanceId });
     setTargetMode(null);
   };
@@ -249,7 +239,7 @@ export default function BattleView({
 
       {myBattleHand?.length > 0 && phase === 'battle' && !battleLocked && (
         <div className="hand-area">
-          <h4>Your Hand — tap a fighter to replace an empty slot, or use support cards</h4>
+          <h4>Your Hand — tap a fighter to replace an empty slot</h4>
           {replaceMode && (
             <p className="replace-hint">Select an empty field slot to deploy your fighter</p>
           )}
@@ -258,18 +248,13 @@ export default function BattleView({
               <div key={card.instanceId} className="hand-card-wrap">
                 <GameCard
                   card={card}
-                  disabled={card.used}
                   selected={replaceMode?.handCardId === card.instanceId}
-                  showCooldown={card.type === 'unique'}
+                  showCooldown
                   onClick={() => {
-                    if (card.type === 'unique' && replacementsUsed < maxReplacements) {
-                      startReplace(card);
-                    } else if (card.type === 'standard' && !card.used) {
-                      handleStandardClick(card);
-                    }
+                    if (replacementsUsed < maxReplacements) startReplace(card);
                   }}
                 />
-                {card.type === 'unique' && replacementsUsed < maxReplacements && (
+                {replacementsUsed < maxReplacements && (
                   <span className="hand-card-label">Replace</span>
                 )}
               </div>
@@ -285,43 +270,18 @@ export default function BattleView({
       {targetMode && (
         <div className="target-overlay" onClick={() => setTargetMode(null)}>
           <div className="target-panel" onClick={(e) => e.stopPropagation()}>
-            <h3>
-              {targetMode.type === 'attack'
-                ? 'Choose target to attack'
-                : `Choose target for ${targetMode.card.name}`}
-            </h3>
+            <h3>Choose target to attack</h3>
             <div className="field-cards" style={{ marginBottom: 16 }}>
-              {targetMode.type === 'attack' ? (
-                (oppPlayer?.field || [])
-                  .concat(oppPlayer?.boss ? [oppPlayer.boss] : [])
-                  .filter((c) => c && !c.hidden && c.alive !== false)
-                  .map((card) => (
-                    <GameCard
-                      key={card.instanceId}
-                      card={card}
-                      onClick={() => handleTargetSelect(card, oppPlayer.id)}
-                    />
-                  ))
-              ) : (
-                <>
-                  <p style={{ width: '100%', fontSize: 12, color: 'var(--text-secondary)' }}>Your cards:</p>
-                  {[myPlayer.boss, ...(myPlayer.field || [])].filter((c) => c?.alive !== false).map((card) => (
-                    <GameCard
-                      key={card.instanceId}
-                      card={card}
-                      onClick={() => handleTargetSelect(card, me?.id || 'player')}
-                    />
-                  ))}
-                  <p style={{ width: '100%', fontSize: 12, color: 'var(--text-secondary)', marginTop: 12 }}>Enemy cards:</p>
-                  {[oppPlayer?.boss, ...(oppPlayer?.field || [])].filter((c) => c && !c.hidden && c.alive !== false).map((card) => (
-                    <GameCard
-                      key={card.instanceId}
-                      card={card}
-                      onClick={() => handleTargetSelect(card, oppPlayer.id)}
-                    />
-                  ))}
-                </>
-              )}
+              {(oppPlayer?.field || [])
+                .concat(oppPlayer?.boss ? [oppPlayer.boss] : [])
+                .filter((c) => c && !c.hidden && c.alive !== false)
+                .map((card) => (
+                  <GameCard
+                    key={card.instanceId}
+                    card={card}
+                    onClick={() => handleTargetSelect(card)}
+                  />
+                ))}
             </div>
             <button className="btn-secondary" style={{ width: '100%' }} onClick={() => setTargetMode(null)}>Cancel</button>
           </div>

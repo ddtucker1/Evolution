@@ -29,8 +29,8 @@ export default function Library({ profile, onProfileChange, onMainMenu }) {
             Library
           </h2>
           <p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
-            Tap cards to add or remove them from your play deck.
-            {' '}Fighter cards get a random <strong>{CARD_TIMER_MIN}–{CARD_TIMER_MAX} second</strong> attack timer in battle.
+            Tap fighter, defender, and boss cards to add or remove them from your play deck.
+            {' '}Each card gets a random <strong>{CARD_TIMER_MIN}–{CARD_TIMER_MAX} second</strong> attack timer in battle.
           </p>
         </div>
         <div className="library-actions">
@@ -56,7 +56,9 @@ export default function Library({ profile, onProfileChange, onMainMenu }) {
         Your Cards
       </h3>
       <div className="collection-grid">
-        {expandedCollection.map(({ card_id, key }) => {
+        {expandedCollection
+          .filter(({ card_id }) => getCatalogCard(card_id))
+          .map(({ card_id, key }) => {
           const catalog = getCatalogCard(card_id);
           const inDeck = countInPlayDeck(playDeck, card_id);
           const owned = getCollectionCount(profile, card_id);
@@ -73,18 +75,16 @@ export default function Library({ profile, onProfileChange, onMainMenu }) {
               <GameCard
                 card={{
                   name: catalog?.name || card_id,
-                  type: catalog?.type === 'standard' ? 'standard' : 'unique',
+                  type: 'unique',
                   attack: catalog?.attack,
                   defense: catalog?.defense,
                   hp: catalog?.hp,
                   maxHp: catalog?.hp,
-                  effect: catalog?.effect,
-                  value: catalog?.value,
                   alive: true,
                 }}
                 selected={selected}
                 showCooldown={false}
-                timerRangeLabel={catalog?.type === 'unique' ? `${CARD_TIMER_MIN}–${CARD_TIMER_MAX}s` : null}
+                timerRangeLabel={`${CARD_TIMER_MIN}–${CARD_TIMER_MAX}s`}
               />
             </div>
           );

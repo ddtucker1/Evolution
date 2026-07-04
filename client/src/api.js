@@ -3,9 +3,11 @@ import { CARD_DATA, PLAY_DECK_SIZE } from './offlineEngine';
 export { PLAY_DECK_SIZE };
 
 function buildStarterCollection() {
-  const unique = CARD_DATA.unique.map((c) => ({ card_id: c.id, quantity: 2 }));
-  const standard = CARD_DATA.standard.map((c) => ({ card_id: c.id, quantity: 3 }));
-  return [...unique, ...standard];
+  return CARD_DATA.unique.map((c) => ({ card_id: c.id, quantity: 2 }));
+}
+
+function isUniqueCardId(cardId) {
+  return !!CARD_DATA.unique.find((c) => c.id === cardId);
 }
 
 export function saveOfflineProfile(profile) {
@@ -18,13 +20,17 @@ export function getOfflineProfile() {
 }
 
 function migrateProfile(profile) {
-  if (profile.collection) return profile;
+  if (profile.collection) {
+    const collection = (profile.collection || []).filter((c) => isUniqueCardId(c.card_id));
+    const playDeck = (profile.playDeck || []).filter((id) => isUniqueCardId(id));
+    return { ...profile, collection, playDeck };
+  }
   const collection = profile.cards || buildStarterCollection();
   return {
     id: profile.id || 'offline_user',
     username: profile.username || 'Player',
-    collection,
-    playDeck: profile.playDeck || [],
+    collection: collection.filter((c) => isUniqueCardId(c.card_id)),
+    playDeck: (profile.playDeck || []).filter((id) => isUniqueCardId(id)),
   };
 }
 
@@ -65,6 +71,7 @@ export function countInPlayDeck(playDeck, cardId) {
 }
 
 export function togglePlayDeckCard(profile, cardId) {
+  if (!isUniqueCardId(cardId)) return profile;
   const playDeck = [...(profile.playDeck || [])];
   const inDeck = playDeck.filter((id) => id === cardId).length;
   const owned = getCollectionCount(profile, cardId);
@@ -88,5 +95,5 @@ export function clearPlayDeck(profile) {
 }
 
 export function getCatalogCard(cardId) {
-  return [...CARD_DATA.unique, ...CARD_DATA.standard].find((c) => c.id === cardId);
+  return CARD_DATA.unique.find((c) => c.id === cardId);
 }

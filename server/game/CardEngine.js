@@ -182,16 +182,24 @@ export function applyStandardCard(card, target) {
   return result;
 }
 
+export function calculateAttackDamage(attacker, defender) {
+  return Math.max(0, attacker.attack - defender.defense);
+}
+
 export function resolveAttack(attacker, defender) {
   if (!attacker.alive || !defender.alive) {
     return { success: false, message: 'Invalid attack target' };
   }
 
-  const damage = Math.max(1, attacker.attack - defender.defense);
-  defender.hp -= damage;
+  const damage = calculateAttackDamage(attacker, defender);
+  if (damage > 0) {
+    defender.hp -= damage;
+  }
   attacker.cooldownRemaining = attacker.cooldown;
 
-  let message = `${attacker.name} attacks ${defender.name} for ${damage} damage`;
+  let message = damage > 0
+    ? `${attacker.name} attacks ${defender.name} for ${damage} damage`
+    : `${attacker.name} attacks ${defender.name} but defense blocks all damage`;
 
   if (defender.hp <= 0) {
     defender.hp = 0;
@@ -289,10 +297,6 @@ function createPlayerState({ id, username, deckCardIds }) {
     const t = getCardTemplate(c.templateId);
     return t && t.type === 'unique';
   });
-  const standardCards = shuffled.filter(c => {
-    const t = getCardTemplate(c.templateId);
-    return t && t.type === 'standard';
-  });
 
   const setupDraw = uniqueCards.splice(0, SETUP_HAND_SIZE);
   const setupHand = setupDraw.map(c => createBattleCard(c.templateId, c.instanceId));
@@ -300,7 +304,7 @@ function createPlayerState({ id, username, deckCardIds }) {
   return {
     id,
     username,
-    deck: [...uniqueCards, ...standardCards],
+    deck: uniqueCards,
     setupHand,
     supportHand: [],
     boss: null,
@@ -336,13 +340,13 @@ export function completeSetup(player, bossInstanceId, fieldInstanceIds) {
 export function drawSupportCards(player) {
   const drawn = [];
   for (let i = 0; i < SUPPORT_HAND_SIZE && player.deck.length > 0; i++) {
-    const next = player.deck.shift();
-    const template = getCardTemplate(next.templateId);
-    if (template?.type === 'standard') {
-      drawn.push(createStandardCard(next.templateId, next.instanceId));
-    } else if (template?.type === 'unique') {
-      drawn.push(createBattleCard(next.templateId, next.instanceId));
-    }
+    const nextIdx = player.deck.findIndex((entry) => {
+      const template = getCardTemplate(entry.templateId);
+      return template?.type === 'unique';
+    });
+    if (nextIdx < 0) break;
+    const [next] = player.deck.splice(nextIdx, 1);
+    drawn.push(createBattleCard(next.templateId, next.instanceId));
   }
   player.supportHand.push(...drawn);
   return drawn;
