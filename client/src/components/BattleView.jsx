@@ -9,10 +9,13 @@ export default function BattleView({
   onDraw,
   onReplace,
   onDismissReplacement,
+  onBossSlow,
+  onBossHeal,
   onMainMenu,
 }) {
   const [targetMode, setTargetMode] = useState(null);
   const [replaceMode, setReplaceMode] = useState(null);
+  const [magicMode, setMagicMode] = useState(null);
   const battlefieldRef = useRef(null);
   const cardRefs = useRef({});
 
@@ -25,11 +28,11 @@ export default function BattleView({
     myBoss,
     myField,
     opponent,
-    log,
     winnerId,
     players,
     attackAnimation,
     deathAnimation,
+    pendingPlayerAttack,
     pendingReplacement,
     drawTimer,
     drawTimerMax,
@@ -42,6 +45,8 @@ export default function BattleView({
   } = gameState;
 
   const me = players?.find((p) => p.id === 'player') || players?.[0];
+  const animationInProgress = !!attackAnimation || !!deathAnimation;
+  const battleLocked = animationInProgress || !!winnerId;
 
   const handleBossSelect = (cardId) => {
     const fieldIds = myHand.filter((c) => c.instanceId !== cardId).map((c) => c.instanceId);
@@ -49,13 +54,14 @@ export default function BattleView({
   };
 
   const canAttackWith = (attacker) => {
-    if (attackAnimation || deathAnimation || !attacker?.alive || attacker.cooldownRemaining > 0) return false;
+    if (!attacker?.alive || attacker.cooldownRemaining > 0) return false;
     if (attacker.role === 'boss') return bossCanAttack;
     return attacker.role === 'field';
   };
 
   const handleAttackClick = (attacker) => {
-    if (!canAttackWith(attacker)) return;
+    if (!canAttackWith(attacker) || winnerId) return;
+    setMagicMode(null);
     setTargetMode({ type: 'attack', attacker });
   };
 
@@ -63,6 +69,13 @@ export default function BattleView({
     if (!targetMode) return;
     onAttack(targetMode.attacker.instanceId, target.instanceId);
     setTargetMode(null);
+  };
+
+  const handleMagicTargetSelect = (target) => {
+    if (!magicMode) return;
+    if (magicMode === 'slow') onBossSlow(target.instanceId);
+    else if (magicMode === 'heal') onBossHeal(target.instanceId);
+    setMagicMode(null);
   };
 
   const handleReplaceSlotClick = (slotIndex) => {
@@ -86,6 +99,7 @@ export default function BattleView({
     if (replacementsUsed >= maxReplacements) return;
     setReplaceMode({ handCardId: handCard.instanceId });
     setTargetMode(null);
+    setMagicMode(null);
   };
 
   if (phase === 'setup') {
@@ -120,7 +134,6 @@ export default function BattleView({
     field: myField?.length ? myField : (me?.field || [null, null, null]),
   };
   const oppPlayer = opponent || players?.find((p) => p.id !== me?.id);
-  const battleLocked = !!attackAnimation || !!deathAnimation || !!winnerId;
 
   const countAliveFighters = (field) => (field || []).filter((c) => c && c.alive).length;
   const myAliveFighters = countAliveFighters(myPlayer.field);
@@ -134,6 +147,15 @@ export default function BattleView({
     return [];
   };
 
+  const getSlowTargets = () => {
+    const fighters = (oppPlayer?.field || []).filter((c) => c && c.alive);
+    if (fighters.length) return fighters;
+    if (oppBossTargetable) return [oppPlayer.boss];
+    return [];
+  };
+
+  const getHealTargets = () => getAliveFieldFighters(myPlayer.field);
+
   const renderBattlefield = (player, isPlayer) => {
     const aliveFighters = countAliveFighters(player.field);
     const boss = player.boss;
@@ -145,6 +167,30 @@ export default function BattleView({
           bossLocked: isPlayer ? !bossCanAttack : !opponentBossCanAttack,
           bossProtected: aliveFighters > 0,
         })}
+        {isPlayer && boss.alive && !winnerId && (
+          <div className="boss-magic-actions">
+            <button
+              type="button"
+              className="boss-magic-btn slow-btn"
+              onClick={() => {
+                setTargetMode(null);
+                setMagicMode('slow');
+              }}
+            >
+              Slow Timer
+            </button>
+            <button
+              type="button"
+              className="boss-magic-btn heal-btn"
+              onClick={() => {
+                setTargetMode(null);
+                setMagicMode('heal');
+              }}
+            >
+              Heal Fighter
+            </button>
+          </div>
+        )}
       </div>
     );
 
@@ -195,6 +241,9 @@ export default function BattleView({
 
     const bossLocked = options.bossLocked ?? (card.role === 'boss' && !bossCanAttack);
     const bossProtected = options.bossProtected ?? false;
+    const canSelectForAttack = isPlayer && phase === 'battle' && !winnerId && canAttackWith(card);
+    const isQueuedAttacker = pendingPlayerAttack?.attackerId === card.instanceId;
+
     return (
       <div
         key={card.instanceId}
@@ -207,10 +256,11 @@ export default function BattleView({
         <GameCard
           card={{ ...card, bossLocked, bossProtected }}
           showCooldown
-          disabled={battleLocked || bossLocked}
+          disabled={bossLocked || (isPlayer && !canSelectForAttack)}
+          selected={isQueuedAttacker || targetMode?.attacker?.instanceId === card.instanceId}
           {...cardAnimProps(card)}
           onClick={() => {
-            if (phase === 'battle' && isPlayer && !battleLocked) handleAttackClick(card);
+            if (canSelectForAttack) handleAttackClick(card);
           }}
         />
       </div>
@@ -252,6 +302,12 @@ export default function BattleView({
           </div>
         </div>
       </div>
+
+      {animationInProgress && pendingPlayerAttack && (
+        <div className="attack-banner queued-attack-banner">
+          Attack queued — will execute when the current animation finishes
+        </div>
+      )}
 
       {deathAnimation && (
         <div className="attack-banner death-banner">
@@ -311,10 +367,6 @@ export default function BattleView({
         </div>
       )}
 
-      <div className="battle-log">
-        {log?.map((entry, i) => <p key={i}>{entry}</p>)}
-      </div>
-
       {pendingReplacement && !battleLocked && myBattleHand?.length > 0 && (
         <div className="target-overlay">
           <div className="target-panel replacement-panel" onClick={(e) => e.stopPropagation()}>
@@ -344,6 +396,9 @@ export default function BattleView({
         <div className="target-overlay" onClick={() => setTargetMode(null)}>
           <div className="target-panel" onClick={(e) => e.stopPropagation()}>
             <h3>Choose target to attack</h3>
+            {animationInProgress && (
+              <p className="replace-hint">This attack will execute after the current animation finishes</p>
+            )}
             <div className="field-cards" style={{ marginBottom: 16 }}>
               {getAttackableTargets()
                 .filter((c) => c && !c.hidden && c.alive !== false)
@@ -359,6 +414,50 @@ export default function BattleView({
           </div>
         </div>
       )}
+
+      {magicMode === 'slow' && (
+        <div className="target-overlay" onClick={() => setMagicMode(null)}>
+          <div className="target-panel" onClick={(e) => e.stopPropagation()}>
+            <h3>Slow Timer — choose opponent</h3>
+            <p className="replace-hint">Doubles the target&apos;s remaining cooldown</p>
+            <div className="field-cards" style={{ marginBottom: 16 }}>
+              {getSlowTargets().map((card) => (
+                <GameCard
+                  key={card.instanceId}
+                  card={card}
+                  onClick={() => handleMagicTargetSelect(card)}
+                />
+              ))}
+            </div>
+            <button className="btn-secondary" style={{ width: '100%' }} onClick={() => setMagicMode(null)}>Cancel</button>
+          </div>
+        </div>
+      )}
+
+      {magicMode === 'heal' && (
+        <div className="target-overlay" onClick={() => setMagicMode(null)}>
+          <div className="target-panel" onClick={(e) => e.stopPropagation()}>
+            <h3>Heal Fighter — choose ally</h3>
+            <p className="replace-hint">Fully restores the selected fighter&apos;s HP</p>
+            <div className="field-cards" style={{ marginBottom: 16 }}>
+              {getHealTargets().length > 0 ? getHealTargets().map((card) => (
+                <GameCard
+                  key={card.instanceId}
+                  card={card}
+                  onClick={() => handleMagicTargetSelect(card)}
+                />
+              )) : (
+                <p className="replace-hint">No fighters available to heal</p>
+              )}
+            </div>
+            <button className="btn-secondary" style={{ width: '100%' }} onClick={() => setMagicMode(null)}>Cancel</button>
+          </div>
+        </div>
+      )}
     </div>
   );
+}
+
+function getAliveFieldFighters(field) {
+  return (field || []).filter((c) => c && c.alive);
 }

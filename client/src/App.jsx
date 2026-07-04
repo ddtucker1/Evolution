@@ -14,6 +14,8 @@ import {
   offlineDrawCard,
   offlineReplace,
   offlineDismissReplacement,
+  offlineBossSlow,
+  offlineBossHeal,
   getOfflineState,
   stopTicks,
   clearBattleAnimations,
@@ -67,6 +69,16 @@ export default function App() {
     offlineDismissReplacement(offlineGameRef.current);
   };
 
+  const handleBossSlow = (targetId) => {
+    if (!offlineGameRef.current) return;
+    offlineBossSlow(offlineGameRef.current, targetId);
+  };
+
+  const handleBossHeal = (targetId) => {
+    if (!offlineGameRef.current) return;
+    offlineBossHeal(offlineGameRef.current, targetId);
+  };
+
   const handleLeaveBattle = () => {
     if (offlineGameRef.current) clearBattleAnimations(offlineGameRef.current);
     stopTicks();
@@ -107,6 +119,8 @@ export default function App() {
           onDraw={handleDraw}
           onReplace={handleReplace}
           onDismissReplacement={handleDismissReplacement}
+          onBossSlow={handleBossSlow}
+          onBossHeal={handleBossHeal}
           onMainMenu={handleLeaveBattle}
         />
       )}

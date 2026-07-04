@@ -150,6 +150,25 @@ function canCardAttack(attacker, player) {
   return attacker.role === 'field';
 }
 
+function promoteToBoss(card) {
+  card.role = 'boss';
+  card.attack = Math.floor(card.attack * 2);
+}
+
+function processPendingAttack(game) {
+  if (!game.pendingPlayerAttack || isBattlePaused(game)) return;
+  const { attackerId, defenderId } = game.pendingPlayerAttack;
+  game.pendingPlayerAttack = null;
+  const player = game.players[0];
+  const opp = game.players[1];
+  const attacker = getFieldCards(player).find((c) => c.instanceId === attackerId);
+  const defender = getFieldCards(opp).find((c) => c.instanceId === defenderId);
+  if (!attacker || !defender?.alive) return;
+  if (!canCardAttack(attacker, player)) return;
+  if (!getAttackableTargets(opp).some((c) => c.instanceId === defenderId)) return;
+  beginAttackAnimation(game, attacker, defender, 'You');
+}
+
 function getReadyAttackers(player) {
   return getFieldCards(player).filter((c) => canCardAttack(c, player));
 }
@@ -230,7 +249,10 @@ function completeDeathAnimation(game) {
 
   const w = checkWinner(game.players[0], game.players[1]);
   if (w) finishOffline(game, w);
-  else if (game.onUpdate) game.onUpdate(toPrivateState(game, 'player'));
+  else {
+    if (game.onUpdate) game.onUpdate(toPrivateState(game, 'player'));
+    processPendingAttack(game);
+  }
 }
 
 function completeAttackAnimation(game) {
@@ -273,7 +295,10 @@ function completeAttackAnimation(game) {
 
   const w = checkWinner(game.players[0], game.players[1]);
   if (w) finishOffline(game, w);
-  else if (game.onUpdate) game.onUpdate(toPrivateState(game, 'player'));
+  else {
+    if (game.onUpdate) game.onUpdate(toPrivateState(game, 'player'));
+    processPendingAttack(game);
+  }
 }
 
 function beginAttackAnimation(game, attacker, defender, logPrefix) {
@@ -359,6 +384,7 @@ function toPrivateState(game, playerId) {
     winnerId: game.winnerId,
     attackAnimation: game.attackAnimation ? { ...game.attackAnimation } : null,
     deathAnimation: game.deathAnimation ? { ...game.deathAnimation } : null,
+    pendingPlayerAttack: game.pendingPlayerAttack ? { ...game.pendingPlayerAttack } : null,
     pendingReplacement: game.pendingReplacement ? { ...game.pendingReplacement } : null,
     timersPaused: isBattlePaused(game),
     myHand: me.setupHand.map((c) => ({ ...c })),
@@ -404,6 +430,7 @@ export function createOfflineGame(deckIds) {
     deathAnimation: null,
     deathTimeout: null,
     pendingReplacement: null,
+    pendingPlayerAttack: null,
   };
   return game;
 }
@@ -415,7 +442,7 @@ export function offlineSetup(game, bossId, fieldIds) {
   const field = fieldIds.map((id) => hand.find((c) => c.instanceId === id)).filter(Boolean);
   if (!boss || field.length !== 3) return { success: false };
 
-  boss.role = 'boss';
+  promoteToBoss(boss);
   field.forEach((c) => { c.role = 'field'; });
   player.boss = boss;
   player.field = [field[0], field[1], field[2]];
@@ -442,7 +469,7 @@ function autoNpcSetup(game) {
   const hand = [...npc.setupHand];
   const boss = hand.reduce((b, c) => (c.maxHp > (b?.maxHp || 0) ? c : b), hand[0]);
   const field = hand.filter((c) => c.instanceId !== boss.instanceId).slice(0, 3);
-  boss.role = 'boss';
+  promoteToBoss(boss);
   field.forEach((c) => { c.role = 'field'; });
   npc.boss = boss;
   npc.field = [field[0], field[1], field[2]];
@@ -560,7 +587,6 @@ export function offlineDismissReplacement(game) {
 }
 
 export function offlineAttack(game, attackerId, defenderId) {
-  if (isBattlePaused(game)) return { success: false, message: 'Attack in progress' };
   const player = game.players[0];
   const opp = game.players[1];
   const attacker = getFieldCards(player).find((c) => c.instanceId === attackerId);
@@ -570,7 +596,41 @@ export function offlineAttack(game, attackerId, defenderId) {
   if (!getAttackableTargets(opp).some((c) => c.instanceId === defenderId)) {
     return { success: false, message: 'Boss is protected until all fighters are defeated' };
   }
+  if (isBattlePaused(game)) {
+    game.pendingPlayerAttack = { attackerId, defenderId };
+    if (game.onUpdate) game.onUpdate(toPrivateState(game, 'player'));
+    return { success: true, queued: true };
+  }
   return beginAttackAnimation(game, attacker, defender, 'You');
+}
+
+export function offlineBossSlow(game, targetInstanceId) {
+  if (game.phase !== 'battle' || game.winnerId) return { success: false };
+  const player = game.players[0];
+  const opp = game.players[1];
+  if (!player.boss?.alive) return { success: false, message: 'Boss is not available' };
+  const target = getFieldCards(opp).find((c) => c.instanceId === targetInstanceId);
+  if (!target?.alive) return { success: false, message: 'Invalid target' };
+  if (target.role === 'boss' && !canBossBeTargeted(opp)) {
+    return { success: false, message: 'Boss is protected until all fighters are defeated' };
+  }
+  target.cooldownRemaining = Math.min(
+    target.cooldown,
+    Math.max(target.cooldownRemaining, 1) * 2,
+  );
+  if (game.onUpdate) game.onUpdate(toPrivateState(game, 'player'));
+  return { success: true };
+}
+
+export function offlineBossHeal(game, targetInstanceId) {
+  if (game.phase !== 'battle' || game.winnerId) return { success: false };
+  const player = game.players[0];
+  if (!player.boss?.alive) return { success: false, message: 'Boss is not available' };
+  const target = getAliveFieldFighters(player).find((c) => c.instanceId === targetInstanceId);
+  if (!target) return { success: false, message: 'Select one of your fighters' };
+  target.hp = target.maxHp;
+  if (game.onUpdate) game.onUpdate(toPrivateState(game, 'player'));
+  return { success: true };
 }
 
 export function stopTicks() {

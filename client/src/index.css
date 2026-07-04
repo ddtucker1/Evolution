@@ -153,7 +153,7 @@ input:focus {
   background: linear-gradient(145deg, #2a2a45, #1e1e35);
   border: 2px solid var(--border);
   border-radius: 10px;
-  padding: 12px;
+  padding: 9px;
   min-width: 120px;
   max-width: 160px;
   cursor: pointer;
@@ -197,15 +197,15 @@ input:focus {
 
 .game-card .card-name {
   font-family: var(--font-display);
-  font-size: 13px;
+  font-size: 12px;
   color: var(--accent-gold);
-  margin-bottom: 6px;
+  margin-bottom: 4px;
 }
 
 .game-card .card-stats {
-  font-size: 11px;
+  font-size: 10px;
   color: var(--text-secondary);
-  line-height: 1.6;
+  line-height: 1.45;
 }
 
 .game-card .card-role {
@@ -305,10 +305,10 @@ input:focus {
 }
 
 .hp-bar {
-  height: 6px;
+  height: 5px;
   background: var(--bg-dark);
   border-radius: 3px;
-  margin-top: 4px;
+  margin-top: 3px;
   overflow: hidden;
 }
 
@@ -358,12 +358,16 @@ input:focus {
   gap: 16px;
   align-items: center;
   justify-content: center;
-  min-height: 220px;
+  min-height: 176px;
   padding: 8px 0;
 }
 
 .boss-side {
   flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
 }
 
 .boss-side .game-card {
@@ -889,7 +893,7 @@ input:focus {
 .field-slot {
   min-width: 100px;
   max-width: 130px;
-  min-height: 140px;
+  min-height: 112px;
   border: 2px dashed var(--border);
   border-radius: var(--radius);
   display: flex;
@@ -913,6 +917,47 @@ input:focus {
   color: var(--text-secondary);
   margin-top: 10px;
   font-style: italic;
+}
+
+.boss-magic-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+  max-width: 130px;
+}
+
+.boss-magic-btn {
+  padding: 6px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg-dark);
+  color: var(--text-primary);
+  font-size: 10px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.boss-magic-btn:hover {
+  border-color: var(--accent-purple);
+  background: rgba(155, 89, 182, 0.15);
+}
+
+.boss-magic-btn.slow-btn {
+  border-color: rgba(52, 152, 219, 0.5);
+  color: var(--accent-blue);
+}
+
+.boss-magic-btn.heal-btn {
+  border-color: rgba(46, 204, 113, 0.5);
+  color: var(--accent-green);
+}
+
+.queued-attack-banner {
+  background: rgba(52, 152, 219, 0.12);
+  border-color: rgba(52, 152, 219, 0.35);
+  color: var(--accent-blue);
 }
 
 .hand-card-wrap {
