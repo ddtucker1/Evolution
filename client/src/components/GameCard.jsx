@@ -19,8 +19,25 @@ export default function GameCard({
   if (card?.hidden) {
     return (
       <div className="game-card disabled" style={{ opacity: 0.3 }}>
-        <div className="card-name">???</div>
-        <div className="card-stats">Hidden</div>
+        <div className="card-name-row">
+          <div className="card-name">???</div>
+        </div>
+        <div className="card-stats">
+          <div>DEF: —</div>
+          <div className="stat-row">
+            <span>HP: —/—</span>
+            <div className="hp-bar hp-bar-inline stat-bar-placeholder" />
+          </div>
+          <div>ATK: —</div>
+          <div className="card-ability-slot" />
+          <div className="stat-row">
+            <span className="timer-stat">Timer: —</span>
+            <div className="timer-bar timer-bar-inline stat-bar-placeholder" />
+          </div>
+        </div>
+        <div className="card-footer-slot">
+          <div className="timer-countdown">Hidden</div>
+        </div>
       </div>
     );
   }
@@ -42,6 +59,9 @@ export default function GameCard({
   const timerLabel = displayTimer != null
     ? `${displayTimer}s`
     : (timerMax > 0 ? `${timerMax}s` : '—');
+  const showHpBar = showCooldown && maxHp > 0;
+  const showTimerBar = showCooldown && timerMax > 0;
+  const showCountdown = showCooldown && timerMax > 0;
 
   const classes = [
     'game-card',
@@ -67,38 +87,33 @@ export default function GameCard({
         {displayLevel != null && <span className="card-level-digit">{displayLevel}</span>}
       </div>
       <div className="card-stats">
-        DEF: {Math.round(card.defense ?? 0)}
-        <br />
+        <div>DEF: {Math.round(card.defense ?? 0)}</div>
         <div className="stat-row">
           <span>HP: {Math.round(currentHp)}/{Math.round(maxHp)}</span>
-          {maxHp > 0 && showCooldown && (
-            <div className="hp-bar hp-bar-inline">
-              <div className="hp-fill" style={{ width: `${hpPercent}%` }} />
-            </div>
+          <div className={`hp-bar hp-bar-inline${showHpBar ? '' : ' stat-bar-placeholder'}`}>
+            {showHpBar && <div className="hp-fill" style={{ width: `${hpPercent}%` }} />}
+          </div>
+        </div>
+        <div>ATK: {Math.round(card.attack ?? 0)}</div>
+        <div className="card-ability-slot">
+          {card.ability?.label && (
+            <span className="card-ability">{card.ability.label}</span>
           )}
         </div>
-        ATK: {Math.round(card.attack ?? 0)}
-        <br />
-        {card.ability?.label && (
-          <>
-            <span className="card-ability">{card.ability.label}</span>
-            <br />
-          </>
-        )}
         <div className="stat-row">
           <span className="timer-stat">Timer: {timerLabel}</span>
-          {showCooldown && timerMax > 0 && (
-            <div className={`timer-bar timer-bar-inline${isReady ? ' timer-ready' : ''}`}>
-              <div className="timer-fill" style={{ width: `${timerProgress}%` }} />
-            </div>
-          )}
+          <div className={`timer-bar timer-bar-inline${showTimerBar ? '' : ' stat-bar-placeholder'}${isReady ? ' timer-ready' : ''}`}>
+            {showTimerBar && <div className="timer-fill" style={{ width: `${timerProgress}%` }} />}
+          </div>
         </div>
       </div>
-      {showCooldown && timerMax > 0 && (
-        <div className={`timer-countdown${isReady ? ' timer-countdown-ready' : ''}`}>
-          {bossProtected ? 'Protected' : bossLocked ? 'Boss locked' : isReady ? 'Ready to attack!' : `${timerRemaining}s`}
-        </div>
-      )}
+      <div className="card-footer-slot">
+        {showCountdown && (
+          <div className={`timer-countdown${isReady ? ' timer-countdown-ready' : ''}`}>
+            {bossProtected ? 'Protected' : bossLocked ? 'Boss locked' : isReady ? 'Ready to attack!' : `${timerRemaining}s`}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
