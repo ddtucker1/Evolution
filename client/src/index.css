@@ -270,6 +270,11 @@ input:focus {
 .game-card .card-footer-slot {
   min-height: 18px;
   margin-top: auto;
+  flex-shrink: 0;
+}
+
+.game-card .card-footer-slot .timer-countdown {
+  margin-top: 0;
 }
 
 .game-card .stat-bar-placeholder {
@@ -513,7 +518,7 @@ input:focus {
   gap: 16px;
   align-items: center;
   justify-content: center;
-  min-height: 176px;
+  min-height: var(--card-height);
   padding: 8px 0;
 }
 
@@ -1444,7 +1449,7 @@ input:focus {
   font-size: 13px;
   font-weight: 700;
   width: 100%;
-  max-width: 130px;
+  max-width: var(--card-width);
   position: relative;
   z-index: 3;
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.55), 0 0 0 2px rgba(212, 168, 83, 0.35);

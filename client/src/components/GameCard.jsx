@@ -108,11 +108,11 @@ export default function GameCard({
         </div>
       </div>
       <div className="card-footer-slot">
-        {showCountdown && (
-          <div className={`timer-countdown${isReady ? ' timer-countdown-ready' : ''}`}>
-            {bossProtected ? 'Protected' : bossLocked ? 'Boss locked' : isReady ? 'Ready to attack!' : `${timerRemaining}s`}
-          </div>
-        )}
+        <div className={`timer-countdown${showCountdown && isReady ? ' timer-countdown-ready' : ''}${showCountdown ? '' : ' stat-bar-placeholder'}`}>
+          {showCountdown
+            ? (bossProtected ? 'Protected' : bossLocked ? 'Boss locked' : isReady ? 'Ready to attack!' : `${timerRemaining}s`)
+            : '\u00a0'}
+        </div>
       </div>
     </div>
   );
