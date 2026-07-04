@@ -38,6 +38,7 @@ export default function BattleView({
     replacementsUsed,
     maxReplacements,
     bossCanAttack,
+    opponentBossCanAttack,
   } = gameState;
 
   const me = players?.find((p) => p.id === 'player') || players?.[0];
@@ -121,6 +122,40 @@ export default function BattleView({
   const oppPlayer = opponent || players?.find((p) => p.id !== me?.id);
   const battleLocked = !!attackAnimation || !!deathAnimation || !!winnerId;
 
+  const countAliveFighters = (field) => (field || []).filter((c) => c && c.alive).length;
+  const myAliveFighters = countAliveFighters(myPlayer.field);
+  const oppAliveFighters = countAliveFighters(oppPlayer?.field);
+  const oppBossTargetable = !oppAliveFighters && oppPlayer?.boss?.alive;
+
+  const getAttackableTargets = () => {
+    const fighters = (oppPlayer?.field || []).filter((c) => c && c.alive);
+    if (fighters.length) return fighters;
+    if (oppBossTargetable) return [oppPlayer.boss];
+    return [];
+  };
+
+  const renderBattlefield = (player, isPlayer) => {
+    const aliveFighters = countAliveFighters(player.field);
+    const boss = player.boss;
+    const field = player.field || [];
+
+    return (
+      <div className="field-formation">
+        {boss && (
+          <div className="boss-backdrop">
+            {renderFieldSlot(boss, 'boss', isPlayer, {
+              bossLocked: isPlayer ? !bossCanAttack : !opponentBossCanAttack,
+              bossProtected: aliveFighters > 0,
+            })}
+          </div>
+        )}
+        <div className="fighter-frontline">
+          {field.map((card, i) => renderFieldSlot(card, i, isPlayer))}
+        </div>
+      </div>
+    );
+  };
+
   const cardAnimProps = (card) => ({
     isAttacking: attackAnimation?.attackerInstanceId === card?.instanceId,
     isHit: attackAnimation?.defenderInstanceId === card?.instanceId,
@@ -128,7 +163,7 @@ export default function BattleView({
     pendingDamage: attackAnimation?.defenderInstanceId === card?.instanceId ? (attackAnimation?.damage || 0) : 0,
   });
 
-  const renderFieldSlot = (card, slotIndex, isPlayer) => {
+  const renderFieldSlot = (card, slotIndex, isPlayer, options = {}) => {
     if (!card) {
       const canReplace = isPlayer && !battleLocked && replacementsUsed < maxReplacements
         && (replaceMode || (pendingReplacement?.slotIndex === slotIndex));
@@ -143,7 +178,8 @@ export default function BattleView({
       );
     }
 
-    const bossLocked = card.role === 'boss' && !bossCanAttack;
+    const bossLocked = options.bossLocked ?? (card.role === 'boss' && !bossCanAttack);
+    const bossProtected = options.bossProtected ?? false;
     return (
       <div
         key={card.instanceId}
@@ -154,7 +190,7 @@ export default function BattleView({
         }}
       >
         <GameCard
-          card={{ ...card, bossLocked }}
+          card={{ ...card, bossLocked, bossProtected }}
           showCooldown
           disabled={battleLocked || bossLocked}
           {...cardAnimProps(card)}
@@ -228,10 +264,7 @@ export default function BattleView({
         )}
         <div className="player-zone">
           <h3>Your Battlefield</h3>
-          <div className="field-cards">
-            {myPlayer.boss && renderFieldSlot(myPlayer.boss, 'boss', true)}
-            {(myPlayer.field || []).map((card, i) => renderFieldSlot(card, i, true))}
-          </div>
+          {renderBattlefield(myPlayer, true)}
           {!bossCanAttack && myPlayer.boss?.alive && (
             <p className="boss-hint">Boss locked until all 3 fighters are defeated</p>
           )}
@@ -239,10 +272,10 @@ export default function BattleView({
 
         <div className="player-zone">
           <h3>{oppPlayer?.username || 'CPU Opponent'}</h3>
-          <div className="field-cards">
-            {oppPlayer?.boss && renderFieldSlot(oppPlayer.boss, 'boss', false)}
-            {(oppPlayer?.field || []).map((card, i) => renderFieldSlot(card, i, false))}
-          </div>
+          {renderBattlefield(oppPlayer || { boss: null, field: [null, null, null] }, false)}
+          {oppAliveFighters > 0 && oppPlayer?.boss?.alive && (
+            <p className="boss-hint">Boss protected behind fighters</p>
+          )}
         </div>
       </div>
 
@@ -306,8 +339,7 @@ export default function BattleView({
           <div className="target-panel" onClick={(e) => e.stopPropagation()}>
             <h3>Choose target to attack</h3>
             <div className="field-cards" style={{ marginBottom: 16 }}>
-              {(oppPlayer?.field || [])
-                .concat(oppPlayer?.boss ? [oppPlayer.boss] : [])
+              {getAttackableTargets()
                 .filter((c) => c && !c.hidden && c.alive !== false)
                 .map((card) => (
                   <GameCard

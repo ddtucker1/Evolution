@@ -352,6 +352,41 @@ input:focus {
   justify-content: center;
 }
 
+.field-formation {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 220px;
+  padding: 8px 0;
+}
+
+.boss-backdrop {
+  position: absolute;
+  z-index: 0;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.boss-backdrop .game-card {
+  transform: scale(1.08);
+}
+
+.boss-backdrop .game-card:hover:not(.disabled) {
+  transform: scale(1.08) translateY(-2px);
+}
+
+.fighter-frontline {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: center;
+  align-items: flex-end;
+}
+
 .hand-area {
   margin-top: 16px;
 }
@@ -664,6 +699,12 @@ input:focus {
 .game-card.boss-locked {
   opacity: 0.75;
   filter: grayscale(0.3);
+}
+
+.game-card.boss-protected {
+  opacity: 0.65;
+  filter: grayscale(0.4);
+  border-style: dashed;
 }
 
 .game-card.attacking {
