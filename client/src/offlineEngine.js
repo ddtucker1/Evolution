@@ -133,6 +133,17 @@ function canBossAttack(player) {
   return player.boss?.alive && getAliveFieldFighters(player).length === 0;
 }
 
+function canBossBeTargeted(player) {
+  return canBossAttack(player);
+}
+
+function getAttackableTargets(opponent) {
+  const fighters = getAliveFieldFighters(opponent);
+  if (fighters.length) return fighters;
+  if (canBossBeTargeted(opponent)) return [opponent.boss];
+  return [];
+}
+
 function canCardAttack(attacker, player) {
   if (!attacker?.alive || attacker.cooldownRemaining > 0) return false;
   if (attacker.role === 'boss') return canBossAttack(player);
@@ -329,6 +340,7 @@ function toPrivateState(game, playerId) {
   const opp = game.players.find((p) => p.id !== playerId);
   const hideSetup = game.phase === 'setup';
   const bossCanAttack = canBossAttack(me);
+  const opponentBossCanAttack = canBossAttack(opp);
 
   return {
     id: game.id,
@@ -365,11 +377,12 @@ function toPrivateState(game, playerId) {
     drawReady: me.drawTimer >= me.drawTimerMax && me.deck.length > 0,
     deckRemaining: me.deck.length,
     bossCanAttack,
+    opponentBossCanAttack,
     opponent: {
       id: opp.id,
       username: opp.username,
       setupComplete: opp.setupComplete,
-      boss: hideSetup ? null : (opp.boss ? sanitize(opp.boss, true) : null),
+      boss: hideSetup ? null : (opp.boss ? { ...sanitize(opp.boss, true), bossLocked: !opponentBossCanAttack } : null),
       field: hideSetup ? [] : (opp.field || []).map((c) => (c ? sanitize(c, true) : null)),
       deckRemaining: opp.deck.length,
       replacementsUsed: opp.replacementsUsed,
@@ -481,7 +494,7 @@ function runNpcAI(game) {
   const human = game.players[0];
   const ready = getReadyAttackers(npc);
   if (!ready.length) return;
-  const targets = getFieldCards(human);
+  const targets = getAttackableTargets(human);
   if (!targets.length) return;
   const defender = targets.reduce((b, t) => (t.hp < b.hp ? t : b), targets[0]);
   beginAttackAnimation(game, ready[0], defender, 'CPU');
@@ -559,6 +572,9 @@ export function offlineAttack(game, attackerId, defenderId) {
   const defender = getFieldCards(opp).find((c) => c.instanceId === defenderId);
   if (!attacker || !defender?.alive) return { success: false };
   if (!canCardAttack(attacker, player)) return { success: false, message: 'Cannot attack yet' };
+  if (!getAttackableTargets(opp).some((c) => c.instanceId === defenderId)) {
+    return { success: false, message: 'Boss is protected until all fighters are defeated' };
+  }
   return beginAttackAnimation(game, attacker, defender, 'You');
 }
 

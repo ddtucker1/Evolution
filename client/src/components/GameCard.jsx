@@ -22,7 +22,8 @@ export default function GameCard({
   if (!card) return null;
 
   const bossLocked = card.bossLocked;
-  const isReady = card.alive && card.cooldownRemaining <= 0 && !bossLocked;
+  const bossProtected = card.bossProtected;
+  const isReady = card.alive && card.cooldownRemaining <= 0 && !bossLocked && !bossProtected;
   const isDead = card.alive === false && !isDying;
   const timerMax = card.cooldown || 0;
   const timerRemaining = Math.max(0, card.cooldownRemaining ?? 0);
@@ -42,6 +43,7 @@ export default function GameCard({
     isReady ? 'ready' : '',
     disabled ? 'disabled' : '',
     bossLocked ? 'boss-locked' : '',
+    bossProtected ? 'boss-protected' : '',
     isAttacking ? 'attacking' : '',
     isHit ? 'hit' : '',
     isDying ? 'dying' : '',
@@ -75,7 +77,7 @@ export default function GameCard({
       </div>
       {showCooldown && timerMax > 0 && (
         <div className={`timer-countdown${isReady ? ' timer-countdown-ready' : ''}`}>
-          {bossLocked ? 'Boss locked' : isReady ? 'Ready to attack!' : `${timerRemaining}s`}
+          {bossProtected ? 'Protected' : bossLocked ? 'Boss locked' : isReady ? 'Ready to attack!' : `${timerRemaining}s`}
         </div>
       )}
     </div>
