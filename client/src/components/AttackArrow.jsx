@@ -48,13 +48,13 @@ export default function AttackArrow({ containerRef, fromId, fromIds, toId, cardR
       <defs>
         <marker
           id="attack-arrowhead"
-          markerWidth="14"
-          markerHeight="14"
-          refX="12"
-          refY="7"
+          markerWidth="7"
+          markerHeight="7"
+          refX="6"
+          refY="3.5"
           orient="auto"
         >
-          <polygon points="0 0, 14 7, 0 14" className="attack-arrow-head" />
+          <polygon points="0 0, 7 3.5, 0 7" className="attack-arrow-head" />
         </marker>
       </defs>
       {lines.map((line) => (

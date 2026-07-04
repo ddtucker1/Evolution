@@ -25,11 +25,12 @@ export default function GameCard({
 
   const bossLocked = card.bossLocked;
   const bossProtected = card.bossProtected;
-  const isReady = card.alive && card.cooldownRemaining <= 0 && !bossLocked && !bossProtected;
-  const isDead = card.alive === false && !isDying;
   const timerMax = card.cooldown || 0;
-  const timerRemaining = Math.max(0, card.cooldownRemaining ?? 0);
-  const timerProgress = timerMax > 0 ? ((timerMax - timerRemaining) / timerMax) * 100 : 100;
+  const timerElapsed = Math.max(0, card.cooldownElapsed ?? 0);
+  const timerRemaining = Math.max(0, timerMax - timerElapsed);
+  const isReady = card.alive && timerElapsed >= timerMax && !bossLocked && !bossProtected;
+  const isDead = card.alive === false && !isDying;
+  const timerProgress = timerMax > 0 ? (timerElapsed / timerMax) * 100 : 100;
   const maxHp = card.maxHp || 0;
   const currentHp = Math.max(0, (card.hp ?? maxHp) - (isHit ? pendingDamage : 0));
   const hpPercent = maxHp > 0 ? (currentHp / maxHp) * 100 : 0;

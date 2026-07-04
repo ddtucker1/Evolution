@@ -1,45 +1,71 @@
 import {
-  computeBaseStats,
   calculateBattleTimer,
   getTimerPreview,
   isBaseCardId,
+  generateRandomBaseStats,
+  statTripleKey,
+  CATALOG_SIZE,
 } from '../../shared/baseCardStats.js';
+import { generateCardName } from '../../shared/cardNaming.js';
 
-const BASE_CARD_DEFINITIONS = [
-  { id: 'uni_knight', name: 'Steel Knight', weights: { attack: 12, defense: 14, health: 40 } },
-  { id: 'uni_archer', name: 'Shadow Archer', weights: { attack: 16, defense: 8, health: 30 } },
-  { id: 'uni_mage', name: 'Flame Mage', weights: { attack: 18, defense: 6, health: 28 } },
-  { id: 'uni_golem', name: 'Stone Golem', weights: { attack: 10, defense: 18, health: 50 } },
-  { id: 'uni_rogue', name: 'Night Rogue', weights: { attack: 15, defense: 10, health: 32 } },
-  { id: 'uni_paladin', name: 'Holy Paladin', weights: { attack: 13, defense: 15, health: 42 } },
-  { id: 'uni_berserker', name: 'Blood Berserker', weights: { attack: 20, defense: 5, health: 35 } },
-  { id: 'uni_druid', name: 'Forest Druid', weights: { attack: 11, defense: 12, health: 38 } },
-  { id: 'uni_wraith', name: 'Soul Wraith', weights: { attack: 17, defense: 7, health: 26 } },
-  { id: 'uni_titan', name: 'Storm Titan', weights: { attack: 19, defense: 12, health: 45 } },
-  { id: 'uni_phoenix', name: 'Ember Phoenix', weights: { attack: 16, defense: 9, health: 33 } },
-  { id: 'uni_serpent', name: 'Viper Serpent', weights: { attack: 14, defense: 11, health: 31 } },
-  { id: 'uni_monk', name: 'Iron Monk', weights: { attack: 13, defense: 13, health: 36 } },
-  { id: 'uni_samurai', name: 'Blade Samurai', weights: { attack: 17, defense: 11, health: 34 } },
-  { id: 'uni_necromancer', name: 'Dark Necromancer', weights: { attack: 16, defense: 7, health: 29 } },
-  { id: 'uni_ranger', name: 'Wild Ranger', weights: { attack: 15, defense: 9, health: 33 } },
-  { id: 'uni_shaman', name: 'Spirit Shaman', weights: { attack: 12, defense: 11, health: 37 } },
-  { id: 'uni_vampire', name: 'Crimson Vampire', weights: { attack: 18, defense: 8, health: 31 } },
-  { id: 'uni_dragon', name: 'Sky Dragon', weights: { attack: 21, defense: 10, health: 44 } },
-  { id: 'uni_elementalist', name: 'Prism Elementalist', weights: { attack: 14, defense: 10, health: 35 } },
-];
+const CATALOG_VERSION = 2;
+const CATALOG_STORAGE_KEY = 'cfb_card_catalog';
 
-const CARD_DATA = {
-  unique: BASE_CARD_DEFINITIONS.map((def) => {
-    const stats = computeBaseStats(def.weights.attack, def.weights.defense, def.weights.health);
-    return {
-      id: def.id,
-      name: def.name,
+function buildRandomCatalog(count = CATALOG_SIZE) {
+  const used = new Set();
+  const cards = [];
+  let attempts = 0;
+
+  while (cards.length < count && attempts < count * 500) {
+    attempts += 1;
+    const stats = generateRandomBaseStats();
+    const key = statTripleKey(stats);
+    if (used.has(key)) continue;
+    used.add(key);
+
+    const timer = getTimerPreview(stats.attack);
+    cards.push({
+      id: `uni_${cards.length + 1}`,
+      name: generateCardName({ ...stats, timer }, key),
       attack: stats.attack,
       defense: stats.defense,
       hp: stats.hp,
       isBase: true,
-    };
-  }),
+    });
+  }
+
+  return cards;
+}
+
+function loadCatalogFromStorage() {
+  try {
+    const raw = localStorage.getItem(CATALOG_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (parsed.version === CATALOG_VERSION && Array.isArray(parsed.cards) && parsed.cards.length === CATALOG_SIZE) {
+      return parsed.cards;
+    }
+  } catch (_) {
+    // ignore corrupt storage
+  }
+  return null;
+}
+
+function saveCatalogToStorage(cards) {
+  localStorage.setItem(CATALOG_STORAGE_KEY, JSON.stringify({ version: CATALOG_VERSION, cards }));
+}
+
+function getOrCreateCatalog() {
+  let cards = loadCatalogFromStorage();
+  if (!cards) {
+    cards = buildRandomCatalog(CATALOG_SIZE);
+    saveCatalogToStorage(cards);
+  }
+  return cards;
+}
+
+const CARD_DATA = {
+  unique: getOrCreateCatalog(),
 };
 
 const baseAttacks = CARD_DATA.unique.map((c) => c.attack);
@@ -85,6 +111,14 @@ function getAttackAnimationMs() {
   return ATTACK_ANIM_MS;
 }
 
+function getCooldownRemaining(card) {
+  return Math.max(0, (card.cooldown || 0) - (card.cooldownElapsed || 0));
+}
+
+function isCardReady(card) {
+  return (card.cooldownElapsed || 0) >= (card.cooldown || 0);
+}
+
 export function getLibraryCooldownSeconds(card) {
   if (typeof card === 'string') {
     const template = getTemplate(card);
@@ -111,7 +145,7 @@ function makeBattleCard(templateId, instanceId) {
     instanceId, templateId, name: t.name, type: 'unique',
     attack, defense,
     maxHp, hp: maxHp,
-    cooldown, cooldownRemaining: cooldown,
+    cooldown, cooldownElapsed: 0,
     alive: true, role: null,
     ability: t.ability || null,
     isBase: isBaseCardId(templateId),
@@ -199,7 +233,7 @@ function getAttackableTargets(opponent) {
 }
 
 function canCardAttack(attacker, player) {
-  if (!attacker?.alive || attacker.cooldownRemaining > 0) return false;
+  if (!attacker?.alive || !isCardReady(attacker)) return false;
   if (attacker.role === 'boss') return canBossAttack(player);
   return attacker.role === 'field';
 }
@@ -210,7 +244,7 @@ function promoteToBoss(card) {
 }
 
 function getReadyFieldFighters(player) {
-  return getAliveFieldFighters(player).filter((c) => c.cooldownRemaining <= 0);
+  return getAliveFieldFighters(player).filter((c) => isCardReady(c));
 }
 
 function calculateChainAttackDamage(attackers, defender) {
@@ -235,7 +269,7 @@ function processPendingAttack(game) {
       .map((id) => getAliveFieldFighters(player).find((c) => c.instanceId === id))
       .filter(Boolean);
     if (attackers.length < 2) return;
-    if (!attackers.every((a) => a.cooldownRemaining <= 0)) return;
+    if (!attackers.every((a) => isCardReady(a))) return;
     beginChainAttackAnimation(game, attackers, defender, 'You');
     return;
   }
@@ -273,7 +307,7 @@ function sanitize(card, revealed) {
     hp: card.hp,
     maxHp: card.maxHp,
     cooldown: card.cooldown,
-    cooldownRemaining: card.cooldownRemaining,
+    cooldownElapsed: card.cooldownElapsed,
     role: card.role,
     alive: card.alive,
     type: card.type,
@@ -407,7 +441,7 @@ function completeAttackAnimation(game) {
     }
     for (const attackerRef of attackerRefs) {
       applyAttackAbility(game, attackerRef, defenderRef);
-      attackerRef.card.cooldownRemaining = attackerRef.card.cooldown;
+      attackerRef.card.cooldownElapsed = 0;
     }
 
     if (killed) {
@@ -665,7 +699,7 @@ function startTicks(game) {
 
     for (const p of game.players) {
       for (const c of getFieldCards(p)) {
-        if (c.cooldownRemaining > 0) c.cooldownRemaining -= 1;
+        if (!isCardReady(c)) c.cooldownElapsed = Math.min(c.cooldown, (c.cooldownElapsed || 0) + 1);
       }
       if (p.drawTimer < p.drawTimerMax) p.drawTimer += 1;
     }
@@ -704,18 +738,18 @@ function runNpcBossMagic(game) {
 
   const playerCards = getFieldCards(human).filter((c) => c.alive);
   const slowTarget = playerCards.length
-    ? playerCards.reduce((a, b) => (a.cooldownRemaining < b.cooldownRemaining ? a : b))
+    ? playerCards.reduce((a, b) => (getCooldownRemaining(a) < getCooldownRemaining(b) ? a : b))
     : null;
-  if (slowTarget && slowTarget.cooldownRemaining <= slowTarget.cooldown * 0.6) {
+  if (slowTarget && getCooldownRemaining(slowTarget) <= slowTarget.cooldown * 0.6) {
     applyBossSlow(npc, slowTarget);
     game.log.push(`CPU boss slowed ${slowTarget.name}`);
     return;
   }
 
-  const hasteCandidates = getFieldCards(npc).filter((c) => c.alive && c.cooldownRemaining > 2);
+  const hasteCandidates = getFieldCards(npc).filter((c) => c.alive && getCooldownRemaining(c) > 2);
   if (hasteCandidates.length) {
     const target = hasteCandidates.reduce((a, b) => (
-      a.cooldownRemaining > b.cooldownRemaining ? a : b
+      getCooldownRemaining(a) > getCooldownRemaining(b) ? a : b
     ));
     applyBossHaste(npc, target);
     game.log.push(`CPU boss hastened ${target.name}`);
@@ -857,14 +891,16 @@ export function offlineChainAttack(game, attackerIds, defenderId) {
 }
 
 function applyBossSlow(owner, target) {
+  const remaining = getCooldownRemaining(target);
   if (!target.slowed) {
     target.slowed = true;
     target.cooldown *= 2;
   }
-  target.cooldownRemaining = Math.min(
+  const newRemaining = Math.min(
     target.cooldown,
-    Math.max(target.cooldownRemaining, 1) * 2,
+    Math.max(remaining, 1) * 2,
   );
+  target.cooldownElapsed = target.cooldown - newRemaining;
   markBossAbilityUsed(owner, 'slow');
 }
 
@@ -874,7 +910,9 @@ function applyBossHeal(owner, target) {
 }
 
 function applyBossHaste(owner, target) {
-  target.cooldownRemaining = Math.max(0, Math.floor(target.cooldownRemaining / 2));
+  const remaining = getCooldownRemaining(target);
+  const newRemaining = Math.max(0, Math.floor(remaining / 2));
+  target.cooldownElapsed = target.cooldown - newRemaining;
   markBossAbilityUsed(owner, 'haste');
 }
 
@@ -941,4 +979,4 @@ export function getOfflineState(game) {
   return toPrivateState(game, 'player');
 }
 
-export { CARD_DATA, CARD_TIMER_MIN, CARD_TIMER_MAX, PLAY_DECK_SIZE, getTimerPreview };
+export { CARD_DATA, CARD_TIMER_MIN, CARD_TIMER_MAX, PLAY_DECK_SIZE, getTimerPreview, CATALOG_VERSION };
