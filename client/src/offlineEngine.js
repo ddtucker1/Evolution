@@ -170,6 +170,14 @@ function canBossAttack(player) {
   return player.boss?.alive && getAliveFieldFighters(player).length === 0;
 }
 
+function isBossOnlyPhase(player) {
+  return player.boss?.alive && getAliveFieldFighters(player).length === 0;
+}
+
+function isBossPhase(game) {
+  return game.players.some((p) => isBossOnlyPhase(p));
+}
+
 function canBossBeTargeted(player) {
   return canBossAttack(player);
 }
@@ -565,6 +573,7 @@ function toPrivateState(game, playerId) {
     bossCanAttack,
     opponentBossCanAttack,
     bossAbilityAvailable: canUseBossAbility(me),
+    bossPhase: isBossPhase(game),
     opponent: {
       id: opp.id,
       username: opp.username,

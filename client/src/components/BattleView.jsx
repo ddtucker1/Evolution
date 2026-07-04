@@ -1,6 +1,7 @@
 import { useState, useRef } from 'react';
 import GameCard from './GameCard';
 import AttackArrow from './AttackArrow';
+import ChainFireAnimation from './ChainFireAnimation';
 
 export default function BattleView({
   gameState,
@@ -68,12 +69,6 @@ export default function BattleView({
     const otherReady = getReadyChainAttackers().filter((c) => c.instanceId !== attacker.instanceId);
     if (otherReady.length === 0) {
       setTargetMode({ step: 'direct-target', attacker });
-    } else if (otherReady.length === 1) {
-      setTargetMode({
-        step: 'chain-target',
-        attacker,
-        partners: [otherReady[0].instanceId],
-      });
     } else {
       setTargetMode({ step: 'attack-choice', attacker });
     }
@@ -112,6 +107,26 @@ export default function BattleView({
       attacker: targetMode.attacker,
       partners: [],
     });
+  };
+
+  const startChainFromChoice = () => {
+    if (!targetMode?.attacker) return;
+    const otherReady = getReadyChainAttackers()
+      .filter((c) => c.instanceId !== targetMode.attacker.instanceId);
+    if (otherReady.length === 1) {
+      setTargetMode({
+        step: 'chain-target',
+        attacker: targetMode.attacker,
+        partners: [otherReady[0].instanceId],
+      });
+    } else {
+      startChainPartnerSelect();
+    }
+  };
+
+  const startSingleAttack = () => {
+    if (!targetMode?.attacker) return;
+    setTargetMode({ step: 'direct-target', attacker: targetMode.attacker });
   };
 
   const confirmChainPartners = () => {
@@ -421,13 +436,18 @@ export default function BattleView({
 
       <div className="battlefield" ref={battlefieldRef}>
         {attackAnimation && (
-          <AttackArrow
-            containerRef={battlefieldRef}
-            cardRefs={cardRefs}
-            fromId={attackAnimation.attackerInstanceId}
-            fromIds={attackAnimation.isChainAttack ? attackAnimation.attackerInstanceIds : undefined}
-            toId={attackAnimation.defenderInstanceId}
-          />
+          <>
+            {attackAnimation.isChainAttack && (
+              <ChainFireAnimation chainCount={attackAnimation.chainCount || attackAnimation.attackerInstanceIds?.length || 2} />
+            )}
+            <AttackArrow
+              containerRef={battlefieldRef}
+              cardRefs={cardRefs}
+              fromId={attackAnimation.attackerInstanceId}
+              fromIds={attackAnimation.isChainAttack ? attackAnimation.attackerInstanceIds : undefined}
+              toId={attackAnimation.defenderInstanceId}
+            />
+          </>
         )}
         <div className="player-zone">
           <h3>Your Battlefield</h3>
@@ -543,31 +563,36 @@ export default function BattleView({
         }
 
         if (targetMode.step === 'attack-choice') {
+          const readyCount = 1 + otherReady.length;
           return (
             <div className="target-overlay" onClick={() => setTargetMode(null)}>
               <div className="target-panel" onClick={(e) => e.stopPropagation()}>
                 <h3>Choose attack type</h3>
                 <p className="replace-hint">
-                  <strong>{targetMode.attacker.name}</strong> is ready — attack alone or chain with allies.
+                  <strong>{targetMode.attacker.name}</strong> is ready
+                  {readyCount > 1 ? ` — ${readyCount} fighters are ready to strike.` : '.'}
                 </p>
-                <div className="attack-choice-section">
-                  <h4 className="attack-choice-title">Direct Attack</h4>
-                  <p className="replace-hint">Strike with {targetMode.attacker.name} only.</p>
-                  {renderTargetCards(handleTargetSelect)}
-                </div>
-                <div className="chain-attack-section">
-                  <h4 className="chain-attack-title">Chain Attack</h4>
-                  <p className="replace-hint">
-                    Combine {targetMode.attacker.name} with one or both other ready fighters for bonus power.
-                  </p>
+                <div className="attack-type-buttons">
                   <button
                     type="button"
-                    className="btn-gold chain-attack-start-btn"
-                    onClick={startChainPartnerSelect}
+                    className="btn-gold attack-type-btn"
+                    onClick={startSingleAttack}
+                  >
+                    Single Attack
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-gold attack-type-btn chain-type-btn"
+                    onClick={startChainFromChoice}
                   >
                     Chain Attack
                   </button>
                 </div>
+                <p className="replace-hint">
+                  {otherReady.length === 1
+                    ? 'Chain with your other ready fighter for +10% power.'
+                    : 'Chain with one or both other ready fighters for bonus power (+10% for 2, +20% for 3).'}
+                </p>
                 <button className="btn-secondary" style={{ width: '100%' }} onClick={() => setTargetMode(null)}>Cancel</button>
               </div>
             </div>
