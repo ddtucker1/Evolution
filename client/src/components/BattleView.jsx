@@ -2,6 +2,7 @@ import { useState, useRef } from 'react';
 import GameCard from './GameCard';
 import AttackArrow from './AttackArrow';
 import ChainFireAnimation from './ChainFireAnimation';
+import useBattleBackground from '../hooks/useBattleBackground';
 
 export default function BattleView({
   gameState,
@@ -21,6 +22,7 @@ export default function BattleView({
   const [magicMode, setMagicMode] = useState(null);
   const battlefieldRef = useRef(null);
   const cardRefs = useRef({});
+  const battleBackgroundUrl = useBattleBackground(gameState?.phase === 'battle');
 
   if (!gameState) return null;
 
@@ -388,9 +390,12 @@ export default function BattleView({
   };
 
   const drawProgress = drawTimerMax > 0 ? (drawTimer / drawTimerMax) * 100 : 0;
+  const battleScreenStyle = battleBackgroundUrl
+    ? { backgroundImage: `url(${battleBackgroundUrl})` }
+    : undefined;
 
   return (
-    <div>
+    <div className={`battle-screen${battleBackgroundUrl ? ' has-background' : ''}`} style={battleScreenStyle}>
       <div className="battle-top-bar">
         <button className="btn-secondary" onClick={onMainMenu}>Main Menu</button>
         <span className="replacement-counter">

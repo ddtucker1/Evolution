@@ -5,6 +5,7 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 
 const AUDIO_EXTENSIONS = new Set(['.mp3', '.ogg', '.wav', '.m4a', '.aac', '.flac', '.webm']);
+const IMAGE_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.webp', '.gif', '.bmp']);
 
 function resolveDesktopDir(folderName) {
   const home = os.homedir();
@@ -32,18 +33,44 @@ function contentTypeFor(filePath) {
     '.aac': 'audio/aac',
     '.flac': 'audio/flac',
     '.webm': 'audio/webm',
+    '.png': 'image/png',
+    '.jpg': 'image/jpeg',
+    '.jpeg': 'image/jpeg',
+    '.webp': 'image/webp',
+    '.gif': 'image/gif',
+    '.bmp': 'image/bmp',
   };
   return types[ext] || 'application/octet-stream';
 }
 
-function desktopMusicPlugin() {
+function resolveDesktopImagePath() {
+  const home = os.homedir();
+  const desktopDirs = [
+    path.join(home, 'Desktop'),
+    path.join(home, 'desktop'),
+  ];
+  for (const dir of desktopDirs) {
+    if (!fs.existsSync(dir)) continue;
+    const exact = path.join(dir, 'image');
+    if (fs.existsSync(exact) && fs.statSync(exact).isFile()) return exact;
+    for (const ext of IMAGE_EXTENSIONS) {
+      const filePath = path.join(dir, `image${ext}`);
+      if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) return filePath;
+    }
+  }
+  return null;
+}
+
+function desktopAssetsPlugin() {
   return {
-    name: 'desktop-music',
+    name: 'desktop-assets',
     configureServer(server) {
       attachDesktopMusicMiddleware(server.middlewares);
+      attachDesktopImageMiddleware(server.middlewares);
     },
     configurePreviewServer(server) {
       attachDesktopMusicMiddleware(server.middlewares);
+      attachDesktopImageMiddleware(server.middlewares);
     },
   };
 }
@@ -90,8 +117,22 @@ function attachDesktopMusicMiddleware(middlewares) {
   });
 }
 
+function attachDesktopImageMiddleware(middlewares) {
+  middlewares.use('/desktop-image/image', (req, res) => {
+    const filePath = resolveDesktopImagePath();
+    if (!filePath) {
+      res.statusCode = 404;
+      res.end('Not found');
+      return;
+    }
+
+    res.setHeader('Content-Type', contentTypeFor(filePath));
+    fs.createReadStream(filePath).pipe(res);
+  });
+}
+
 export default defineConfig({
-  plugins: [react(), desktopMusicPlugin()],
+  plugins: [react(), desktopAssetsPlugin()],
   server: {
     port: 5173,
     proxy: {

@@ -313,6 +313,7 @@ function sanitize(card, revealed) {
     type: card.type,
     ability: card.ability || null,
     slowed: !!card.slowed,
+    poisoned: !!card.poisoned,
     bossLocked: false,
   };
 }
@@ -379,6 +380,12 @@ function applyFlatDamage(card, amount) {
   return false;
 }
 
+function applyPoison(target) {
+  if (!target?.alive) return;
+  target.poisoned = true;
+  target.poisonTicks = 0;
+}
+
 function applyAttackAbility(game, attackerRef, defenderRef) {
   const ability = attackerRef?.card?.ability;
   if (!ability) return;
@@ -387,6 +394,10 @@ function applyAttackAbility(game, attackerRef, defenderRef) {
   const defenderPlayer = game.players.find((p) => p.id !== attackerPlayer.id);
 
   switch (ability.type) {
+    case 'poison': {
+      applyPoison(defenderRef.card);
+      break;
+    }
     case 'piercing_aoe': {
       const others = getAliveFieldFighters(defenderPlayer)
         .filter((c) => c.instanceId !== defenderRef.card.instanceId);
@@ -692,10 +703,50 @@ function autoNpcSetup(game) {
   npc.setupComplete = true;
 }
 
+function triggerPoisonDeath(game, card) {
+  if (!card?.alive || game.deathAnimation || game.attackAnimation) return false;
+  card.hp = 0;
+  card.alive = false;
+  game.deathAnimation = {
+    instanceId: card.instanceId,
+    durationMs: DEATH_ANIMATION_MS,
+    shakeMs: DEATH_SHAKE_MS,
+  };
+  if (game.onUpdate) game.onUpdate(toPrivateState(game, 'player'));
+  game.deathTimeout = setTimeout(() => completeDeathAnimation(game), DEATH_ANIMATION_MS);
+  return true;
+}
+
+function processPoisonTicks(game) {
+  if (isBattlePaused(game)) return false;
+
+  for (const p of game.players) {
+    for (const c of getFieldCards(p)) {
+      if (!c?.alive || !c.poisoned) continue;
+      c.poisonTicks = (c.poisonTicks || 0) + 1;
+      if (c.poisonTicks < 5) continue;
+
+      c.poisonTicks = 0;
+      const killed = applyFlatDamage(c, 1);
+      if (killed) {
+        game.log.push(`${c.name} succumbed to poison`);
+        return triggerPoisonDeath(game, c);
+      }
+    }
+  }
+  return false;
+}
+
 function startTicks(game) {
   stopTicks();
   tickTimer = setInterval(() => {
     if (game.phase !== 'battle' || isBattlePaused(game)) return;
+
+    if (processPoisonTicks(game)) {
+      const w = checkWinner(game.players[0], game.players[1]);
+      if (w) finishOffline(game, w);
+      return;
+    }
 
     for (const p of game.players) {
       for (const c of getFieldCards(p)) {
