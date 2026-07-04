@@ -7,6 +7,7 @@ import {
   CATALOG_SIZE,
 } from '../../shared/baseCardStats.js';
 import { generateCardName } from '../../shared/cardNaming.js';
+import { previewEvolve } from './evolveEngine.js';
 
 const CATALOG_VERSION = 2;
 const CATALOG_STORAGE_KEY = 'cfb_card_catalog';
@@ -183,11 +184,76 @@ function createPlayer(id, username, deckIds) {
   };
 }
 
+let npcEvolvedPool = null;
+
+function createNpcEvolvedCard(card1, card2, id) {
+  const preview = previewEvolve(card1, card2);
+  if (!preview) return null;
+  const card = {
+    id,
+    name: preview.name,
+    type: 'unique',
+    attack: preview.attack,
+    defense: preview.defense,
+    hp: preview.hp,
+    timer: preview.timer,
+    level: preview.level,
+    level2Bonus: preview.level2Bonus,
+    ability: preview.ability,
+    parents: preview.parents,
+    evolved: true,
+  };
+  LOOKUP.set(id, card);
+  return card;
+}
+
+function getNpcEvolvedPool() {
+  if (npcEvolvedPool) return npcEvolvedPool;
+
+  const base = CARD_DATA.unique;
+  const level1 = [];
+  for (let i = 0; i < 3; i++) {
+    const c1 = base[(i * 2) % base.length];
+    const c2 = base[(i * 2 + 1) % base.length];
+    const card = createNpcEvolvedCard(c1, c2, `npc_evo_l1_${i}`);
+    if (card) level1.push(card);
+  }
+
+  const level2 = [];
+  for (let i = 0; i < 3; i++) {
+    const c1 = level1[i % level1.length];
+    const c2 = level1[(i + 1) % level1.length];
+    const card = createNpcEvolvedCard(c1, c2, `npc_evo_l2_${i}`);
+    if (card) level2.push(card);
+  }
+
+  const level3 = [];
+  for (let i = 0; i < 4; i++) {
+    const c1 = level2[i % level2.length];
+    const c2 = level2[(i + 1) % level2.length];
+    const card = createNpcEvolvedCard(c1, c2, `npc_evo_l3_${i}`);
+    if (card) level3.push(card);
+  }
+
+  npcEvolvedPool = [...level1, ...level2, ...level3];
+  return npcEvolvedPool;
+}
+
 function npcDeck() {
-  const ids = CARD_DATA.unique.map((c) => c.id);
+  const pool = getNpcEvolvedPool();
+  const byLevel = {
+    1: pool.filter((c) => c.level === 1),
+    2: pool.filter((c) => c.level === 2),
+    3: pool.filter((c) => c.level === 3),
+  };
   const deck = [];
-  for (let i = 0; i < PLAY_DECK_SIZE; i++) deck.push(ids[i % ids.length]);
-  return deck;
+  const pattern = [1, 2, 3, 1, 2, 3, 2, 3, 1, 3];
+  for (let i = 0; i < PLAY_DECK_SIZE; i++) {
+    const level = pattern[i % pattern.length];
+    const group = byLevel[level];
+    deck.push(group[i % group.length].id);
+  }
+  return shuffle(deck);
 }
 
 function getAliveFieldFighters(player) {
@@ -504,14 +570,17 @@ function beginAttackAnimation(game, attacker, defender, logPrefix) {
   return { success: true, damage, pending: true };
 }
 
-function beginChainAttackAnimation(game, attackers, defender, logPrefix) {
+function beginChainAttackAnimation(game, attackers, defender, logPrefix, ownerPlayer = null) {
   if (isBattlePaused(game)) return { success: false, message: 'Attack in progress' };
   if (!attackers?.length || attackers.length < 2) {
     return { success: false, message: 'Need at least 2 ready fighters for a chain attack' };
   }
 
-  const player = game.players[0];
-  const readyIds = new Set(getReadyFieldFighters(player).map((c) => c.instanceId));
+  const owner = ownerPlayer || game.players.find(
+    (p) => p.boss?.instanceId === attackers[0].instanceId
+      || (p.field || []).some((c) => c?.instanceId === attackers[0].instanceId),
+  ) || game.players[0];
+  const readyIds = new Set(getReadyFieldFighters(owner).map((c) => c.instanceId));
   if (!attackers.every((a) => readyIds.has(a.instanceId))) {
     return { success: false, message: 'All fighters must be ready for a chain attack' };
   }
@@ -817,16 +886,63 @@ function runNpcBossMagic(game) {
   }
 }
 
+function getChainAttackCombos(fighters) {
+  const combos = [];
+  for (let i = 0; i < fighters.length; i++) {
+    for (let j = i + 1; j < fighters.length; j++) {
+      combos.push([fighters[i], fighters[j]]);
+      for (let k = j + 1; k < fighters.length; k++) {
+        combos.push([fighters[i], fighters[j], fighters[k]]);
+      }
+    }
+  }
+  return combos;
+}
+
+function pickBestNpcAttack(game, npc, human) {
+  const readyAll = getReadyAttackers(npc);
+  const readyFighters = getReadyFieldFighters(npc);
+  const targets = getAttackableTargets(human);
+  if (!readyAll.length || !targets.length) return null;
+
+  const defender = targets.reduce((best, t) => (t.hp < best.hp ? t : best), targets[0]);
+  let bestAction = null;
+  let bestDamage = -1;
+
+  for (const attacker of readyAll) {
+    const damage = calculateAttackDamage(attacker, defender);
+    if (damage > bestDamage) {
+      bestDamage = damage;
+      bestAction = { type: 'single', attacker, defender };
+    }
+  }
+
+  if (readyFighters.length >= 2) {
+    for (const attackers of getChainAttackCombos(readyFighters)) {
+      const damage = calculateChainAttackDamage(attackers, defender);
+      if (damage > bestDamage) {
+        bestDamage = damage;
+        bestAction = { type: 'chain', attackers, defender };
+      }
+    }
+  }
+
+  return bestAction;
+}
+
 function runNpcAI(game) {
   if (isBattlePaused(game)) return;
   const npc = game.players[1];
   const human = game.players[0];
-  const ready = getReadyAttackers(npc);
-  if (!ready.length) return;
-  const targets = getAttackableTargets(human);
-  if (!targets.length) return;
-  const defender = targets.reduce((b, t) => (t.hp < b.hp ? t : b), targets[0]);
-  beginAttackAnimation(game, ready[0], defender, 'CPU');
+  const action = pickBestNpcAttack(game, npc, human);
+  if (!action) return;
+
+  if (action.type === 'chain') {
+    beginChainAttackAnimation(game, action.attackers, action.defender, 'CPU', npc);
+    return;
+  }
+
+  beginAttackAnimation(game, action.attacker, action.defender, 'CPU');
 }
 
 function finishOffline(game, winnerId) {
