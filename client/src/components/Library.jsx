@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import GameCard from './GameCard';
 import { getTimerPreview } from '../offlineEngine';
-import { previewEvolve, getCardLevel, getLevelDigit } from '../evolveEngine';
+import { getCardLevel, getLevelDigit } from '../evolveEngine';
 import {
   PLAY_DECK_SIZE,
   getCatalogCard,
@@ -90,15 +90,17 @@ export default function Library({ profile, onProfileChange, onMainMenu }) {
     setEvolveMessage(`Evolved ${result.evolved.name}!`);
   };
 
+  const cancelEvolve = () => {
+    setEvolveSelection([]);
+  };
+
   const exitEvolveMode = () => {
     setMode('deck');
     setEvolveSelection([]);
     setEvolveMessage('');
   };
 
-  const previewCard1 = evolveSelection[0] ? getCatalogCard(evolveSelection[0], profile) : null;
-  const previewCard2 = evolveSelection[1] ? getCatalogCard(evolveSelection[1], profile) : null;
-  const evolvePreview = previewCard1 && previewCard2 ? previewEvolve(previewCard1, previewCard2) : null;
+  const showEvolveConfirm = mode === 'evolve' && evolveSelection.length === 2;
 
   return (
     <div>
@@ -235,53 +237,22 @@ export default function Library({ profile, onProfileChange, onMainMenu }) {
         })}
       </div>
 
-      {mode === 'evolve' && (
-        <div className="evolve-panel">
-          <h4 style={{ color: 'var(--accent-purple)', marginBottom: 8 }}>
-            Evolve ({evolveSelection.length}/2 selected)
-          </h4>
-          {evolvePreview ? (
-            <div className="evolve-preview">
-              <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 12 }}>
-                Preview of the evolved card (stats are averaged from parents
-                {evolvePreview.level === 2 ? '; Level 2 bonus applied' : ''}
-                {evolvePreview.level === 3 ? '; Level 3 poison ability unlocked' : ''}):
-              </p>
-              <div className="evolve-preview-card">
-                <GameCard
-                  card={{
-                    name: evolvePreview.name,
-                    type: 'unique',
-                    attack: evolvePreview.attack,
-                    defense: evolvePreview.defense,
-                    hp: evolvePreview.hp,
-                    maxHp: evolvePreview.hp,
-                    timer: evolvePreview.timer,
-                    ability: evolvePreview.ability,
-                    alive: true,
-                  }}
-                  showCooldown={false}
-                  cooldownPreview={evolvePreview.timer}
-                  levelDigit={getLevelDigit({ level: evolvePreview.level })}
-                />
-              </div>
-              {evolvePreview.level2Bonus && (
-                <p className="level-bonus-text">Level 2 bonus: {evolvePreview.level2Bonus.label}</p>
-              )}
-              <p className="ability-text">{evolvePreview.ability.label}</p>
-            </div>
-          ) : (
-            <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 12 }}>
-              Select two cards above. Basic + basic or basic + Level 1 creates Level 1. Two Level 1 cards create Level 2 with a random stat boost. Two Level 2 cards create Level 3 with poison.
+      {showEvolveConfirm && (
+        <div className="target-overlay" onClick={cancelEvolve}>
+          <div className="confirm-dialog" onClick={(e) => e.stopPropagation()}>
+            <h3>Evolve Cards?</h3>
+            <p className="confirm-dialog-text">
+              Sacrifice these two cards to evolve them into a new card?
             </p>
-          )}
-          <button
-            className="btn-primary"
-            onClick={handleEvolve}
-            disabled={evolveSelection.length < 2}
-          >
-            Evolve Cards
-          </button>
+            <div className="confirm-dialog-actions">
+              <button type="button" className="btn-primary" onClick={handleEvolve}>
+                Confirm
+              </button>
+              <button type="button" className="btn-secondary" onClick={cancelEvolve}>
+                Cancel
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

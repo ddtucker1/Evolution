@@ -1114,22 +1114,42 @@ input:focus {
   font-weight: 700;
 }
 
-.evolve-panel {
-  margin-top: 20px;
-  padding: 16px;
-  background: var(--bg-elevated);
+.confirm-dialog {
+  background: var(--bg-card);
+  border: 2px solid var(--accent-purple);
   border-radius: var(--radius);
-  border: 1px dashed var(--accent-purple);
+  padding: 20px 24px;
+  min-width: 220px;
+  max-width: 320px;
+  width: 100%;
+  text-align: center;
+  box-shadow: var(--shadow);
 }
 
-.evolve-preview {
-  margin-bottom: 12px;
+.confirm-dialog h3 {
+  font-family: var(--font-display);
+  color: var(--accent-gold);
+  font-size: 1rem;
+  margin-bottom: 10px;
 }
 
-.evolve-preview-card {
-  width: var(--card-width);
-  max-width: var(--card-width);
-  margin: 0 auto 8px;
+.confirm-dialog-text {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin-bottom: 16px;
+  line-height: 1.4;
+}
+
+.confirm-dialog-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.confirm-dialog-actions button {
+  width: 100%;
+  padding: 8px 12px;
+  font-size: 13px;
 }
 
 .ability-text {
