@@ -206,7 +206,12 @@ export default function BattleView({
         <div className="hand-cards setup-hand-cards">
           {myHand?.map((card) => (
             <div key={card.instanceId} className="setup-card-wrap">
-              <GameCard card={card} hideStatusEffects />
+              <GameCard
+                card={card}
+                showCooldown={false}
+                cooldownPreview={card.cooldown}
+                hideRole
+              />
               <button
                 type="button"
                 className="btn-gold setup-boss-btn"
