@@ -6,6 +6,7 @@ export default function GameCard({
   showCooldown = true,
   isAttacking = false,
   isHit = false,
+  isDying = false,
   timerRangeLabel = null,
 }) {
   if (card?.hidden) {
@@ -22,7 +23,7 @@ export default function GameCard({
   const isStandard = card.type === 'standard';
   const bossLocked = card.bossLocked;
   const isReady = !isStandard && card.alive && card.cooldownRemaining <= 0 && !bossLocked;
-  const isDead = card.alive === false;
+  const isDead = card.alive === false && !isDying;
   const timerMax = card.cooldown || 0;
   const timerRemaining = Math.max(0, card.cooldownRemaining ?? 0);
   const timerProgress = timerMax > 0 ? ((timerMax - timerRemaining) / timerMax) * 100 : 100;
@@ -38,6 +39,7 @@ export default function GameCard({
     bossLocked ? 'boss-locked' : '',
     isAttacking ? 'attacking' : '',
     isHit ? 'hit' : '',
+    isDying ? 'dying' : '',
   ].filter(Boolean).join(' ');
 
   return (

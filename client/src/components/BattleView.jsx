@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import GameCard from './GameCard';
+import AttackArrow from './AttackArrow';
 
 export default function BattleView({
   gameState,
@@ -12,6 +13,8 @@ export default function BattleView({
 }) {
   const [targetMode, setTargetMode] = useState(null);
   const [replaceMode, setReplaceMode] = useState(null);
+  const battlefieldRef = useRef(null);
+  const cardRefs = useRef({});
 
   if (!gameState) return null;
 
@@ -26,6 +29,7 @@ export default function BattleView({
     winnerId,
     players,
     attackAnimation,
+    deathAnimation,
     drawTimer,
     drawTimerMax,
     drawReady,
@@ -43,7 +47,7 @@ export default function BattleView({
   };
 
   const canAttackWith = (attacker) => {
-    if (attackAnimation || !attacker?.alive || attacker.cooldownRemaining > 0) return false;
+    if (attackAnimation || deathAnimation || !attacker?.alive || attacker.cooldownRemaining > 0) return false;
     if (attacker.role === 'boss') return bossCanAttack;
     return attacker.role === 'field';
   };
@@ -118,11 +122,12 @@ export default function BattleView({
     field: myField?.length ? myField : (me?.field || [null, null, null]),
   };
   const oppPlayer = opponent || players?.find((p) => p.id !== me?.id);
-  const battleLocked = !!attackAnimation || !!winnerId;
+  const battleLocked = !!attackAnimation || !!deathAnimation || !!winnerId;
 
   const cardAnimProps = (card) => ({
     isAttacking: attackAnimation?.attackerInstanceId === card?.instanceId,
     isHit: attackAnimation?.defenderInstanceId === card?.instanceId,
+    isDying: deathAnimation?.instanceId === card?.instanceId,
   });
 
   const renderFieldSlot = (card, slotIndex, isPlayer) => {
@@ -141,16 +146,24 @@ export default function BattleView({
 
     const bossLocked = card.role === 'boss' && !bossCanAttack;
     return (
-      <GameCard
+      <div
         key={card.instanceId}
-        card={{ ...card, bossLocked }}
-        showCooldown
-        disabled={battleLocked || bossLocked}
-        {...cardAnimProps(card)}
-        onClick={() => {
-          if (phase === 'battle' && isPlayer && !battleLocked) handleAttackClick(card);
+        className="field-card-anchor"
+        ref={(el) => {
+          if (el) cardRefs.current[card.instanceId] = el;
+          else delete cardRefs.current[card.instanceId];
         }}
-      />
+      >
+        <GameCard
+          card={{ ...card, bossLocked }}
+          showCooldown
+          disabled={battleLocked || bossLocked}
+          {...cardAnimProps(card)}
+          onClick={() => {
+            if (phase === 'battle' && isPlayer && !battleLocked) handleAttackClick(card);
+          }}
+        />
+      </div>
     );
   };
 
@@ -199,7 +212,21 @@ export default function BattleView({
         </div>
       </div>
 
-      <div className="battlefield">
+      {deathAnimation && (
+        <div className="attack-banner death-banner">
+          Card destroyed — shake and fade animation playing
+        </div>
+      )}
+
+      <div className="battlefield" ref={battlefieldRef}>
+        {attackAnimation && (
+          <AttackArrow
+            containerRef={battlefieldRef}
+            cardRefs={cardRefs}
+            fromId={attackAnimation.attackerInstanceId}
+            toId={attackAnimation.defenderInstanceId}
+          />
+        )}
         <div className="player-zone">
           <h3>Your Battlefield</h3>
           <div className="field-cards">

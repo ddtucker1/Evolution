@@ -28,6 +28,8 @@ const CARD_DATA = {
 const DRAW_TIMER_MAX = 30;
 const CARD_TIMER_MIN = 10;
 const CARD_TIMER_MAX = 60;
+const DEATH_ANIMATION_MS = 4000;
+const DEATH_SHAKE_MS = 2000;
 const PLAY_DECK_SIZE = 10;
 const MAX_REPLACEMENTS = 3;
 const MIN_ATTACK_ANIM_MS = 1000;
@@ -214,21 +216,51 @@ function findFieldCard(game, instanceId) {
   return null;
 }
 
+function isBattlePaused(game) {
+  return !!(game.attackAnimation || game.deathAnimation);
+}
+
+function completeDeathAnimation(game) {
+  const anim = game.deathAnimation;
+  if (!anim) return;
+
+  const ref = findFieldCard(game, anim.instanceId);
+  if (ref?.card?.role === 'field') clearDeadFieldSlot(ref.player, ref.card);
+
+  game.deathAnimation = null;
+  if (game.deathTimeout) {
+    clearTimeout(game.deathTimeout);
+    game.deathTimeout = null;
+  }
+
+  const w = checkWinner(game.players[0], game.players[1]);
+  if (w) finishOffline(game, w);
+  else if (game.onUpdate) game.onUpdate(toPrivateState(game, 'player'));
+}
+
 function completeAttackAnimation(game) {
   const anim = game.attackAnimation;
   if (!anim) return;
 
   const attackerRef = findFieldCard(game, anim.attackerInstanceId);
   const defenderRef = findFieldCard(game, anim.defenderInstanceId);
-  if (attackerRef?.card?.alive && defenderRef?.card?.alive) {
+  if (attackerRef?.card?.alive && defenderRef?.card) {
     defenderRef.card.hp -= anim.damage;
-    if (defenderRef.card.hp <= 0) {
+    const killed = defenderRef.card.hp <= 0;
+    if (killed) {
       defenderRef.card.hp = 0;
       defenderRef.card.alive = false;
-      clearDeadFieldSlot(defenderRef.player, defenderRef.card);
     }
     attackerRef.card.cooldownRemaining = attackerRef.card.cooldown;
-    game.log.push(anim.logMessage);
+    game.log.push(anim.logMessage + (killed ? ` ${defenderRef.card.name} was destroyed!` : ''));
+
+    if (killed) {
+      game.deathAnimation = {
+        instanceId: defenderRef.card.instanceId,
+        durationMs: DEATH_ANIMATION_MS,
+        shakeMs: DEATH_SHAKE_MS,
+      };
+    }
   }
 
   game.attackAnimation = null;
@@ -237,13 +269,19 @@ function completeAttackAnimation(game) {
     game.attackTimeout = null;
   }
 
+  if (game.deathAnimation) {
+    if (game.onUpdate) game.onUpdate(toPrivateState(game, 'player'));
+    game.deathTimeout = setTimeout(() => completeDeathAnimation(game), DEATH_ANIMATION_MS);
+    return;
+  }
+
   const w = checkWinner(game.players[0], game.players[1]);
   if (w) finishOffline(game, w);
   else if (game.onUpdate) game.onUpdate(toPrivateState(game, 'player'));
 }
 
 function beginAttackAnimation(game, attacker, defender, logPrefix) {
-  if (game.attackAnimation) return { success: false, message: 'Attack in progress' };
+  if (isBattlePaused(game)) return { success: false, message: 'Attack in progress' };
   const owner = game.players.find((p) => p.boss?.instanceId === attacker.instanceId || (p.field || []).some((c) => c?.instanceId === attacker.instanceId));
   if (!owner || !canCardAttack(attacker, owner)) return { success: false, message: 'Cannot attack yet' };
 
@@ -325,7 +363,8 @@ function toPrivateState(game, playerId) {
     log: game.log.slice(-20),
     winnerId: game.winnerId,
     attackAnimation: game.attackAnimation ? { ...game.attackAnimation } : null,
-    timersPaused: !!game.attackAnimation,
+    deathAnimation: game.deathAnimation ? { ...game.deathAnimation } : null,
+    timersPaused: isBattlePaused(game),
     myHand: me.setupHand.map((c) => ({ ...c })),
     myBattleHand: me.battleHand.map((c) => ({ ...c })),
     myBoss: me.boss ? { ...me.boss, bossLocked: !bossCanAttack } : null,
@@ -365,6 +404,8 @@ export function createOfflineGame(deckIds) {
     winnerId: null,
     attackAnimation: null,
     attackTimeout: null,
+    deathAnimation: null,
+    deathTimeout: null,
   };
   return game;
 }
@@ -420,7 +461,7 @@ function autoNpcSetup(game) {
 function startTicks(game) {
   stopTicks();
   tickTimer = setInterval(() => {
-    if (game.phase !== 'battle' || game.attackAnimation) return;
+    if (game.phase !== 'battle' || isBattlePaused(game)) return;
 
     for (const p of game.players) {
       for (const c of getFieldCards(p)) {
@@ -445,7 +486,7 @@ function runNpcDrawAndReplace(game) {
 }
 
 function runNpcAI(game) {
-  if (game.attackAnimation) return;
+  if (isBattlePaused(game)) return;
   const npc = game.players[1];
   const human = game.players[0];
   const ready = getReadyAttackers(npc);
@@ -462,12 +503,25 @@ function finishOffline(game, winnerId) {
   const w = game.players.find((p) => p.id === winnerId);
   if (w) w.isWinner = true;
   game.log.push(`${w?.username} wins!`);
-  clearAttackAnimation(game);
+  clearBattleAnimations(game);
   stopTicks();
 }
 
+function clearDeathAnimation(game) {
+  if (game?.deathTimeout) {
+    clearTimeout(game.deathTimeout);
+    game.deathTimeout = null;
+  }
+  if (game) game.deathAnimation = null;
+}
+
+export function clearBattleAnimations(game) {
+  clearAttackAnimation(game);
+  clearDeathAnimation(game);
+}
+
 export function offlineDrawCard(game) {
-  if (game.attackAnimation) return { success: false };
+  if (isBattlePaused(game)) return { success: false };
   const player = game.players[0];
   const drew = drawCardForPlayer(game, player, 'You');
   if (!drew) return { success: false, message: 'Cannot draw yet' };
@@ -476,7 +530,7 @@ export function offlineDrawCard(game) {
 }
 
 export function offlineReplace(game, handCardId, slotIndex) {
-  if (game.attackAnimation) return { success: false };
+  if (isBattlePaused(game)) return { success: false };
   const player = game.players[0];
   if (player.replacementsUsed >= player.maxReplacements) {
     return { success: false, message: 'No replacements left' };
@@ -500,7 +554,7 @@ export function offlineReplace(game, handCardId, slotIndex) {
 }
 
 export function offlineUseStandard(game, cardId, targetId, targetPlayerId) {
-  if (game.attackAnimation) return { success: false };
+  if (isBattlePaused(game)) return { success: false };
   const player = game.players.find((p) => p.id === 'player');
   const card = player.battleHand.find((c) => c.instanceId === cardId && !c.used);
   const tp = game.players.find((p) => p.id === targetPlayerId);
@@ -518,7 +572,7 @@ export function offlineUseStandard(game, cardId, targetId, targetPlayerId) {
 }
 
 export function offlineAttack(game, attackerId, defenderId) {
-  if (game.attackAnimation) return { success: false, message: 'Attack in progress' };
+  if (isBattlePaused(game)) return { success: false, message: 'Attack in progress' };
   const player = game.players[0];
   const opp = game.players[1];
   const attacker = getFieldCards(player).find((c) => c.instanceId === attackerId);

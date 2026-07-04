@@ -16,7 +16,7 @@ import {
   offlineReplace,
   getOfflineState,
   stopTicks,
-  clearAttackAnimation,
+  clearBattleAnimations,
 } from './offlineEngine';
 
 export default function App() {
@@ -69,7 +69,7 @@ export default function App() {
   };
 
   const handleLeaveBattle = () => {
-    if (offlineGameRef.current) clearAttackAnimation(offlineGameRef.current);
+    if (offlineGameRef.current) clearBattleAnimations(offlineGameRef.current);
     stopTicks();
     offlineGameRef.current = null;
     setGameState(null);
