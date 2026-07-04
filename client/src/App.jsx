@@ -4,7 +4,7 @@ import BattleView from './components/BattleView';
 import { getOrCreateOfflineProfile, getDeckCardIds } from './api';
 import {
   createOfflineGame, offlineSetup, offlineAttack, offlineUseStandard,
-  getOfflineState, stopTicks, CARD_DATA,
+  getOfflineState, stopTicks, clearAttackAnimation, CARD_DATA,
 } from './offlineEngine';
 
 export default function App() {
@@ -36,7 +36,10 @@ export default function App() {
   const handleAttack = (attackerId, defenderId) => {
     if (!offlineGameRef.current) return;
     offlineAttack(offlineGameRef.current, attackerId, defenderId);
-    setGameState(getOfflineState(offlineGameRef.current));
+    // State updates via game.onUpdate during attack animation
+    if (!offlineGameRef.current.attackAnimation) {
+      setGameState(getOfflineState(offlineGameRef.current));
+    }
   };
 
   const handleUseStandard = (cardId, targetId, targetPlayerId) => {
@@ -46,6 +49,7 @@ export default function App() {
   };
 
   const handleLeaveGame = () => {
+    if (offlineGameRef.current) clearAttackAnimation(offlineGameRef.current);
     stopTicks();
     offlineGameRef.current = null;
     setGameState(null);

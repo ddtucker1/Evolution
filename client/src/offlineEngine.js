@@ -125,12 +125,58 @@ function applyStandard(card, target) {
   return { success: true };
 }
 
-function resolveAttack(attacker, defender) {
+const ATTACK_ANIMATION_MS = 1800;
+
+function findFieldCard(game, instanceId) {
+  for (const player of game.players) {
+    const card = getFieldCards(player).find(c => c.instanceId === instanceId);
+    if (card) return { card, player };
+  }
+  return null;
+}
+
+function completeAttackAnimation(game) {
+  const anim = game.attackAnimation;
+  if (!anim) return;
+
+  const attackerRef = findFieldCard(game, anim.attackerInstanceId);
+  const defenderRef = findFieldCard(game, anim.defenderInstanceId);
+  if (attackerRef?.card?.alive && defenderRef?.card?.alive) {
+    defenderRef.card.hp -= anim.damage;
+    if (defenderRef.card.hp <= 0) {
+      defenderRef.card.hp = 0;
+      defenderRef.card.alive = false;
+    }
+    attackerRef.card.cooldownRemaining = attackerRef.card.cooldown;
+    game.log.push(anim.logMessage);
+  }
+
+  game.attackAnimation = null;
+  if (game.attackTimeout) {
+    clearTimeout(game.attackTimeout);
+    game.attackTimeout = null;
+  }
+
+  const w = checkWinner(game.players[0], game.players[1]);
+  if (w) finishOffline(game, w);
+  else if (game.onUpdate) game.onUpdate(toPrivateState(game, 'player'));
+}
+
+function beginAttackAnimation(game, attacker, defender, logPrefix) {
+  if (game.attackAnimation) return { success: false, message: 'Attack in progress' };
+
   const damage = Math.max(1, attacker.attack - defender.defense);
-  defender.hp -= damage;
-  attacker.cooldownRemaining = attacker.cooldown;
-  if (defender.hp <= 0) { defender.hp = 0; defender.alive = false; }
-  return { success: true, damage };
+  game.attackAnimation = {
+    attackerInstanceId: attacker.instanceId,
+    defenderInstanceId: defender.instanceId,
+    damage,
+    logMessage: `${logPrefix} attacks ${defender.name} for ${damage} damage`,
+  };
+
+  if (game.onUpdate) game.onUpdate(toPrivateState(game, 'player'));
+
+  game.attackTimeout = setTimeout(() => completeAttackAnimation(game), ATTACK_ANIMATION_MS);
+  return { success: true, damage, pending: true };
 }
 
 function checkWinner(p1, p2) {
@@ -156,6 +202,8 @@ function toPrivateState(game, playerId) {
     })),
     log: game.log.slice(-20),
     winnerId: game.winnerId,
+    attackAnimation: game.attackAnimation ? { ...game.attackAnimation } : null,
+    timersPaused: !!game.attackAnimation,
     myHand: me.setupHand.map(c => ({ ...c })),
     mySupportHand: me.supportHand.map(c => ({ ...c })),
     myBoss: me.boss ? { ...me.boss } : null,
@@ -239,7 +287,7 @@ function drawSupport(player) {
 function startTicks(game) {
   stopTicks();
   tickTimer = setInterval(() => {
-    if (game.phase !== 'battle') return;
+    if (game.phase !== 'battle' || game.attackAnimation) return;
     for (const p of game.players) {
       for (const c of getFieldCards(p)) {
         if (c.cooldownRemaining > 0) c.cooldownRemaining--;
@@ -259,6 +307,7 @@ function startTicks(game) {
 }
 
 function runNpcAI(game) {
+  if (game.attackAnimation) return;
   const npc = game.players[1];
   const human = game.players[0];
   const ready = getFieldCards(npc).filter(c => c.cooldownRemaining <= 0);
@@ -266,8 +315,7 @@ function runNpcAI(game) {
   const targets = getFieldCards(human);
   if (!targets.length) return;
   const defender = targets.reduce((b, t) => (t.hp < b.hp ? t : b), targets[0]);
-  const result = resolveAttack(ready[0], defender);
-  if (result.success) game.log.push(`CPU attacks ${defender.name} for ${result.damage} damage`);
+  beginAttackAnimation(game, ready[0], defender, 'CPU');
 }
 
 function runNpcSupport(game) {
@@ -291,6 +339,11 @@ function finishOffline(game, winnerId) {
   const w = game.players.find(p => p.id === winnerId);
   if (w) w.isWinner = true;
   game.log.push(`${w?.username} wins!`);
+  game.attackAnimation = null;
+  if (game.attackTimeout) {
+    clearTimeout(game.attackTimeout);
+    game.attackTimeout = null;
+  }
   stopTicks();
 }
 
@@ -307,21 +360,26 @@ export function offlineUseStandard(game, cardId, targetId, targetPlayerId) {
 }
 
 export function offlineAttack(game, attackerId, defenderId) {
+  if (game.attackAnimation) return { success: false, message: 'Attack in progress' };
   const player = game.players[0];
   const opp = game.players[1];
   const attacker = getFieldCards(player).find(c => c.instanceId === attackerId);
   const defender = getFieldCards(opp).find(c => c.instanceId === defenderId);
-  if (!attacker || attacker.cooldownRemaining > 0) return { success: false };
-  const result = resolveAttack(attacker, defender);
-  if (result.success) game.log.push(`You attack ${defender.name} for ${result.damage} damage`);
-  const w = checkWinner(game.players[0], game.players[1]);
-  if (w) finishOffline(game, w);
-  return result;
+  if (!attacker || attacker.cooldownRemaining > 0 || !defender?.alive) return { success: false };
+  return beginAttackAnimation(game, attacker, defender, 'You');
 }
 
 export function stopTicks() {
   if (tickTimer) { clearInterval(tickTimer); tickTimer = null; }
   if (npcTimer) { clearInterval(npcTimer); npcTimer = null; }
+}
+
+export function clearAttackAnimation(game) {
+  if (game?.attackTimeout) {
+    clearTimeout(game.attackTimeout);
+    game.attackTimeout = null;
+  }
+  if (game) game.attackAnimation = null;
 }
 
 export function getOfflineState(game) {
