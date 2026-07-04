@@ -21,7 +21,6 @@ export default function BattleView({
   const [magicMode, setMagicMode] = useState(null);
   const battlefieldRef = useRef(null);
   const cardRefs = useRef({});
-  const battleBackgroundUrl = useBattleBackground(gameState?.phase === 'battle');
 
   if (!gameState) return null;
 
