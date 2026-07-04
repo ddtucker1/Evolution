@@ -353,38 +353,32 @@ input:focus {
 }
 
 .field-formation {
-  position: relative;
   display: flex;
-  justify-content: center;
+  flex-direction: row;
+  gap: 16px;
   align-items: center;
+  justify-content: center;
   min-height: 220px;
   padding: 8px 0;
 }
 
-.boss-backdrop {
-  position: absolute;
-  z-index: 0;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
+.boss-side {
+  flex-shrink: 0;
 }
 
-.boss-backdrop .game-card {
+.boss-side .game-card {
   transform: scale(1.08);
 }
 
-.boss-backdrop .game-card:hover:not(.disabled) {
+.boss-side .game-card:hover:not(.disabled) {
   transform: scale(1.08) translateY(-2px);
 }
 
-.fighter-frontline {
-  position: relative;
-  z-index: 1;
+.fighter-column {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
   gap: 10px;
-  justify-content: center;
-  align-items: flex-end;
+  align-items: center;
 }
 
 .hand-area {
