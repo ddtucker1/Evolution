@@ -15,7 +15,7 @@ const CARD_DATA = {
   ],
 };
 
-const DRAW_TIMER_MAX = 90;
+const DRAW_TIMER_MAX = 70;
 const CARD_TIMER_MIN = 10;
 const CARD_TIMER_MAX = 60;
 const DEATH_ANIMATION_MS = 6000;
@@ -75,7 +75,7 @@ function makeBattleCard(templateId, instanceId) {
   const cooldown = randomStat(CARD_TIMER_MIN, CARD_TIMER_MAX);
   return {
     instanceId, templateId, name: t.name, type: 'unique',
-    attack, defense: t.defense || 0,
+    attack, defense: randomStat(1, 10),
     maxHp, hp: maxHp,
     cooldown, cooldownRemaining: cooldown,
     alive: true, role: null,
@@ -249,7 +249,6 @@ function completeAttackAnimation(game) {
       defenderRef.card.alive = false;
     }
     attackerRef.card.cooldownRemaining = attackerRef.card.cooldown;
-    game.log.push(anim.logMessage + (killed ? ` ${defenderRef.card.name} was destroyed!` : ''));
 
     if (killed) {
       game.deathAnimation = {
@@ -284,15 +283,11 @@ function beginAttackAnimation(game, attacker, defender, logPrefix) {
 
   const damage = calculateAttackDamage(attacker, defender);
   const durationMs = getAttackAnimationMs();
-  const damageText = damage > 0
-    ? `for ${damage} damage`
-    : 'but defense blocks all damage';
   game.attackAnimation = {
     attackerInstanceId: attacker.instanceId,
     defenderInstanceId: defender.instanceId,
     damage,
     durationMs,
-    logMessage: `${logPrefix} attacks ${defender.name} ${damageText}`,
   };
 
   if (game.onUpdate) game.onUpdate(toPrivateState(game, 'player'));

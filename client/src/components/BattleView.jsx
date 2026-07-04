@@ -139,19 +139,34 @@ export default function BattleView({
     const boss = player.boss;
     const field = player.field || [];
 
+    const bossSlot = boss && (
+      <div className="boss-side">
+        {renderFieldSlot(boss, 'boss', isPlayer, {
+          bossLocked: isPlayer ? !bossCanAttack : !opponentBossCanAttack,
+          bossProtected: aliveFighters > 0,
+        })}
+      </div>
+    );
+
+    const fighterColumn = (
+      <div className="fighter-column">
+        {field.map((card, i) => renderFieldSlot(card, i, isPlayer))}
+      </div>
+    );
+
     return (
-      <div className="field-formation">
-        {boss && (
-          <div className="boss-backdrop">
-            {renderFieldSlot(boss, 'boss', isPlayer, {
-              bossLocked: isPlayer ? !bossCanAttack : !opponentBossCanAttack,
-              bossProtected: aliveFighters > 0,
-            })}
-          </div>
+      <div className={`field-formation${isPlayer ? ' player-formation' : ' opponent-formation'}`}>
+        {isPlayer ? (
+          <>
+            {bossSlot}
+            {fighterColumn}
+          </>
+        ) : (
+          <>
+            {fighterColumn}
+            {bossSlot}
+          </>
         )}
-        <div className="fighter-frontline">
-          {field.map((card, i) => renderFieldSlot(card, i, isPlayer))}
-        </div>
       </div>
     );
   };
@@ -212,15 +227,6 @@ export default function BattleView({
           Replacements: {replacementsUsed}/{maxReplacements}
         </span>
       </div>
-
-      {attackAnimation && (
-        <div className="attack-banner">
-          Attack in progress — all timers paused ({Math.round((attackAnimation.durationMs || 1000) / 1000)}s)
-          {attackAnimation.damage > 0 && (
-            <span className="attack-banner-damage"> · {attackAnimation.damage} damage</span>
-          )}
-        </div>
-      )}
 
       {winnerId && (
         <div className="card" style={{ textAlign: 'center', marginBottom: 16, borderColor: 'var(--accent-gold)' }}>

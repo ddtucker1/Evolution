@@ -65,7 +65,7 @@ export function createBattleCard(templateId, instanceId) {
     name: template.name,
     type: template.type,
     attack,
-    defense: template.defense || 0,
+    defense: isUnique ? randomStat(1, 10) : (template.defense || 0),
     maxHp,
     hp: maxHp,
     cooldown,
