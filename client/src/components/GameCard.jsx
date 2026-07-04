@@ -59,6 +59,7 @@ export default function GameCard({
       {levelLabel && <span className="card-level-badge">{levelLabel}</span>}
       {card.role && !hideRole && <span className="card-role">{card.role}</span>}
       {card.slowed && <span className="card-slow-badge">Slow</span>}
+      {card.poisoned && <span className="card-poison-badge">Poison</span>}
       <div className="card-name">{card.name}</div>
       <div className="card-stats">
         DEF: {Math.round(card.defense ?? 0)}

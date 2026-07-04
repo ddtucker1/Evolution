@@ -86,6 +86,7 @@ export default function Library({ profile, onProfileChange, onMainMenu }) {
               <>
                 Select two cards to sacrifice. Two basic cards or a basic plus Level 1 card produce a Level 1 fighter.
                 Two Level 1 cards evolve into Level 2, gaining a random +2 stat boost or a 2-second timer reduction.
+                Two Level 2 cards evolve into Level 3, unlocking a poison attack that drains 1 HP every 5 seconds.
               </>
             )}
           </p>
@@ -198,7 +199,8 @@ export default function Library({ profile, onProfileChange, onMainMenu }) {
             <div className="evolve-preview">
               <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 12 }}>
                 Preview of the evolved card (stats are averaged from parents
-                {evolvePreview.level === 2 ? '; Level 2 bonus applied' : ''}):
+                {evolvePreview.level === 2 ? '; Level 2 bonus applied' : ''}
+                {evolvePreview.level === 3 ? '; Level 3 poison ability unlocked' : ''}):
               </p>
               <div className="evolve-preview-card">
                 <GameCard
@@ -225,7 +227,7 @@ export default function Library({ profile, onProfileChange, onMainMenu }) {
             </div>
           ) : (
             <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 12 }}>
-              Select two cards above. Basic + basic or basic + Level 1 creates Level 1. Two Level 1 cards create Level 2 with a random stat boost.
+              Select two cards above. Basic + basic or basic + Level 1 creates Level 1. Two Level 1 cards create Level 2 with a random stat boost. Two Level 2 cards create Level 3 with poison.
             </p>
           )}
           <button

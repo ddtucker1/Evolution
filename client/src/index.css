@@ -325,6 +325,29 @@ input:focus {
   position: relative;
 }
 
+.battle-screen {
+  position: relative;
+  margin: 0 -16px;
+  padding: 0 16px 16px;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+
+.battle-screen.has-background::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: rgba(15, 15, 26, 0.55);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.battle-screen.has-background > * {
+  position: relative;
+  z-index: 1;
+}
+
 @media (min-width: 768px) {
   .battlefield {
     grid-template-columns: 1fr 1fr;
@@ -710,6 +733,21 @@ input:focus {
   top: 6px;
   right: 6px;
   background: rgba(52, 152, 219, 0.9);
+  color: #fff;
+  font-size: 9px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  z-index: 2;
+}
+
+.card-poison-badge {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  background: rgba(46, 125, 50, 0.92);
   color: #fff;
   font-size: 9px;
   font-weight: 700;

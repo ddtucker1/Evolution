@@ -63,9 +63,16 @@ function getCardTimer(card) {
   return getTimerPreview(card.attack);
 }
 
+const POISON_ABILITY = {
+  type: 'poison',
+  value: 1,
+  label: 'On attack: poison enemy — drains 1 HP every 5 seconds',
+};
+
 function computeOutputLevel(card1, card2) {
   const level1 = getCardLevel(card1);
   const level2 = getCardLevel(card2);
+  if (level1 === 2 && level2 === 2) return 3;
   if (level1 === 1 && level2 === 1) return 2;
   return 1;
 }
@@ -126,7 +133,9 @@ function buildEvolvedCard(card1, card2, { deterministic = false } = {}) {
     level2Bonus = boosted.level2Bonus;
   }
 
-  const ability = pickAbility({ attack, defense, hp }, deterministic ? seed : '');
+  const ability = level === 3
+    ? { ...POISON_ABILITY }
+    : pickAbility({ attack, defense, hp }, deterministic ? seed : '');
   const name = generateCardName({ attack, defense, hp, timer }, seed);
 
   return {
@@ -173,5 +182,6 @@ export function getAbilityLabel(ability) {
 export function getLevelLabel(level) {
   if (level === 1) return 'Level 1';
   if (level === 2) return 'Level 2';
+  if (level === 3) return 'Level 3';
   return null;
 }
