@@ -609,3 +609,297 @@ input:focus {
 .mobile-bottom-nav button.active {
   color: var(--accent-gold);
 }
+
+/* Timer bar on battle cards */
+.cooldown-bar,
+.timer-bar {
+  height: 5px;
+  background: var(--bg-dark);
+  border-radius: 3px;
+  margin-top: 6px;
+  overflow: hidden;
+}
+
+.cooldown-fill,
+.timer-fill {
+  height: 100%;
+  background: var(--accent-blue);
+  transition: width 1s linear;
+}
+
+.timer-bar.timer-ready .timer-fill {
+  background: var(--accent-green);
+  animation: timer-blink 0.8s ease-in-out infinite;
+}
+
+@keyframes timer-blink {
+  0%, 100% { opacity: 1; box-shadow: 0 0 4px rgba(46, 204, 113, 0.4); }
+  50% { opacity: 0.45; box-shadow: 0 0 12px rgba(46, 204, 113, 0.9); }
+}
+
+.timer-stat {
+  color: var(--accent-blue);
+  font-weight: 600;
+}
+
+.timer-countdown {
+  font-size: 10px;
+  color: var(--text-secondary);
+  margin-top: 4px;
+  text-align: center;
+}
+
+.timer-countdown-ready {
+  color: var(--accent-green);
+  font-weight: 700;
+  animation: timer-blink-text 0.8s ease-in-out infinite;
+}
+
+@keyframes timer-blink-text {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.game-card.boss-locked {
+  opacity: 0.75;
+  filter: grayscale(0.3);
+}
+
+.game-card.attacking {
+  animation: attack-lunge 0.6s ease-in-out infinite;
+  z-index: 2;
+}
+
+.game-card.hit {
+  animation: hit-flash 0.4s ease-in-out infinite;
+}
+
+@keyframes attack-lunge {
+  0%, 100% { transform: translateY(0) scale(1); }
+  50% { transform: translateY(-8px) scale(1.04); box-shadow: 0 0 18px rgba(212, 168, 83, 0.7); }
+}
+
+@keyframes hit-flash {
+  0%, 100% { box-shadow: 0 0 0 rgba(231, 76, 60, 0); }
+  50% { box-shadow: 0 0 22px rgba(231, 76, 60, 0.85); border-color: var(--accent-red); }
+}
+
+.attack-banner {
+  text-align: center;
+  padding: 10px 14px;
+  margin-bottom: 14px;
+  border-radius: var(--radius);
+  background: rgba(212, 168, 83, 0.12);
+  border: 1px solid rgba(212, 168, 83, 0.35);
+  color: var(--accent-gold);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.attack-banner-damage {
+  color: var(--accent-red);
+}
+
+/* Library */
+.library-header {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.library-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.deck-counter {
+  font-size: 13px;
+  color: var(--text-secondary);
+  padding: 6px 10px;
+  background: var(--bg-elevated);
+  border-radius: 6px;
+}
+
+.deck-counter.complete {
+  color: var(--accent-green);
+  border: 1px solid var(--accent-green);
+}
+
+.library-card-wrap {
+  position: relative;
+  cursor: pointer;
+  transition: transform 0.15s;
+}
+
+.library-card-wrap.in-deck {
+  transform: scale(0.98);
+}
+
+.library-card-wrap.full:not(.in-deck) {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.deck-badge {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  z-index: 2;
+  font-size: 9px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: var(--accent-green);
+  color: #0f0f1a;
+  font-weight: 700;
+}
+
+.success-toast {
+  position: static;
+  transform: none;
+  margin: 12px 0;
+  animation: none;
+  border-color: var(--accent-green);
+  color: var(--accent-green);
+}
+
+/* Battle deck draw */
+.battle-top-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+  gap: 10px;
+}
+
+.replacement-counter {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.deck-draw-zone {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 16px;
+}
+
+.deck-pile {
+  width: 100%;
+  max-width: 280px;
+  padding: 14px 16px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  text-align: center;
+  cursor: default;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.deck-pile.draw-ready {
+  cursor: pointer;
+  border-color: var(--accent-gold);
+  box-shadow: 0 0 16px rgba(212, 168, 83, 0.25);
+}
+
+.deck-pile.draw-ready:hover {
+  transform: translateY(-2px);
+}
+
+.deck-pile-label {
+  font-family: var(--font-display);
+  color: var(--accent-gold);
+  font-size: 14px;
+  margin-bottom: 4px;
+}
+
+.deck-pile-count {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-bottom: 10px;
+}
+
+.draw-timer-bar {
+  height: 8px;
+  background: var(--bg-dark);
+  border-radius: 4px;
+  overflow: hidden;
+  margin-bottom: 6px;
+}
+
+.draw-timer-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent-purple), var(--accent-gold));
+  transition: width 1s linear;
+}
+
+.deck-pile.draw-ready .draw-timer-fill {
+  animation: timer-blink 0.8s ease-in-out infinite;
+}
+
+.draw-timer-text {
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.deck-pile.draw-ready .draw-timer-text {
+  color: var(--accent-gold);
+  font-weight: 700;
+}
+
+.field-slot {
+  min-width: 100px;
+  max-width: 130px;
+  min-height: 140px;
+  border: 2px dashed var(--border);
+  border-radius: var(--radius);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px;
+  font-size: 11px;
+  color: var(--text-secondary);
+  text-align: center;
+}
+
+.field-slot.replace-ready {
+  border-color: var(--accent-green);
+  color: var(--accent-green);
+  cursor: pointer;
+  animation: pulse-ready 1.5s infinite;
+}
+
+.boss-hint {
+  font-size: 11px;
+  color: var(--text-secondary);
+  margin-top: 10px;
+  font-style: italic;
+}
+
+.hand-card-wrap {
+  text-align: center;
+}
+
+.hand-card-label {
+  display: block;
+  font-size: 10px;
+  color: var(--accent-blue);
+  margin-top: 4px;
+}
+
+.setup-boss-btn {
+  margin-top: 8px;
+  padding: 8px 16px;
+  font-size: 12px;
+  width: 100%;
+  max-width: 130px;
+}
+
+.replace-hint {
+  font-size: 12px;
+  color: var(--accent-green);
+  margin-bottom: 8px;
+}

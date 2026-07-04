@@ -58,7 +58,7 @@ export function createBattleCard(templateId, instanceId) {
   const isUnique = template.type === 'unique';
   const attack = isUnique ? randomStat(10, 25) : (template.attack || 0);
   const maxHp = isUnique ? randomStat(30, 100) : (template.hp || 0);
-  const cooldown = isUnique ? randomStat(10, 30) : (template.cooldown || 0);
+  const cooldown = isUnique ? randomStat(10, 60) : (template.cooldown || 0);
   return {
     instanceId,
     templateId,

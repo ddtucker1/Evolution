@@ -1,25 +1,39 @@
 import { useState, useEffect, useRef } from 'react';
-import Lobby from './components/Lobby';
+import MainMenu from './components/MainMenu';
+import Library from './components/Library';
 import BattleView from './components/BattleView';
-import { getOrCreateOfflineProfile, getDeckCardIds } from './api';
 import {
-  createOfflineGame, offlineSetup, offlineAttack, offlineUseStandard,
-  getOfflineState, stopTicks, clearAttackAnimation, CARD_DATA,
+  getOrCreateOfflineProfile,
+  getPlayDeckIds,
+  isPlayDeckComplete,
+} from './api';
+import {
+  createOfflineGame,
+  offlineSetup,
+  offlineAttack,
+  offlineUseStandard,
+  offlineDrawCard,
+  offlineReplace,
+  getOfflineState,
+  stopTicks,
+  clearAttackAnimation,
 } from './offlineEngine';
 
 export default function App() {
-  const [user] = useState(() => getOrCreateOfflineProfile());
-  const [screen, setScreen] = useState('lobby');
+  const [profile, setProfile] = useState(() => getOrCreateOfflineProfile());
+  const [screen, setScreen] = useState('menu');
   const [gameState, setGameState] = useState(null);
   const offlineGameRef = useRef(null);
 
-  useEffect(() => {
-    return () => stopTicks();
-  }, []);
+  const playDeckCount = profile.playDeck?.length || 0;
+  const battleReady = isPlayDeckComplete(profile);
 
-  const handleStartNPC = () => {
+  useEffect(() => () => stopTicks(), []);
+
+  const handleStartBattle = () => {
+    if (!battleReady) return;
     stopTicks();
-    const deck = getDeckCardIds(user);
+    const deck = getPlayDeckIds(profile);
     const game = createOfflineGame(deck);
     game.onUpdate = (state) => setGameState(state);
     offlineGameRef.current = game;
@@ -36,10 +50,6 @@ export default function App() {
   const handleAttack = (attackerId, defenderId) => {
     if (!offlineGameRef.current) return;
     offlineAttack(offlineGameRef.current, attackerId, defenderId);
-    // State updates via game.onUpdate during attack animation
-    if (!offlineGameRef.current.attackAnimation) {
-      setGameState(getOfflineState(offlineGameRef.current));
-    }
   };
 
   const handleUseStandard = (cardId, targetId, targetPlayerId) => {
@@ -48,39 +58,59 @@ export default function App() {
     setGameState(getOfflineState(offlineGameRef.current));
   };
 
-  const handleLeaveGame = () => {
+  const handleDraw = () => {
+    if (!offlineGameRef.current) return;
+    offlineDrawCard(offlineGameRef.current);
+  };
+
+  const handleReplace = (handCardId, slotIndex) => {
+    if (!offlineGameRef.current) return;
+    offlineReplace(offlineGameRef.current, handCardId, slotIndex);
+  };
+
+  const handleLeaveBattle = () => {
     if (offlineGameRef.current) clearAttackAnimation(offlineGameRef.current);
     stopTicks();
     offlineGameRef.current = null;
     setGameState(null);
-    setScreen('lobby');
+    setScreen('menu');
   };
 
   return (
-    <>
-      <div className="offline-banner">Prototype — NPC battles only. Unique card stats are randomized each battle.</div>
-
-      <div className="app-container">
-        <div className="header-bar">
-          <h1>Card Fusion Battle</h1>
-          <span className="user-info">{user.username}</span>
-        </div>
-
-        {screen === 'lobby' && (
-          <Lobby onStartNPC={handleStartNPC} cardCount={CARD_DATA.unique.length} />
-        )}
-
-        {screen === 'battle' && (
-          <BattleView
-            gameState={gameState}
-            onSetup={handleSetup}
-            onAttack={handleAttack}
-            onUseStandard={handleUseStandard}
-            onLeave={handleLeaveGame}
-            isOffline
-          />
-        )}
+    <div className="app-container">
+      <div className="header-bar">
+        <h1>Card Fusion Battle</h1>
+        <span className="user-info">{profile.username}</span>
       </div>
-    </>
+
+      {screen === 'menu' && (
+        <MainMenu
+          onLibrary={() => setScreen('library')}
+          onBattle={handleStartBattle}
+          playDeckCount={playDeckCount}
+          battleReady={battleReady}
+        />
+      )}
+
+      {screen === 'library' && (
+        <Library
+          profile={profile}
+          onProfileChange={setProfile}
+          onMainMenu={() => setScreen('menu')}
+        />
+      )}
+
+      {screen === 'battle' && (
+        <BattleView
+          gameState={gameState}
+          onSetup={handleSetup}
+          onAttack={handleAttack}
+          onUseStandard={handleUseStandard}
+          onDraw={handleDraw}
+          onReplace={handleReplace}
+          onMainMenu={handleLeaveBattle}
+        />
+      )}
+    </div>
   );
 }
