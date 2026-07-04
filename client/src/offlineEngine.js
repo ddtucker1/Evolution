@@ -95,6 +95,7 @@ const DEATH_SHAKE_MS = 3000;
 const PLAY_DECK_SIZE = 10;
 const MAX_REPLACEMENTS = 3;
 const ATTACK_ANIM_MS = 4000;
+const EFFECT_DURATION_MS = 2 * 60 * 1000;
 
 const LOOKUP = new Map();
 for (const c of CARD_DATA.unique) LOOKUP.set(c.id, c);
@@ -299,15 +300,22 @@ function canBossBeTargeted(player) {
   return canBossAttack(player);
 }
 
-function canUseBossAbility(player, ability) {
-  return player.boss?.alive && !player.bossAbilitiesUsed?.[ability];
+function hasUsedBossAbility(player) {
+  const used = player.bossAbilitiesUsed;
+  return !!(used?.slow || used?.heal || used?.haste);
+}
+
+function canUseBossAbility(player) {
+  return player.boss?.alive && !hasUsedBossAbility(player);
 }
 
 function markBossAbilityUsed(game, player, abilityName, targetName = '') {
   if (!player.bossAbilitiesUsed) {
     player.bossAbilitiesUsed = { slow: false, heal: false, haste: false };
   }
-  player.bossAbilitiesUsed[abilityName] = true;
+  player.bossAbilitiesUsed.slow = true;
+  player.bossAbilitiesUsed.heal = true;
+  player.bossAbilitiesUsed.haste = true;
   game.bossAbilityEvent = {
     playerId: player.id,
     username: player.username,
@@ -479,6 +487,29 @@ function applyPoison(target) {
   if (!target?.alive) return;
   target.poisoned = true;
   target.poisonTicks = 0;
+  target.poisonExpiresAt = Date.now() + EFFECT_DURATION_MS;
+}
+
+function clearPoisonEffect(card) {
+  if (!card) return;
+  card.poisoned = false;
+  card.poisonTicks = 0;
+  card.poisonExpiresAt = null;
+}
+
+function processEffectExpiry(game) {
+  if (isBattlePaused(game)) return;
+
+  const now = Date.now();
+  for (const p of game.players) {
+    for (const c of getFieldCards(p)) {
+      if (!c?.alive || !c.poisoned || !c.poisonExpiresAt) continue;
+      if (now >= c.poisonExpiresAt) {
+        clearPoisonEffect(c);
+        game.log.push(`${c.name}'s poison wore off`);
+      }
+    }
+  }
 }
 
 function applyAttackAbility(game, attackerRef, defenderRef) {
@@ -805,7 +836,7 @@ function autoNpcSetup(game) {
 }
 
 function triggerPoisonDeath(game, card) {
-  if (!card?.alive || game.deathAnimation || game.attackAnimation) return false;
+  if (!card || game.deathAnimation || game.attackAnimation) return false;
   card.hp = 0;
   card.alive = false;
   game.deathAnimation = {
@@ -828,8 +859,8 @@ function processPoisonTicks(game) {
       if (c.poisonTicks < 5) continue;
 
       c.poisonTicks = 0;
-      const killed = applyFlatDamage(c, 1);
-      if (killed) {
+      c.hp -= 1;
+      if (c.hp <= 0) {
         game.log.push(`${c.name} succumbed to poison`);
         return triggerPoisonDeath(game, c);
       }
@@ -842,6 +873,8 @@ function startTicks(game) {
   stopTicks();
   tickTimer = setInterval(() => {
     if (game.phase !== 'battle' || isBattlePaused(game)) return;
+
+    processEffectExpiry(game);
 
     if (processPoisonTicks(game)) {
       const w = checkWinner(game.players[0], game.players[1]);
@@ -877,13 +910,12 @@ function runNpcBossMagic(game) {
   const npc = game.players[1];
   const human = game.players[0];
 
-  const damagedFighters = getAliveFieldFighters(npc).filter((c) => c.hp < c.maxHp);
-  if (canUseBossAbility(npc, 'heal') && damagedFighters.length) {
-    const target = damagedFighters.reduce((a, b) => (
-      a.hp / a.maxHp < b.hp / b.maxHp ? a : b
-    ));
-    applyBossHeal(game, npc, target);
-    game.log.push(`CPU boss healed ${target.name}`);
+  const fighters = getAliveFieldFighters(npc);
+  const needsHeal = fighters.some((c) => c.hp < c.maxHp)
+    || (isBossOnlyPhase(npc) && npc.boss.hp < npc.boss.maxHp);
+  if (canUseBossAbility(npc) && needsHeal) {
+    applyBossHeal(game, npc);
+    game.log.push(`CPU boss healed ${fighters.length ? 'all fighters' : npc.boss.name}`);
     return;
   }
 
@@ -892,7 +924,7 @@ function runNpcBossMagic(game) {
     ? playerCards.reduce((a, b) => (getCooldownRemaining(a) < getCooldownRemaining(b) ? a : b))
     : null;
   if (
-    canUseBossAbility(npc, 'slow')
+    canUseBossAbility(npc)
     && slowTarget
     && getCooldownRemaining(slowTarget) <= slowTarget.cooldown * 0.6
   ) {
@@ -902,7 +934,7 @@ function runNpcBossMagic(game) {
   }
 
   const hasteCandidates = getFieldCards(npc).filter((c) => c.alive && getCooldownRemaining(c) > 2);
-  if (canUseBossAbility(npc, 'haste') && hasteCandidates.length) {
+  if (canUseBossAbility(npc) && hasteCandidates.length) {
     const target = hasteCandidates.reduce((a, b) => (
       getCooldownRemaining(a) > getCooldownRemaining(b) ? a : b
     ));
@@ -911,13 +943,9 @@ function runNpcBossMagic(game) {
     return;
   }
 
-  if (canUseBossAbility(npc, 'slow') && slowTarget) {
+  if (canUseBossAbility(npc) && slowTarget) {
     applyBossSlow(game, npc, slowTarget);
     game.log.push(`CPU boss slowed ${slowTarget.name}`);
-  } else if (canUseBossAbility(npc, 'heal') && getAliveFieldFighters(npc).length) {
-    const target = getAliveFieldFighters(npc)[0];
-    applyBossHeal(game, npc, target);
-    game.log.push(`CPU boss healed ${target.name}`);
   }
 }
 
@@ -1096,6 +1124,7 @@ function applyBossSlow(game, owner, target) {
   const remaining = getCooldownRemaining(target);
   if (!target.slowed) {
     target.slowed = true;
+    target.bossSlowed = true;
     target.cooldown *= 2;
   }
   const newRemaining = Math.min(
@@ -1106,15 +1135,26 @@ function applyBossSlow(game, owner, target) {
   markBossAbilityUsed(game, owner, 'slow', target.name);
 }
 
-function applyBossHeal(game, owner, target) {
-  target.hp = target.maxHp;
-  markBossAbilityUsed(game, owner, 'heal', target.name);
+function applyBossHeal(game, owner) {
+  const fighters = getAliveFieldFighters(owner);
+  if (fighters.length) {
+    for (const fighter of fighters) {
+      fighter.hp = fighter.maxHp;
+    }
+    markBossAbilityUsed(game, owner, 'heal', 'all fighters');
+    return;
+  }
+  if (owner.boss?.alive) {
+    owner.boss.hp = owner.boss.maxHp;
+    markBossAbilityUsed(game, owner, 'heal', owner.boss.name);
+  }
 }
 
 function applyBossHaste(game, owner, target) {
   const remaining = getCooldownRemaining(target);
   if (!target.hasted) {
     target.hasted = true;
+    target.bossHasted = true;
     target.cooldown = Math.max(1, Math.floor(target.cooldown / 2));
   }
   const newRemaining = Math.max(0, Math.floor(remaining / 2));
@@ -1126,8 +1166,8 @@ function resolveBossAbility(game, owner, ability, targetInstanceId) {
   if (game.phase !== 'battle' || game.winnerId) {
     return { success: false };
   }
-  if (!canUseBossAbility(owner, ability)) {
-    return { success: false, message: 'Boss ability already used this battle' };
+  if (!canUseBossAbility(owner)) {
+    return { success: false, message: 'Boss abilities already used this battle' };
   }
 
   if (ability === 'slow') {
@@ -1140,10 +1180,13 @@ function resolveBossAbility(game, owner, ability, targetInstanceId) {
     applyBossSlow(game, owner, target);
     game.log.push(`${owner.username} boss slowed ${target.name}`);
   } else if (ability === 'heal') {
-    const target = getAliveFieldFighters(owner).find((c) => c.instanceId === targetInstanceId);
-    if (!target) return { success: false, message: 'Select one of your fighters' };
-    applyBossHeal(game, owner, target);
-    game.log.push(`${owner.username} boss healed ${target.name}`);
+    const fighters = getAliveFieldFighters(owner);
+    const canHealBoss = isBossOnlyPhase(owner) && owner.boss?.alive;
+    if (!fighters.length && !canHealBoss) {
+      return { success: false, message: 'Nothing to heal' };
+    }
+    applyBossHeal(game, owner);
+    game.log.push(`${owner.username} boss healed ${fighters.length ? 'all fighters' : owner.boss.name}`);
   } else if (ability === 'haste') {
     const target = getFieldCards(owner).find((c) => c.instanceId === targetInstanceId);
     if (!target?.alive) return { success: false, message: 'Invalid target' };
@@ -1161,8 +1204,8 @@ export function offlineBossSlow(game, targetInstanceId) {
   return resolveBossAbility(game, game.players[0], 'slow', targetInstanceId);
 }
 
-export function offlineBossHeal(game, targetInstanceId) {
-  return resolveBossAbility(game, game.players[0], 'heal', targetInstanceId);
+export function offlineBossHeal(game) {
+  return resolveBossAbility(game, game.players[0], 'heal');
 }
 
 export function offlineBossHaste(game, targetInstanceId) {

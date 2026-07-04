@@ -92,9 +92,9 @@ export default function App() {
     offlineBossSlow(offlineGameRef.current, targetId);
   };
 
-  const handleBossHeal = (targetId) => {
+  const handleBossHeal = () => {
     if (!offlineGameRef.current) return;
-    offlineBossHeal(offlineGameRef.current, targetId);
+    offlineBossHeal(offlineGameRef.current);
   };
 
   const handleBossHaste = (targetId) => {
