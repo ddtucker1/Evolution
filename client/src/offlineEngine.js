@@ -166,6 +166,7 @@ function makeBattleCard(templateId, instanceId) {
     alive: true, role: null,
     ability: t.ability || null,
     isBase: isBaseCardId(templateId),
+    level: t.level ?? (isEvolved ? 1 : 0),
   };
 }
 
@@ -196,7 +197,7 @@ function createPlayer(id, username, deckIds) {
     drawTimerMax: DRAW_TIMER_MAX,
     replacementsUsed: 0,
     maxReplacements: MAX_REPLACEMENTS,
-    bossAbilityUsed: false,
+    bossAbilitiesUsed: { slow: false, heal: false, haste: false },
   };
 }
 
@@ -298,13 +299,22 @@ function canBossBeTargeted(player) {
   return canBossAttack(player);
 }
 
-function canUseBossAbility(player) {
-  return player.boss?.alive && !player.bossAbilityUsed;
+function canUseBossAbility(player, ability) {
+  return player.boss?.alive && !player.bossAbilitiesUsed?.[ability];
 }
 
-function markBossAbilityUsed(player, abilityName) {
-  player.bossAbilityUsed = true;
-  if (abilityName) player.bossAbilityType = abilityName;
+function markBossAbilityUsed(game, player, abilityName, targetName = '') {
+  if (!player.bossAbilitiesUsed) {
+    player.bossAbilitiesUsed = { slow: false, heal: false, haste: false };
+  }
+  player.bossAbilitiesUsed[abilityName] = true;
+  game.bossAbilityEvent = {
+    playerId: player.id,
+    username: player.username,
+    ability: abilityName,
+    targetName,
+    at: Date.now(),
+  };
 }
 
 function getAttackableTargets(opponent) {
@@ -395,7 +405,10 @@ function sanitize(card, revealed) {
     type: card.type,
     ability: card.ability || null,
     slowed: !!card.slowed,
+    hasted: !!card.hasted,
     poisoned: !!card.poisoned,
+    level: card.level ?? 0,
+    isBase: !!card.isBase,
     bossLocked: false,
   };
 }
@@ -682,6 +695,7 @@ function toPrivateState(game, playerId) {
       drawTimer: p.drawTimer,
       drawTimerMax: p.drawTimerMax,
       drawReady: p.drawTimer >= p.drawTimerMax && p.deck.length > 0,
+      bossAbilitiesUsed: { ...(p.bossAbilitiesUsed || { slow: false, heal: false, haste: false }) },
     })),
     log: game.log.slice(-20),
     winnerId: game.winnerId,
@@ -702,7 +716,8 @@ function toPrivateState(game, playerId) {
     deckRemaining: me.deck.length,
     bossCanAttack,
     opponentBossCanAttack,
-    bossAbilityAvailable: canUseBossAbility(me),
+    bossAbilitiesUsed: { ...(me.bossAbilitiesUsed || { slow: false, heal: false, haste: false }) },
+    bossAbilityEvent: game.bossAbilityEvent ? { ...game.bossAbilityEvent } : null,
     bossPhase: isBossPhase(game),
     opponent: {
       id: opp.id,
@@ -714,6 +729,7 @@ function toPrivateState(game, playerId) {
       replacementsUsed: opp.replacementsUsed,
       drawTimer: opp.drawTimer,
       drawTimerMax: opp.drawTimerMax,
+      bossAbilitiesUsed: { ...(opp.bossAbilitiesUsed || { slow: false, heal: false, haste: false }) },
     },
   };
 }
@@ -860,14 +876,13 @@ function runNpcBossMagic(game) {
   if (isBattlePaused(game) || game.winnerId) return;
   const npc = game.players[1];
   const human = game.players[0];
-  if (!canUseBossAbility(npc)) return;
 
   const damagedFighters = getAliveFieldFighters(npc).filter((c) => c.hp < c.maxHp);
-  if (damagedFighters.length) {
+  if (canUseBossAbility(npc, 'heal') && damagedFighters.length) {
     const target = damagedFighters.reduce((a, b) => (
       a.hp / a.maxHp < b.hp / b.maxHp ? a : b
     ));
-    applyBossHeal(npc, target);
+    applyBossHeal(game, npc, target);
     game.log.push(`CPU boss healed ${target.name}`);
     return;
   }
@@ -876,28 +891,32 @@ function runNpcBossMagic(game) {
   const slowTarget = playerCards.length
     ? playerCards.reduce((a, b) => (getCooldownRemaining(a) < getCooldownRemaining(b) ? a : b))
     : null;
-  if (slowTarget && getCooldownRemaining(slowTarget) <= slowTarget.cooldown * 0.6) {
-    applyBossSlow(npc, slowTarget);
+  if (
+    canUseBossAbility(npc, 'slow')
+    && slowTarget
+    && getCooldownRemaining(slowTarget) <= slowTarget.cooldown * 0.6
+  ) {
+    applyBossSlow(game, npc, slowTarget);
     game.log.push(`CPU boss slowed ${slowTarget.name}`);
     return;
   }
 
   const hasteCandidates = getFieldCards(npc).filter((c) => c.alive && getCooldownRemaining(c) > 2);
-  if (hasteCandidates.length) {
+  if (canUseBossAbility(npc, 'haste') && hasteCandidates.length) {
     const target = hasteCandidates.reduce((a, b) => (
       getCooldownRemaining(a) > getCooldownRemaining(b) ? a : b
     ));
-    applyBossHaste(npc, target);
+    applyBossHaste(game, npc, target);
     game.log.push(`CPU boss hastened ${target.name}`);
     return;
   }
 
-  if (slowTarget) {
-    applyBossSlow(npc, slowTarget);
+  if (canUseBossAbility(npc, 'slow') && slowTarget) {
+    applyBossSlow(game, npc, slowTarget);
     game.log.push(`CPU boss slowed ${slowTarget.name}`);
-  } else if (getAliveFieldFighters(npc).length) {
+  } else if (canUseBossAbility(npc, 'heal') && getAliveFieldFighters(npc).length) {
     const target = getAliveFieldFighters(npc)[0];
-    applyBossHeal(npc, target);
+    applyBossHeal(game, npc, target);
     game.log.push(`CPU boss healed ${target.name}`);
   }
 }
@@ -1073,7 +1092,7 @@ export function offlineChainAttack(game, attackerIds, defenderId) {
   return beginChainAttackAnimation(game, attackers, defender, 'You');
 }
 
-function applyBossSlow(owner, target) {
+function applyBossSlow(game, owner, target) {
   const remaining = getCooldownRemaining(target);
   if (!target.slowed) {
     target.slowed = true;
@@ -1084,26 +1103,30 @@ function applyBossSlow(owner, target) {
     Math.max(remaining, 1) * 2,
   );
   target.cooldownElapsed = target.cooldown - newRemaining;
-  markBossAbilityUsed(owner, 'slow');
+  markBossAbilityUsed(game, owner, 'slow', target.name);
 }
 
-function applyBossHeal(owner, target) {
+function applyBossHeal(game, owner, target) {
   target.hp = target.maxHp;
-  markBossAbilityUsed(owner, 'heal');
+  markBossAbilityUsed(game, owner, 'heal', target.name);
 }
 
-function applyBossHaste(owner, target) {
+function applyBossHaste(game, owner, target) {
   const remaining = getCooldownRemaining(target);
+  if (!target.hasted) {
+    target.hasted = true;
+    target.cooldown = Math.max(1, Math.floor(target.cooldown / 2));
+  }
   const newRemaining = Math.max(0, Math.floor(remaining / 2));
   target.cooldownElapsed = target.cooldown - newRemaining;
-  markBossAbilityUsed(owner, 'haste');
+  markBossAbilityUsed(game, owner, 'haste', target.name);
 }
 
 function resolveBossAbility(game, owner, ability, targetInstanceId) {
   if (game.phase !== 'battle' || game.winnerId) {
     return { success: false };
   }
-  if (!canUseBossAbility(owner)) {
+  if (!canUseBossAbility(owner, ability)) {
     return { success: false, message: 'Boss ability already used this battle' };
   }
 
@@ -1114,17 +1137,17 @@ function resolveBossAbility(game, owner, ability, targetInstanceId) {
     if (target.role === 'boss' && !canBossBeTargeted(opp)) {
       return { success: false, message: 'Boss is protected until all fighters are defeated' };
     }
-    applyBossSlow(owner, target);
+    applyBossSlow(game, owner, target);
     game.log.push(`${owner.username} boss slowed ${target.name}`);
   } else if (ability === 'heal') {
     const target = getAliveFieldFighters(owner).find((c) => c.instanceId === targetInstanceId);
     if (!target) return { success: false, message: 'Select one of your fighters' };
-    applyBossHeal(owner, target);
+    applyBossHeal(game, owner, target);
     game.log.push(`${owner.username} boss healed ${target.name}`);
   } else if (ability === 'haste') {
     const target = getFieldCards(owner).find((c) => c.instanceId === targetInstanceId);
     if (!target?.alive) return { success: false, message: 'Invalid target' };
-    applyBossHaste(owner, target);
+    applyBossHaste(game, owner, target);
     game.log.push(`${owner.username} boss hastened ${target.name}`);
   } else {
     return { success: false };
