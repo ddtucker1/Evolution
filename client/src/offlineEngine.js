@@ -28,6 +28,7 @@ const CARD_DATA = {
 const DRAW_TIMER_MAX = 30;
 const CARD_TIMER_MIN = 10;
 const CARD_TIMER_MAX = 60;
+const PLAY_DECK_SIZE = 10;
 const MAX_REPLACEMENTS = 3;
 const MIN_ATTACK_ANIM_MS = 1000;
 const MAX_ATTACK_ANIM_MS = 4000;
@@ -90,7 +91,7 @@ function makeStandardCard(templateId, instanceId) {
 }
 
 function deckEntriesFromIds(deckIds, prefix) {
-  return deckIds.slice(0, 20).map((templateId) => ({
+  return deckIds.slice(0, PLAY_DECK_SIZE).map((templateId) => ({
     templateId,
     instanceId: nextInstanceId(prefix, templateId),
   }));
@@ -543,4 +544,4 @@ export function getOfflineState(game) {
   return toPrivateState(game, 'player');
 }
 
-export { CARD_DATA, CARD_TIMER_MIN, CARD_TIMER_MAX };
+export { CARD_DATA, CARD_TIMER_MIN, CARD_TIMER_MAX, PLAY_DECK_SIZE };

@@ -125,7 +125,7 @@ export const GAME_PHASES = {
 export const DEFAULT_DECK_CAP = 50;
 export const PREMIUM_DECK_CAP = 60;
 export const PREMIUM_COST_CENTS = 100;
-export const GAME_DECK_SIZE = 20;
+export const GAME_DECK_SIZE = 10;
 export const SETUP_HAND_SIZE = 4;
 export const SUPPORT_HAND_SIZE = 4;
 

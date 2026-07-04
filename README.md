@@ -5,7 +5,7 @@ Play against the CPU on your laptop. No login, no internet required.
 ## What's in this build
 
 - **Main Menu** — Library and Battle only (no multiplayer)
-- **Library** — view your full card collection and pick **20 cards** for your play deck
+- **Library** — view your full card collection and pick **10 cards** for your play deck
 - **Battle** — fight the CPU with your play deck
 - **Random card stats** each battle: Attack 10–25, HP 30–100, Timer 10–60 seconds
 - **Boss rule** — your Boss can only attack after all 3 fighters are defeated
@@ -48,7 +48,7 @@ Then open **http://localhost:4173**.
 ## How to play
 
 1. Open the game → **Library**
-2. Tap cards to add/remove them until your **play deck has 20 cards**
+2. Tap cards to add/remove them until your **play deck has 10 cards**
 3. Click **Main Menu** → **Battle**
 4. Deploy 1 Boss + 3 fighters from your opening draw
 5. When card timers are ready, attack. Boss attacks only after all fighters fall

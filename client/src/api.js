@@ -1,6 +1,6 @@
-import { CARD_DATA } from './offlineEngine';
+import { CARD_DATA, PLAY_DECK_SIZE } from './offlineEngine';
 
-export const PLAY_DECK_SIZE = 20;
+export { PLAY_DECK_SIZE };
 
 function buildStarterCollection() {
   const unique = CARD_DATA.unique.map((c) => ({ card_id: c.id, quantity: 2 }));
@@ -40,6 +40,9 @@ export function getOrCreateOfflineProfile() {
     saveOfflineProfile(profile);
   }
   profile = migrateProfile(profile);
+  if (profile.playDeck?.length > PLAY_DECK_SIZE) {
+    profile = { ...profile, playDeck: profile.playDeck.slice(0, PLAY_DECK_SIZE) };
+  }
   saveOfflineProfile(profile);
   return profile;
 }
