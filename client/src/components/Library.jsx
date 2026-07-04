@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import GameCard from './GameCard';
 import { getTimerPreview } from '../offlineEngine';
-import { previewEvolve, getCardLevel, getLevelLabel } from '../evolveEngine';
+import { previewEvolve, getCardLevel, getLevelDigit } from '../evolveEngine';
 import {
   PLAY_DECK_SIZE,
   getCatalogCard,
@@ -145,7 +145,7 @@ export default function Library({ profile, onProfileChange, onMainMenu }) {
           const canSelectEvolve = mode === 'evolve' && (selected || evolveSelection.length < 2);
           const isEvolved = card_id.startsWith('evo_');
           const cardLevel = catalog ? getCardLevel(catalog) : 0;
-          const levelLabel = getLevelLabel(cardLevel);
+          const levelDigit = catalog ? getLevelDigit(catalog) : '0';
           const timerPreview = catalog?.timer != null
             ? Math.round(catalog.timer)
             : getTimerPreview(catalog?.attack ?? 0);
@@ -183,7 +183,7 @@ export default function Library({ profile, onProfileChange, onMainMenu }) {
                 selected={selected}
                 showCooldown={false}
                 cooldownPreview={timerPreview}
-                levelLabel={levelLabel}
+                levelDigit={levelDigit}
               />
             </div>
           );
@@ -217,7 +217,7 @@ export default function Library({ profile, onProfileChange, onMainMenu }) {
                   }}
                   showCooldown={false}
                   cooldownPreview={evolvePreview.timer}
-                  levelLabel={getLevelLabel(evolvePreview.level)}
+                  levelDigit={getLevelDigit({ level: evolvePreview.level })}
                 />
               </div>
               {evolvePreview.level2Bonus && (

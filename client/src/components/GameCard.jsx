@@ -1,3 +1,5 @@
+import { getLevelDigit } from '../evolveEngine';
+
 export default function GameCard({
   card,
   onClick,
@@ -10,7 +12,9 @@ export default function GameCard({
   pendingDamage = 0,
   cooldownPreview = null,
   levelLabel = null,
+  levelDigit = null,
   hideRole = false,
+  hideStatusEffects = false,
 }) {
   if (card?.hidden) {
     return (
@@ -53,14 +57,15 @@ export default function GameCard({
     isDying ? 'dying' : '',
   ].filter(Boolean).join(' ');
 
+  const displayLevel = levelDigit ?? (levelLabel ? levelLabel.replace(/\D/g, '') || null : getLevelDigit(card));
+
   return (
     <div className={classes} onClick={disabled ? undefined : onClick}>
-      {card.isBase && !card.role && <span className="card-base-badge">base</span>}
-      {levelLabel && <span className="card-level-badge">{levelLabel}</span>}
       {card.role && !hideRole && <span className="card-role">{card.role}</span>}
-      {card.slowed && <span className="card-slow-badge">Slow</span>}
-      {card.poisoned && <span className="card-poison-badge">Poison</span>}
-      <div className="card-name">{card.name}</div>
+      <div className="card-name-row">
+        <div className="card-name">{card.name}</div>
+        {displayLevel != null && <span className="card-level-digit">{displayLevel}</span>}
+      </div>
       <div className="card-stats">
         DEF: {Math.round(card.defense ?? 0)}
         <br />

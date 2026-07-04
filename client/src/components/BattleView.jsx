@@ -18,6 +18,7 @@ export default function BattleView({
 }) {
   const [targetMode, setTargetMode] = useState(null);
   const [replaceMode, setReplaceMode] = useState(null);
+  const [selectedSlot, setSelectedSlot] = useState(null);
   const [magicMode, setMagicMode] = useState(null);
   const battlefieldRef = useRef(null);
   const cardRefs = useRef({});
@@ -45,7 +46,8 @@ export default function BattleView({
     maxReplacements,
     bossCanAttack,
     opponentBossCanAttack,
-    bossAbilityAvailable,
+    bossAbilitiesUsed,
+    bossAbilityEvent,
   } = gameState;
 
   const me = players?.find((p) => p.id === 'player') || players?.[0];
@@ -129,7 +131,10 @@ export default function BattleView({
   };
 
   const handleMagicTargetSelect = (target) => {
-    if (!magicMode || !bossAbilityAvailable) return;
+    if (!magicMode) return;
+    if (magicMode === 'slow' && bossAbilitiesUsed?.slow) return;
+    if (magicMode === 'heal' && bossAbilitiesUsed?.heal) return;
+    if (magicMode === 'haste' && bossAbilitiesUsed?.haste) return;
     if (magicMode === 'slow') onBossSlow(target.instanceId);
     else if (magicMode === 'heal') onBossHeal(target.instanceId);
     else if (magicMode === 'haste') onBossHaste(target.instanceId);
@@ -137,8 +142,10 @@ export default function BattleView({
   };
 
   const startBossMagic = (mode) => {
-    if (!bossAbilityAvailable || winnerId) return;
+    if (bossAbilitiesUsed?.[mode] || winnerId) return;
     setTargetMode(null);
+    setReplaceMode(null);
+    setSelectedSlot(null);
     setMagicMode(mode);
   };
 
@@ -146,29 +153,43 @@ export default function BattleView({
     if (replaceMode) {
       onReplace(replaceMode.handCardId, slotIndex);
       setReplaceMode(null);
+      setSelectedSlot(null);
       return;
     }
-    if (pendingReplacement?.slotIndex === slotIndex && myBattleHand?.length === 1) {
+    if (selectedSlot === slotIndex && myBattleHand?.length === 1) {
       onReplace(myBattleHand[0].instanceId, slotIndex);
+      setSelectedSlot(null);
+      return;
+    }
+    if (replacementsUsed < maxReplacements && myBattleHand?.length > 0) {
+      setSelectedSlot(slotIndex);
+      setReplaceMode(null);
+      setMagicMode(null);
     }
   };
 
-  const handlePendingReplace = (handCard) => {
-    if (pendingReplacement == null) return;
-    onReplace(handCard.instanceId, pendingReplacement.slotIndex);
-    setReplaceMode(null);
+  const handleHandCardClick = (handCard) => {
+    if (battleLocked || replacementsUsed >= maxReplacements) return;
+    if (selectedSlot != null) {
+      onReplace(handCard.instanceId, selectedSlot);
+      setSelectedSlot(null);
+      setReplaceMode(null);
+      return;
+    }
+    startReplace(handCard);
   };
 
   const startReplace = (handCard) => {
     if (replacementsUsed >= maxReplacements) return;
     setReplaceMode({ handCardId: handCard.instanceId });
+    setSelectedSlot(null);
     setTargetMode(null);
     setMagicMode(null);
   };
 
   if (phase === 'setup') {
     return (
-      <div>
+      <div className="setup-phase">
         <div className="setup-instructions">
           <h2 style={{ fontFamily: 'var(--font-display)', color: 'var(--accent-gold)', marginBottom: 12 }}>
             Deployment Phase
@@ -176,11 +197,12 @@ export default function BattleView({
           <p>Click <strong>Boss</strong> on one card. The other three become your fighters automatically.</p>
         </div>
 
-        <div className="hand-cards" style={{ justifyContent: 'center', margin: '20px 0' }}>
+        <div className="hand-cards setup-hand-cards">
           {myHand?.map((card) => (
-            <div key={card.instanceId} style={{ textAlign: 'center' }}>
-              <GameCard card={card} />
+            <div key={card.instanceId} className="setup-card-wrap">
+              <GameCard card={card} hideStatusEffects />
               <button
+                type="button"
                 className="btn-gold setup-boss-btn"
                 onClick={() => handleBossSelect(card.instanceId)}
               >
@@ -231,6 +253,58 @@ export default function BattleView({
     return [];
   };
 
+  const BOSS_ABILITY_LABELS = {
+    slow: 'Slow Timer',
+    heal: 'Heal Fighter',
+    haste: 'Haste Timer',
+  };
+
+  const renderBossMagicActions = (abilitiesUsed, isPlayerSide) => (
+    <div className={`boss-magic-actions${isPlayerSide ? '' : ' npc-boss-magic'}`}>
+      <button
+        type="button"
+        className={`boss-magic-btn slow-btn${abilitiesUsed?.slow ? ' ability-used' : ''}`}
+        disabled={!isPlayerSide || abilitiesUsed?.slow || !!winnerId}
+        onClick={() => isPlayerSide && startBossMagic('slow')}
+      >
+        Slow Timer
+      </button>
+      <button
+        type="button"
+        className={`boss-magic-btn heal-btn${abilitiesUsed?.heal ? ' ability-used' : ''}`}
+        disabled={!isPlayerSide || abilitiesUsed?.heal || !!winnerId}
+        onClick={() => isPlayerSide && startBossMagic('heal')}
+      >
+        Heal Fighter
+      </button>
+      <button
+        type="button"
+        className={`boss-magic-btn haste-btn${abilitiesUsed?.haste ? ' ability-used' : ''}`}
+        disabled={!isPlayerSide || abilitiesUsed?.haste || !!winnerId}
+        onClick={() => isPlayerSide && startBossMagic('haste')}
+      >
+        Haste Timer
+      </button>
+    </div>
+  );
+
+  const renderStatusEffects = (card) => {
+    const effects = [];
+    if (card.hasted) effects.push({ key: 'haste', label: 'Haste', className: 'status-haste' });
+    if (card.slowed) effects.push({ key: 'slow', label: 'Slow', className: 'status-slow' });
+    if (card.poisoned) effects.push({ key: 'poison', label: 'Poison', className: 'status-poison' });
+    if (!effects.length) return null;
+    return (
+      <div className="card-status-effects">
+        {effects.map((effect) => (
+          <span key={effect.key} className={`status-effect ${effect.className}`}>
+            {effect.label}
+          </span>
+        ))}
+      </div>
+    );
+  };
+
   const renderBattlefield = (player, isPlayer) => {
     const aliveFighters = countAliveFighters(player.field);
     const boss = player.boss;
@@ -242,37 +316,8 @@ export default function BattleView({
           bossLocked: isPlayer ? !bossCanAttack : !opponentBossCanAttack,
           bossProtected: aliveFighters > 0,
         })}
-        {isPlayer && boss.alive && !winnerId && (
-          <div className="boss-magic-actions">
-            <button
-              type="button"
-              className="boss-magic-btn slow-btn"
-              disabled={!bossAbilityAvailable || !!winnerId}
-              onClick={() => startBossMagic('slow')}
-            >
-              Slow Timer
-            </button>
-            <button
-              type="button"
-              className="boss-magic-btn heal-btn"
-              disabled={!bossAbilityAvailable || !!winnerId}
-              onClick={() => startBossMagic('heal')}
-            >
-              Heal Fighter
-            </button>
-            <button
-              type="button"
-              className="boss-magic-btn haste-btn"
-              disabled={!bossAbilityAvailable || !!winnerId}
-              onClick={() => startBossMagic('haste')}
-            >
-              Haste Timer
-            </button>
-            {!bossAbilityAvailable && (
-              <span className="boss-magic-spent">Ability used this battle</span>
-            )}
-          </div>
-        )}
+        {isPlayer && boss.alive && !winnerId && renderBossMagicActions(bossAbilitiesUsed, true)}
+        {!isPlayer && boss.alive && renderBossMagicActions(player.bossAbilitiesUsed, false)}
       </div>
     );
 
@@ -320,7 +365,8 @@ export default function BattleView({
 
     if (!card) {
       const canReplace = isPlayer && !battleLocked && replacementsUsed < maxReplacements
-        && (replaceMode || (pendingReplacement?.slotIndex === slotIndex));
+        && myBattleHand?.length > 0
+        && (replaceMode || selectedSlot === slotIndex || pendingReplacement?.slotIndex === slotIndex);
       return (
         <div
           key={`empty-${slotIndex}`}
@@ -347,9 +393,18 @@ export default function BattleView({
       && inTargetMode
       && (targetMode.step === 'direct-target' || targetMode.step === 'chain-target')
       && attackableTargets.some((t) => t.instanceId === card.instanceId);
-    const isTargetHighlighted = isChainPartner || isLeadAttacker || isEnemyTargetable;
+    const isMagicTargetable = !!magicMode && !winnerId && (
+      (magicMode === 'slow' && !isPlayer && getSlowTargets().some((t) => t.instanceId === card.instanceId))
+      || (magicMode === 'heal' && isPlayer && getHealTargets().some((t) => t.instanceId === card.instanceId))
+      || (magicMode === 'haste' && isPlayer && getHasteTargets().some((t) => t.instanceId === card.instanceId))
+    );
+    const isTargetHighlighted = isChainPartner || isLeadAttacker || isEnemyTargetable || isMagicTargetable;
 
     const handleFieldCardClick = () => {
+      if (isMagicTargetable) {
+        handleMagicTargetSelect(card);
+        return;
+      }
       if (isEnemyTargetable) {
         if (targetMode.step === 'direct-target') handleTargetSelect(card);
         else if (targetMode.step === 'chain-target') handleChainTargetSelect(card);
@@ -362,26 +417,33 @@ export default function BattleView({
       if (canSelectForAttack) handleAttackClick(card);
     };
 
-    const cardClickable = canSelectForAttack || isEnemyTargetable || isChainPartnerCandidate;
+    const cardClickable = canSelectForAttack || isEnemyTargetable || isChainPartnerCandidate || isMagicTargetable;
 
     return (
       <div
         key={card.instanceId}
-        className={`field-card-anchor${isTargetHighlighted ? ' target-highlight' : ''}`}
-        ref={(el) => {
-          if (el) cardRefs.current[card.instanceId] = el;
-          else delete cardRefs.current[card.instanceId];
-        }}
+        className={`field-card-row${isPlayer ? ' player-side' : ' opponent-side'}`}
       >
-        <GameCard
-          card={{ ...card, bossLocked, bossProtected }}
-          showCooldown
-          hideRole
-          disabled={bossLocked || (isPlayer && !cardClickable && !isLeadAttacker)}
-          selected={isQueuedAttacker || isTargetHighlighted}
-          {...cardAnimProps(card)}
-          onClick={cardClickable || isLeadAttacker ? handleFieldCardClick : undefined}
-        />
+        {!isPlayer && renderStatusEffects(card)}
+        <div
+          className={`field-card-anchor${isTargetHighlighted ? ' target-highlight' : ''}`}
+          ref={(el) => {
+            if (el) cardRefs.current[card.instanceId] = el;
+            else delete cardRefs.current[card.instanceId];
+          }}
+        >
+          <GameCard
+            card={{ ...card, bossLocked, bossProtected }}
+            showCooldown
+            hideRole
+            hideStatusEffects
+            disabled={bossLocked || (isPlayer && !cardClickable && !isLeadAttacker)}
+            selected={isQueuedAttacker || isTargetHighlighted}
+            {...cardAnimProps(card)}
+            onClick={cardClickable || isLeadAttacker ? handleFieldCardClick : undefined}
+          />
+        </div>
+        {isPlayer && renderStatusEffects(card)}
       </div>
     );
   };
@@ -414,6 +476,13 @@ export default function BattleView({
         </div>
       )}
 
+      {bossAbilityEvent && (
+        <div className="attack-banner boss-ability-banner">
+          {bossAbilityEvent.username} used <strong>{BOSS_ABILITY_LABELS[bossAbilityEvent.ability] || bossAbilityEvent.ability}</strong>
+          {bossAbilityEvent.targetName ? ` on ${bossAbilityEvent.targetName}` : ''}
+        </div>
+      )}
+
       {deathAnimation && (
         <div className="attack-banner death-banner">
           Card destroyed — shake and fade animation playing
@@ -436,19 +505,21 @@ export default function BattleView({
           </>
         )}
         <div className="player-zone">
-          <h3>Your Battlefield</h3>
-          <div className="deck-draw-zone">
-            <div
-              className={`deck-pile${drawReady ? ' draw-ready' : ''}`}
-              onClick={() => !battleLocked && drawReady && onDraw()}
-            >
-              <div className="deck-pile-label">Play Deck</div>
-              <div className="deck-pile-count">{deckRemaining} cards</div>
-              <div className="draw-timer-bar">
-                <div className="draw-timer-fill" style={{ width: `${drawProgress}%` }} />
-              </div>
-              <div className="draw-timer-text">
-                {drawReady ? 'Click to draw!' : `${drawTimerMax - drawTimer}s until draw`}
+          <div className="player-zone-header">
+            <h3>Your Battlefield</h3>
+            <div className="deck-draw-zone">
+              <div
+                className={`deck-pile${drawReady ? ' draw-ready' : ''}`}
+                onClick={() => !battleLocked && drawReady && onDraw()}
+              >
+                <div className="deck-pile-label">Play Deck</div>
+                <div className="deck-pile-count">{deckRemaining} cards</div>
+                <div className="draw-timer-bar">
+                  <div className="draw-timer-fill" style={{ width: `${drawProgress}%` }} />
+                </div>
+                <div className="draw-timer-text">
+                  {drawReady ? 'Click to draw!' : `${drawTimerMax - drawTimer}s until draw`}
+                </div>
               </div>
             </div>
           </div>
@@ -518,118 +589,47 @@ export default function BattleView({
             </button>
           </div>
         )}
+
+        {magicMode && (
+          <div className="battlefield-target-hint magic-target-hint">
+            <span>
+              {magicMode === 'slow' && 'Slow Timer — click an enemy card'}
+              {magicMode === 'heal' && 'Heal Fighter — click one of your fighters'}
+              {magicMode === 'haste' && 'Haste Timer — click one of your cards'}
+            </span>
+            <button type="button" className="battlefield-hint-cancel" onClick={() => setMagicMode(null)}>
+              Cancel
+            </button>
+          </div>
+        )}
       </div>
 
       {myBattleHand?.length > 0 && phase === 'battle' && (
         <div className="hand-area">
-          <h4>Your Hand — tap a fighter to replace an empty slot</h4>
-          {replaceMode && (
-            <p className="replace-hint">Select an empty field slot to deploy your fighter</p>
+          <h4>Your Hand — deploy to empty slots</h4>
+          {(replaceMode || selectedSlot != null) && (
+            <p className="replace-hint">
+              {replaceMode
+                ? 'Select an empty field slot to deploy your fighter'
+                : `Slot ${selectedSlot + 1} selected — tap a hand card to deploy`}
+            </p>
           )}
           <div className="hand-cards">
             {myBattleHand.map((card) => (
               <div key={card.instanceId} className="hand-card-wrap">
                 <GameCard
                   card={card}
-                  selected={replaceMode?.handCardId === card.instanceId}
+                  selected={replaceMode?.handCardId === card.instanceId || selectedSlot != null}
                   showCooldown
+                  hideStatusEffects
                   disabled={battleLocked}
-                  onClick={() => {
-                    if (!battleLocked && replacementsUsed < maxReplacements) startReplace(card);
-                  }}
+                  onClick={() => handleHandCardClick(card)}
                 />
                 {replacementsUsed < maxReplacements && (
-                  <span className="hand-card-label">Replace</span>
+                  <span className="hand-card-label">Deploy</span>
                 )}
               </div>
             ))}
-          </div>
-        </div>
-      )}
-
-      {pendingReplacement && !battleLocked && myBattleHand?.length > 0 && (
-        <div className="target-overlay">
-          <div className="target-panel replacement-panel" onClick={(e) => e.stopPropagation()}>
-            <h3>Fighter destroyed — replace from hand?</h3>
-            <p className="replace-hint">
-              Choose a card to deploy in slot {pendingReplacement.slotIndex + 1}
-              {' '}({replacementsUsed}/{maxReplacements} replacements used)
-            </p>
-            <div className="hand-cards" style={{ marginBottom: 16 }}>
-              {myBattleHand.map((card) => (
-                <GameCard
-                  key={card.instanceId}
-                  card={card}
-                  showCooldown
-                  onClick={() => handlePendingReplace(card)}
-                />
-              ))}
-            </div>
-            <button className="btn-secondary" style={{ width: '100%' }} onClick={onDismissReplacement}>
-              Skip for now
-            </button>
-          </div>
-        </div>
-      )}
-
-      {magicMode === 'slow' && (
-        <div className="target-overlay" onClick={() => setMagicMode(null)}>
-          <div className="target-panel" onClick={(e) => e.stopPropagation()}>
-            <h3>Slow Timer — choose opponent</h3>
-            <p className="replace-hint">Doubles the target&apos;s attack timer for the rest of the battle</p>
-            <div className="field-cards" style={{ marginBottom: 16 }}>
-              {getSlowTargets().map((card) => (
-                <GameCard
-                  key={card.instanceId}
-                  card={card}
-                  onClick={() => handleMagicTargetSelect(card)}
-                />
-              ))}
-            </div>
-            <button className="btn-secondary" style={{ width: '100%' }} onClick={() => setMagicMode(null)}>Cancel</button>
-          </div>
-        </div>
-      )}
-
-      {magicMode === 'heal' && (
-        <div className="target-overlay" onClick={() => setMagicMode(null)}>
-          <div className="target-panel" onClick={(e) => e.stopPropagation()}>
-            <h3>Heal Fighter — choose ally</h3>
-            <p className="replace-hint">Fully restores the selected fighter&apos;s HP</p>
-            <div className="field-cards" style={{ marginBottom: 16 }}>
-              {getHealTargets().length > 0 ? getHealTargets().map((card) => (
-                <GameCard
-                  key={card.instanceId}
-                  card={card}
-                  onClick={() => handleMagicTargetSelect(card)}
-                />
-              )) : (
-                <p className="replace-hint">No fighters available to heal</p>
-              )}
-            </div>
-            <button className="btn-secondary" style={{ width: '100%' }} onClick={() => setMagicMode(null)}>Cancel</button>
-          </div>
-        </div>
-      )}
-
-      {magicMode === 'haste' && (
-        <div className="target-overlay" onClick={() => setMagicMode(null)}>
-          <div className="target-panel" onClick={(e) => e.stopPropagation()}>
-            <h3>Haste Timer — choose ally</h3>
-            <p className="replace-hint">Halves the target&apos;s remaining cooldown</p>
-            <div className="field-cards" style={{ marginBottom: 16 }}>
-              {getHasteTargets().length > 0 ? getHasteTargets().map((card) => (
-                <GameCard
-                  key={card.instanceId}
-                  card={card}
-                  showCooldown
-                  onClick={() => handleMagicTargetSelect(card)}
-                />
-              )) : (
-                <p className="replace-hint">No attackers available to hasten</p>
-              )}
-            </div>
-            <button className="btn-secondary" style={{ width: '100%' }} onClick={() => setMagicMode(null)}>Cancel</button>
           </div>
         </div>
       )}

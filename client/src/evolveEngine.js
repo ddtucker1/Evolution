@@ -185,3 +185,7 @@ export function getLevelLabel(level) {
   if (level === 3) return 'Level 3';
   return null;
 }
+
+export function getLevelDigit(card) {
+  return String(getCardLevel(card));
+}
