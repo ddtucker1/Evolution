@@ -2,6 +2,8 @@ import { useState, useEffect, useRef } from 'react';
 import MainMenu from './components/MainMenu';
 import Library from './components/Library';
 import BattleView from './components/BattleView';
+import useBattleMusic from './hooks/useBattleMusic';
+import { resumeBattleMusicIfPaused } from './audio/gameAudio';
 import {
   getOrCreateOfflineProfile,
   getPlayDeckIds,
@@ -34,6 +36,11 @@ export default function App() {
   const battleReady = isPlayDeckComplete(profile);
 
   useEffect(() => () => stopTicks(), []);
+  useBattleMusic(screen, gameState);
+
+  const resumeMusicOnInteraction = () => {
+    if (screen === 'battle') resumeBattleMusicIfPaused();
+  };
 
   const handleStartBattle = () => {
     if (!battleReady) return;
@@ -102,7 +109,7 @@ export default function App() {
   };
 
   return (
-    <div className="app-container">
+    <div className="app-container" onClick={resumeMusicOnInteraction}>
       <div className="header-bar">
         <h1>Card Fusion Battle</h1>
         <span className="user-info">{profile.username}</span>
