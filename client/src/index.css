@@ -858,6 +858,20 @@ input:focus {
   left: auto;
 }
 
+.game-card .card-base-badge {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  font-size: 9px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: var(--accent-blue);
+  color: #fff;
+  font-weight: 700;
+  z-index: 2;
+  text-transform: lowercase;
+}
+
 .game-card .card-level-badge {
   position: absolute;
   top: 4px;

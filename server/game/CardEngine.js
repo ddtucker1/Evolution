@@ -1,6 +1,7 @@
 import { readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
+import { calculateBattleTimer } from '../../shared/baseCardStats.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const cardData = JSON.parse(readFileSync(join(__dirname, '../data/cards.json'), 'utf-8'));
@@ -48,24 +49,23 @@ export function findFusion(inputIds) {
   return null;
 }
 
-function randomStat(min, max) {
-  return Math.floor(Math.random() * (max - min + 1)) + min;
-}
-
 export function createBattleCard(templateId, instanceId) {
   const template = getCardTemplate(templateId);
   if (!template) return null;
   const isUnique = template.type === 'unique';
-  const attack = isUnique ? randomStat(10, 25) : (template.attack || 0);
-  const maxHp = isUnique ? randomStat(30, 100) : (template.hp || 0);
-  const cooldown = isUnique ? randomStat(10, 60) : (template.cooldown || 0);
+  const attack = Math.round(template.attack || 0);
+  const defense = Math.round(template.defense || 0);
+  const maxHp = Math.round(template.hp || 0);
+  const cooldown = isUnique
+    ? calculateBattleTimer(attack)
+    : Math.round(template.cooldown || 0);
   return {
     instanceId,
     templateId,
     name: template.name,
     type: template.type,
     attack,
-    defense: isUnique ? randomStat(1, 10) : (template.defense || 0),
+    defense,
     maxHp,
     hp: maxHp,
     cooldown,
@@ -75,6 +75,7 @@ export function createBattleCard(templateId, instanceId) {
     description: template.description,
     role: null,
     alive: true,
+    isBase: isUnique && !templateId.startsWith('evo_') && !templateId.startsWith('fus_'),
   };
 }
 
@@ -183,7 +184,7 @@ export function applyStandardCard(card, target) {
 }
 
 export function calculateAttackDamage(attacker, defender) {
-  return Math.max(0, attacker.attack - defender.defense);
+  return Math.max(0, Math.round(attacker.attack) - Math.round(defender.defense));
 }
 
 export function resolveAttack(attacker, defender) {

@@ -1,4 +1,4 @@
-import { CARD_DATA, PLAY_DECK_SIZE, getLibraryCooldownSeconds } from './offlineEngine';
+import { CARD_DATA, PLAY_DECK_SIZE, getTimerPreview } from './offlineEngine';
 import { createEvolvedCard, getCardLevel } from './evolveEngine';
 
 export { PLAY_DECK_SIZE };
@@ -58,7 +58,7 @@ export function getOfflineProfile() {
 function migrateEvolvedCard(card) {
   if (!card) return card;
   const level = getCardLevel(card);
-  const timer = card.timer ?? getLibraryCooldownSeconds(card.id);
+  const timer = card.timer != null ? Math.round(card.timer) : getTimerPreview(card.attack);
   return { ...card, level, timer };
 }
 
