@@ -9,6 +9,7 @@ import {
   getPlayDeckIds,
   isPlayDeckComplete,
 } from './api';
+import useBattleBackground from './hooks/useBattleBackground';
 import {
   createOfflineGame,
   registerEvolvedCards,
@@ -34,6 +35,7 @@ export default function App() {
 
   const playDeckCount = profile.playDeck?.length || 0;
   const battleReady = isPlayDeckComplete(profile);
+  const battleBackgroundUrl = useBattleBackground(screen === 'battle');
 
   useEffect(() => () => stopTicks(), []);
   useBattleMusic(screen, gameState);
@@ -109,7 +111,17 @@ export default function App() {
   };
 
   return (
-    <div className="app-container" onClick={resumeMusicOnInteraction}>
+    <div
+      className={`app-container${screen === 'battle' ? ' battle-active' : ''}`}
+      onClick={resumeMusicOnInteraction}
+    >
+      {screen === 'battle' && battleBackgroundUrl && (
+        <div
+          className="battle-background-layer"
+          style={{ backgroundImage: `url(${battleBackgroundUrl})` }}
+          aria-hidden="true"
+        />
+      )}
       <div className="header-bar">
         <h1>Card Fusion Battle</h1>
         <span className="user-info">{profile.username}</span>
