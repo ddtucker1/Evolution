@@ -270,6 +270,7 @@ function sanitize(card, revealed) {
     alive: card.alive,
     type: card.type,
     ability: card.ability || null,
+    slowed: !!card.slowed,
     bossLocked: false,
   };
 }
@@ -828,11 +829,8 @@ export function offlineChainAttack(game, attackerIds, defenderId) {
   if (attackers.length < 2) {
     return { success: false, message: 'Need at least 2 ready fighters for a chain attack' };
   }
-  if (attackers.length !== readyFighters.length) {
-    return { success: false, message: 'All ready fighters must participate in the chain attack' };
-  }
   if (!attackers.every((a) => readyIds.has(a.instanceId))) {
-    return { success: false, message: 'All fighters must be ready for a chain attack' };
+    return { success: false, message: 'All chain attackers must be ready' };
   }
 
   const defender = getFieldCards(opp).find((c) => c.instanceId === defenderId);
@@ -850,6 +848,10 @@ export function offlineChainAttack(game, attackerIds, defenderId) {
 }
 
 function applyBossSlow(owner, target) {
+  if (!target.slowed) {
+    target.slowed = true;
+    target.cooldown *= 2;
+  }
   target.cooldownRemaining = Math.min(
     target.cooldown,
     Math.max(target.cooldownRemaining, 1) * 2,
@@ -868,7 +870,7 @@ function applyBossHaste(owner, target) {
 }
 
 function resolveBossAbility(game, owner, ability, targetInstanceId) {
-  if (game.phase !== 'battle' || game.winnerId || isBattlePaused(game)) {
+  if (game.phase !== 'battle' || game.winnerId) {
     return { success: false };
   }
   if (!canUseBossAbility(owner)) {

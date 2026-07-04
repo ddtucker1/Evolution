@@ -656,6 +656,70 @@ input:focus {
   letter-spacing: 0.5px;
 }
 
+.attack-choice-section {
+  margin-bottom: 16px;
+}
+
+.attack-choice-title {
+  font-family: var(--font-display);
+  color: var(--accent-gold);
+  font-size: 14px;
+  margin-bottom: 8px;
+  text-align: center;
+}
+
+.chain-attack-start-btn {
+  display: block;
+  width: 100%;
+  margin-top: 8px;
+}
+
+.chain-partner-cards {
+  gap: 12px;
+}
+
+.chain-partner-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  position: relative;
+  text-align: left;
+}
+
+.chain-partner-btn.selected .game-card {
+  border-color: var(--accent-purple);
+  box-shadow: 0 0 12px rgba(139, 92, 246, 0.35);
+}
+
+.chain-partner-label {
+  display: block;
+  text-align: center;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-top: 4px;
+}
+
+.chain-partner-btn.selected .chain-partner-label {
+  color: var(--accent-purple);
+}
+
+.card-slow-badge {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  background: rgba(52, 152, 219, 0.9);
+  color: #fff;
+  font-size: 9px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  z-index: 2;
+}
+
 .mobile-bottom-nav {
   position: fixed;
   bottom: 0;
