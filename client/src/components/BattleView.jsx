@@ -65,13 +65,62 @@ export default function BattleView({
   const handleAttackClick = (attacker) => {
     if (!canAttackWith(attacker) || winnerId) return;
     setMagicMode(null);
-    setTargetMode({ type: 'attack', attacker });
+    const otherReady = getReadyChainAttackers().filter((c) => c.instanceId !== attacker.instanceId);
+    if (otherReady.length === 0) {
+      setTargetMode({ step: 'direct-target', attacker });
+    } else if (otherReady.length === 1) {
+      setTargetMode({
+        step: 'chain-target',
+        attacker,
+        partners: [otherReady[0].instanceId],
+      });
+    } else {
+      setTargetMode({ step: 'attack-choice', attacker });
+    }
   };
 
   const handleTargetSelect = (target) => {
-    if (!targetMode) return;
+    if (!targetMode?.attacker) return;
     onAttack(targetMode.attacker.instanceId, target.instanceId);
     setTargetMode(null);
+  };
+
+  const getChainAttackerIds = (mode) => [
+    mode.attacker.instanceId,
+    ...(mode.partners || []),
+  ];
+
+  const handleChainTargetSelect = (target) => {
+    if (!targetMode?.attacker || !targetMode.partners?.length) return;
+    onChainAttack(getChainAttackerIds(targetMode), target.instanceId);
+    setTargetMode(null);
+  };
+
+  const toggleChainPartner = (partnerId) => {
+    if (targetMode?.step !== 'chain-partners') return;
+    const partners = targetMode.partners || [];
+    const next = partners.includes(partnerId)
+      ? partners.filter((id) => id !== partnerId)
+      : [...partners, partnerId];
+    setTargetMode({ ...targetMode, partners: next });
+  };
+
+  const startChainPartnerSelect = () => {
+    if (!targetMode?.attacker) return;
+    setTargetMode({
+      step: 'chain-partners',
+      attacker: targetMode.attacker,
+      partners: [],
+    });
+  };
+
+  const confirmChainPartners = () => {
+    if (!targetMode?.attacker || !targetMode.partners?.length) return;
+    setTargetMode({
+      step: 'chain-target',
+      attacker: targetMode.attacker,
+      partners: targetMode.partners,
+    });
   };
 
   const handleMagicTargetSelect = (target) => {
@@ -83,7 +132,7 @@ export default function BattleView({
   };
 
   const startBossMagic = (mode) => {
-    if (!bossAbilityAvailable || battleLocked) return;
+    if (!bossAbilityAvailable || winnerId) return;
     setTargetMode(null);
     setMagicMode(mode);
   };
@@ -149,11 +198,19 @@ export default function BattleView({
     getAliveFieldFighters(myPlayer.field).filter((c) => c.cooldownRemaining <= 0)
   );
 
-  const handleChainTargetSelect = (target) => {
-    const chainAttackers = getReadyChainAttackers();
-    if (chainAttackers.length < 2) return;
-    onChainAttack(chainAttackers.map((c) => c.instanceId), target.instanceId);
-    setTargetMode(null);
+  const getFighterById = (instanceId) => (
+    myPlayer.field.find((c) => c?.instanceId === instanceId)
+  );
+
+  const getChainBonusPct = (count) => (count >= 3 ? 20 : 10);
+
+  const getChainDamagePreview = (attackerIds, targets) => {
+    const attackers = attackerIds
+      .map((id) => targets.find((c) => c.instanceId === id))
+      .filter(Boolean);
+    if (attackers.length < 2) return 0;
+    const totalAttack = attackers.reduce((sum, c) => sum + Math.round(c.attack ?? 0), 0);
+    return Math.round(totalAttack * (attackers.length >= 3 ? 1.2 : 1.1));
   };
 
   const countAliveFighters = (field) => (field || []).filter((c) => c && c.alive).length;
@@ -200,7 +257,7 @@ export default function BattleView({
             <button
               type="button"
               className="boss-magic-btn slow-btn"
-              disabled={!bossAbilityAvailable || battleLocked}
+              disabled={!bossAbilityAvailable || !!winnerId}
               onClick={() => startBossMagic('slow')}
             >
               Slow Timer
@@ -208,7 +265,7 @@ export default function BattleView({
             <button
               type="button"
               className="boss-magic-btn heal-btn"
-              disabled={!bossAbilityAvailable || battleLocked}
+              disabled={!bossAbilityAvailable || !!winnerId}
               onClick={() => startBossMagic('heal')}
             >
               Heal Fighter
@@ -216,7 +273,7 @@ export default function BattleView({
             <button
               type="button"
               className="boss-magic-btn haste-btn"
-              disabled={!bossAbilityAvailable || battleLocked}
+              disabled={!bossAbilityAvailable || !!winnerId}
               onClick={() => startBossMagic('haste')}
             >
               Haste Timer
@@ -283,7 +340,10 @@ export default function BattleView({
     const bossLocked = options.bossLocked ?? (card.role === 'boss' && !bossCanAttack);
     const bossProtected = options.bossProtected ?? false;
     const canSelectForAttack = isPlayer && phase === 'battle' && !winnerId && canAttackWith(card);
-    const isQueuedAttacker = pendingPlayerAttack?.attackerId === card.instanceId;
+    const isQueuedAttacker = pendingPlayerAttack?.attackerId === card.instanceId
+      || (pendingPlayerAttack?.isChain && pendingPlayerAttack?.attackerIds?.includes(card.instanceId));
+    const isTargetSelected = targetMode?.attacker?.instanceId === card.instanceId
+      || (targetMode?.step === 'chain-partners' && targetMode.partners?.includes(card.instanceId));
 
     return (
       <div
@@ -299,7 +359,7 @@ export default function BattleView({
           showCooldown
           hideRole
           disabled={bossLocked || (isPlayer && !canSelectForAttack)}
-          selected={isQueuedAttacker || targetMode?.attacker?.instanceId === card.instanceId}
+          selected={isQueuedAttacker || isTargetSelected}
           {...cardAnimProps(card)}
           onClick={() => {
             if (canSelectForAttack) handleAttackClick(card);
@@ -438,70 +498,151 @@ export default function BattleView({
       )}
 
       {targetMode && (() => {
-        const chainAttackers = getReadyChainAttackers();
-        const canChainAttack = chainAttackers.length >= 2;
-        const chainBonus = chainAttackers.length >= 3 ? 20 : 10;
-        const totalChainAttack = chainAttackers.reduce((sum, c) => sum + Math.round(c.attack ?? 0), 0);
-        const chainDamagePreview = canChainAttack
-          ? Math.round(totalChainAttack * (chainAttackers.length >= 3 ? 1.2 : 1.1))
-          : 0;
         const attackableTargets = getAttackableTargets()
           .filter((c) => c && !c.hidden && c.alive !== false);
+        const otherReady = getReadyChainAttackers()
+          .filter((c) => c.instanceId !== targetMode.attacker.instanceId);
+        const chainAttackerIds = targetMode.step === 'chain-target'
+          ? getChainAttackerIds(targetMode)
+          : [];
+        const chainAttackers = chainAttackerIds
+          .map((id) => getFighterById(id))
+          .filter(Boolean);
+        const chainBonus = getChainBonusPct(chainAttackerIds.length);
+        const chainDamagePreview = getChainDamagePreview(chainAttackerIds, myPlayer.field);
 
-        return (
-          <div className="target-overlay" onClick={() => setTargetMode(null)}>
-            <div className="target-panel" onClick={(e) => e.stopPropagation()}>
-              <h3>Choose target to attack</h3>
-              <p className="replace-hint">
-                Attacking with <strong>{targetMode.attacker.name}</strong>
-              </p>
-              {animationInProgress && (
-                <p className="replace-hint">This attack will execute after the current animation finishes</p>
-              )}
-              <div className="field-cards" style={{ marginBottom: 16 }}>
-                {attackableTargets.map((card) => (
-                  <GameCard
-                    key={card.instanceId}
-                    card={card}
-                    hideRole
-                    onClick={() => handleTargetSelect(card)}
-                  />
-                ))}
-              </div>
-              {canChainAttack && (
-                <div className="chain-attack-section">
-                  <h4 className="chain-attack-title">
-                    Chain Attack — {chainAttackers.length} fighters (+{chainBonus}% power)
-                  </h4>
-                  <p className="replace-hint">
-                    Combines {chainAttackers.map((c) => c.name).join(', ')} for {chainDamagePreview} total attack power and all their abilities.
-                  </p>
-                  <div className="field-cards chain-attack-targets">
-                    {attackableTargets.map((card) => (
-                      <button
-                        key={`chain-${card.instanceId}`}
-                        type="button"
-                        className="chain-attack-target-btn"
-                        onClick={() => handleChainTargetSelect(card)}
-                      >
-                        <GameCard card={card} hideRole />
-                        <span className="chain-attack-label">Chain Attack</span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-              <button className="btn-secondary" style={{ width: '100%' }} onClick={() => setTargetMode(null)}>Cancel</button>
-            </div>
+        const renderTargetCards = (onSelect) => (
+          <div className="field-cards" style={{ marginBottom: 16 }}>
+            {attackableTargets.map((card) => (
+              <GameCard
+                key={card.instanceId}
+                card={card}
+                hideRole
+                onClick={() => onSelect(card)}
+              />
+            ))}
           </div>
         );
+
+        if (targetMode.step === 'direct-target') {
+          return (
+            <div className="target-overlay" onClick={() => setTargetMode(null)}>
+              <div className="target-panel" onClick={(e) => e.stopPropagation()}>
+                <h3>Choose target to attack</h3>
+                <p className="replace-hint">
+                  Attacking with <strong>{targetMode.attacker.name}</strong>
+                </p>
+                {animationInProgress && (
+                  <p className="replace-hint">This attack will execute after the current animation finishes</p>
+                )}
+                {renderTargetCards(handleTargetSelect)}
+                <button className="btn-secondary" style={{ width: '100%' }} onClick={() => setTargetMode(null)}>Cancel</button>
+              </div>
+            </div>
+          );
+        }
+
+        if (targetMode.step === 'attack-choice') {
+          return (
+            <div className="target-overlay" onClick={() => setTargetMode(null)}>
+              <div className="target-panel" onClick={(e) => e.stopPropagation()}>
+                <h3>Choose attack type</h3>
+                <p className="replace-hint">
+                  <strong>{targetMode.attacker.name}</strong> is ready — attack alone or chain with allies.
+                </p>
+                <div className="attack-choice-section">
+                  <h4 className="attack-choice-title">Direct Attack</h4>
+                  <p className="replace-hint">Strike with {targetMode.attacker.name} only.</p>
+                  {renderTargetCards(handleTargetSelect)}
+                </div>
+                <div className="chain-attack-section">
+                  <h4 className="chain-attack-title">Chain Attack</h4>
+                  <p className="replace-hint">
+                    Combine {targetMode.attacker.name} with one or both other ready fighters for bonus power.
+                  </p>
+                  <button
+                    type="button"
+                    className="btn-gold chain-attack-start-btn"
+                    onClick={startChainPartnerSelect}
+                  >
+                    Chain Attack
+                  </button>
+                </div>
+                <button className="btn-secondary" style={{ width: '100%' }} onClick={() => setTargetMode(null)}>Cancel</button>
+              </div>
+            </div>
+          );
+        }
+
+        if (targetMode.step === 'chain-partners') {
+          return (
+            <div className="target-overlay" onClick={() => setTargetMode(null)}>
+              <div className="target-panel" onClick={(e) => e.stopPropagation()}>
+                <h3>Chain Attack — choose allies</h3>
+                <p className="replace-hint">
+                  <strong>{targetMode.attacker.name}</strong> will lead the chain. Select one or both other ready fighters.
+                </p>
+                <div className="field-cards chain-partner-cards" style={{ marginBottom: 16 }}>
+                  {otherReady.map((card) => {
+                    const selected = targetMode.partners?.includes(card.instanceId);
+                    return (
+                      <button
+                        key={card.instanceId}
+                        type="button"
+                        className={`chain-partner-btn${selected ? ' selected' : ''}`}
+                        onClick={() => toggleChainPartner(card.instanceId)}
+                      >
+                        <GameCard card={card} hideRole selected={selected} />
+                        <span className="chain-partner-label">
+                          {selected ? 'Included' : 'Tap to include'}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+                <button
+                  type="button"
+                  className="btn-gold chain-attack-start-btn"
+                  style={{ width: '100%', marginBottom: 8 }}
+                  disabled={!targetMode.partners?.length}
+                  onClick={confirmChainPartners}
+                >
+                  Attack
+                </button>
+                <button className="btn-secondary" style={{ width: '100%' }} onClick={() => setTargetMode(null)}>Cancel</button>
+              </div>
+            </div>
+          );
+        }
+
+        if (targetMode.step === 'chain-target') {
+          return (
+            <div className="target-overlay" onClick={() => setTargetMode(null)}>
+              <div className="target-panel" onClick={(e) => e.stopPropagation()}>
+                <h3>Chain Attack — choose target</h3>
+                <p className="replace-hint">
+                  {chainAttackers.length === 2
+                    ? 'Both ready fighters attack together — pick an opponent.'
+                    : `Combines ${chainAttackers.map((c) => c.name).join(', ')} (+${chainBonus}% power, ${chainDamagePreview} ATK).`}
+                </p>
+                {animationInProgress && (
+                  <p className="replace-hint">This attack will execute after the current animation finishes</p>
+                )}
+                {renderTargetCards(handleChainTargetSelect)}
+                <button className="btn-secondary" style={{ width: '100%' }} onClick={() => setTargetMode(null)}>Cancel</button>
+              </div>
+            </div>
+          );
+        }
+
+        return null;
       })()}
 
       {magicMode === 'slow' && (
         <div className="target-overlay" onClick={() => setMagicMode(null)}>
           <div className="target-panel" onClick={(e) => e.stopPropagation()}>
             <h3>Slow Timer — choose opponent</h3>
-            <p className="replace-hint">Doubles the target&apos;s remaining cooldown</p>
+            <p className="replace-hint">Doubles the target&apos;s attack timer for the rest of the battle</p>
             <div className="field-cards" style={{ marginBottom: 16 }}>
               {getSlowTargets().map((card) => (
                 <GameCard
