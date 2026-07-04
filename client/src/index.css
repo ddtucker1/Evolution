@@ -1224,20 +1224,20 @@ input:focus {
 
 .attack-arrow-line {
   stroke: #f1c40f;
-  stroke-width: 9;
+  stroke-width: 4.5;
   stroke-linecap: round;
-  filter: drop-shadow(0 0 10px rgba(241, 196, 15, 0.95));
+  filter: drop-shadow(0 0 5px rgba(241, 196, 15, 0.95));
   animation: arrow-pulse 0.55s ease-in-out infinite;
 }
 
 .attack-arrow-head {
   fill: #f1c40f;
-  filter: drop-shadow(0 0 6px rgba(241, 196, 15, 0.9));
+  filter: drop-shadow(0 0 3px rgba(241, 196, 15, 0.9));
 }
 
 @keyframes arrow-pulse {
-  0%, 100% { stroke-width: 9; opacity: 1; }
-  50% { stroke-width: 11; opacity: 0.88; }
+  0%, 100% { stroke-width: 4.5; opacity: 1; }
+  50% { stroke-width: 5.5; opacity: 0.88; }
 }
 
 .death-banner {

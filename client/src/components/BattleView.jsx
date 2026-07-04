@@ -58,7 +58,10 @@ export default function BattleView({
   };
 
   const canAttackWith = (attacker) => {
-    if (!attacker?.alive || attacker.cooldownRemaining > 0) return false;
+    if (!attacker?.alive) return false;
+    const elapsed = attacker.cooldownElapsed ?? 0;
+    const max = attacker.cooldown ?? 0;
+    if (elapsed < max) return false;
     if (attacker.role === 'boss') return bossCanAttack;
     return attacker.role === 'field';
   };
@@ -210,7 +213,7 @@ export default function BattleView({
   const oppPlayer = opponent || players?.find((p) => p.id !== me?.id);
 
   const getReadyChainAttackers = () => (
-    getAliveFieldFighters(myPlayer.field).filter((c) => c.cooldownRemaining <= 0)
+    getAliveFieldFighters(myPlayer.field).filter((c) => (c.cooldownElapsed ?? 0) >= (c.cooldown ?? 0))
   );
 
   const getFighterById = (instanceId) => (

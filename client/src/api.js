@@ -1,9 +1,10 @@
-import { CARD_DATA, PLAY_DECK_SIZE, getTimerPreview } from './offlineEngine';
+import { CARD_DATA, PLAY_DECK_SIZE, getTimerPreview, CATALOG_VERSION } from './offlineEngine';
+import { CATALOG_SIZE } from '../../shared/baseCardStats.js';
 import { createEvolvedCard, getCardLevel } from './evolveEngine';
 
 export { PLAY_DECK_SIZE };
 
-const LIBRARY_SIZE = 20;
+const LIBRARY_SIZE = CATALOG_SIZE;
 
 function buildStarterCollection() {
   return CARD_DATA.unique.map((c) => ({ card_id: c.id, quantity: 1 }));
@@ -64,11 +65,25 @@ function migrateEvolvedCard(card) {
 
 function migrateProfile(profile) {
   const evolvedCards = (profile.evolvedCards || []).map(migrateEvolvedCard);
+  const catalogChanged = profile.catalogVersion !== CATALOG_VERSION;
+
+  if (catalogChanged) {
+    const next = {
+      ...profile,
+      catalogVersion: CATALOG_VERSION,
+      collection: buildStarterCollection(),
+      playDeck: [],
+      evolvedCards: [],
+    };
+    return next;
+  }
+
   let collection = ensureFullCollection(profile.collection || profile.cards || buildStarterCollection());
   collection = collection.filter((c) => isPlayableCardId(c.card_id, { ...profile, evolvedCards }));
   const playDeck = (profile.playDeck || []).filter((id) => isPlayableCardId(id, { ...profile, evolvedCards }));
   return {
     ...profile,
+    catalogVersion: CATALOG_VERSION,
     collection,
     playDeck,
     evolvedCards,
@@ -81,6 +96,7 @@ export function getOrCreateOfflineProfile() {
     profile = {
       id: 'offline_user',
       username: 'Player',
+      catalogVersion: CATALOG_VERSION,
       collection: buildStarterCollection(),
       playDeck: [],
       evolvedCards: [],
