@@ -1,6 +1,7 @@
 export const BASE_STAT_SUM_OF_SQUARES = 1000;
 export const MIN_STAT_VALUE = 3;
-export const CATALOG_SIZE = 40;
+export const MAX_LIBRARY_SIZE = 50;
+export const CATALOG_SIZE = Math.min(40, MAX_LIBRARY_SIZE);
 
 const TIMER_OFFSETS = [-2, -1, 0, 1, 2];
 const WEIGHT_MAX = 40;

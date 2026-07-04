@@ -1,10 +1,10 @@
 import { CARD_DATA, PLAY_DECK_SIZE, getTimerPreview, CATALOG_VERSION } from './offlineEngine';
-import { CATALOG_SIZE } from '../../shared/baseCardStats.js';
+import { CATALOG_SIZE, MAX_LIBRARY_SIZE } from '../../shared/baseCardStats.js';
 import { createEvolvedCard, getCardLevel } from './evolveEngine';
 
 export { PLAY_DECK_SIZE };
 
-const LIBRARY_SIZE = CATALOG_SIZE;
+const LIBRARY_SIZE = MAX_LIBRARY_SIZE;
 
 function buildStarterCollection() {
   return CARD_DATA.unique.map((c) => ({ card_id: c.id, quantity: 1 }));
@@ -47,6 +47,32 @@ function ensureFullCollection(collection) {
   return Array.from(map.entries()).map(([card_id, quantity]) => ({ card_id, quantity }));
 }
 
+function collectionCardCount(collection) {
+  return (collection || []).reduce((sum, entry) => sum + entry.quantity, 0);
+}
+
+function trimCollectionToMax(collection, playDeck) {
+  let nextCollection = [...(collection || [])];
+  let nextPlayDeck = [...(playDeck || [])];
+  const basicRemovalOrder = [...CARD_DATA.unique].reverse().map((c) => c.id);
+
+  while (collectionCardCount(nextCollection) > MAX_LIBRARY_SIZE) {
+    let removed = false;
+    for (const cardId of basicRemovalOrder) {
+      const entry = nextCollection.find((c) => c.card_id === cardId);
+      if (entry?.quantity > 0) {
+        nextCollection = decrementCollection(nextCollection, cardId);
+        nextPlayDeck = removeOneFromPlayDeck(nextPlayDeck, cardId);
+        removed = true;
+        break;
+      }
+    }
+    if (!removed) break;
+  }
+
+  return { collection: nextCollection, playDeck: nextPlayDeck };
+}
+
 export function saveOfflineProfile(profile) {
   localStorage.setItem('cfb_offline_profile', JSON.stringify(profile));
 }
@@ -80,7 +106,8 @@ function migrateProfile(profile) {
 
   let collection = ensureFullCollection(profile.collection || profile.cards || buildStarterCollection());
   collection = collection.filter((c) => isPlayableCardId(c.card_id, { ...profile, evolvedCards }));
-  const playDeck = (profile.playDeck || []).filter((id) => isPlayableCardId(id, { ...profile, evolvedCards }));
+  let playDeck = (profile.playDeck || []).filter((id) => isPlayableCardId(id, { ...profile, evolvedCards }));
+  ({ collection, playDeck } = trimCollectionToMax(collection, playDeck));
   return {
     ...profile,
     catalogVersion: CATALOG_VERSION,
@@ -159,9 +186,7 @@ export function getCatalogCard(cardId, profile = null) {
 }
 
 export function getLibraryCardCount(profile) {
-  const catalogCount = CARD_DATA.unique.length;
-  const evolvedCount = profile?.evolvedCards?.length || 0;
-  return catalogCount + evolvedCount;
+  return collectionCardCount(profile?.collection);
 }
 
 export function evolveCards(profile, cardId1, cardId2) {
@@ -196,4 +221,4 @@ export function evolveCards(profile, cardId1, cardId2) {
   return { profile: next, evolved };
 }
 
-export { LIBRARY_SIZE };
+export { LIBRARY_SIZE, MAX_LIBRARY_SIZE };

@@ -5,6 +5,7 @@ import {
   generateRandomBaseStats,
   statTripleKey,
   CATALOG_SIZE,
+  MAX_LIBRARY_SIZE,
 } from '../../shared/baseCardStats.js';
 import { generateCardName } from '../../shared/cardNaming.js';
 import { previewEvolve } from './evolveEngine.js';
@@ -13,11 +14,12 @@ const CATALOG_VERSION = 2;
 const CATALOG_STORAGE_KEY = 'cfb_card_catalog';
 
 function buildRandomCatalog(count = CATALOG_SIZE) {
+  const targetCount = Math.min(count, MAX_LIBRARY_SIZE);
   const used = new Set();
   const cards = [];
   let attempts = 0;
 
-  while (cards.length < count && attempts < count * 500) {
+  while (cards.length < targetCount && attempts < targetCount * 500) {
     attempts += 1;
     const stats = generateRandomBaseStats();
     const key = statTripleKey(stats);
@@ -56,10 +58,24 @@ function saveCatalogToStorage(cards) {
   localStorage.setItem(CATALOG_STORAGE_KEY, JSON.stringify({ version: CATALOG_VERSION, cards }));
 }
 
+function trimCatalogToMax(cards) {
+  if (cards.length <= MAX_LIBRARY_SIZE) return cards;
+  return cards.slice(0, MAX_LIBRARY_SIZE);
+}
+
 function getOrCreateCatalog() {
   let cards = loadCatalogFromStorage();
+  let needsSave = false;
   if (!cards) {
     cards = buildRandomCatalog(CATALOG_SIZE);
+    needsSave = true;
+  }
+  const trimmed = trimCatalogToMax(cards);
+  if (trimmed.length !== cards.length) {
+    cards = trimmed;
+    needsSave = true;
+  }
+  if (needsSave) {
     saveCatalogToStorage(cards);
   }
   return cards;
