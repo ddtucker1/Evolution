@@ -1042,6 +1042,26 @@ input:focus {
   border: 1px solid var(--accent-green);
 }
 
+.library-sort-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: normal;
+  color: var(--text-secondary);
+}
+
+.library-sort-select {
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
 .library-card-wrap {
   position: relative;
   cursor: pointer;

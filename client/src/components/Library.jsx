@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import GameCard from './GameCard';
 import { getTimerPreview } from '../offlineEngine';
 import { previewEvolve, getCardLevel, getLevelDigit } from '../evolveEngine';
@@ -14,6 +14,7 @@ import {
 
 export default function Library({ profile, onProfileChange, onMainMenu }) {
   const [mode, setMode] = useState('deck');
+  const [sortBy, setSortBy] = useState('level');
   const [evolveSelection, setEvolveSelection] = useState([]);
   const [evolveMessage, setEvolveMessage] = useState('');
 
@@ -28,6 +29,34 @@ export default function Library({ profile, onProfileChange, onMainMenu }) {
   }
 
   const uniqueCatalogCards = expandedCollection.filter(({ card_id }) => getCatalogCard(card_id, profile));
+
+  const sortedCatalogCards = useMemo(() => {
+    const getSortValue = (cardId) => {
+      const catalog = getCatalogCard(cardId, profile);
+      if (!catalog) return 0;
+      switch (sortBy) {
+        case 'attack':
+          return catalog.attack ?? 0;
+        case 'defense':
+          return catalog.defense ?? 0;
+        case 'hp':
+          return catalog.hp ?? 0;
+        case 'timer':
+          return catalog.timer != null
+            ? Math.round(catalog.timer)
+            : getTimerPreview(catalog.attack ?? 0);
+        case 'level':
+        default:
+          return getCardLevel(catalog);
+      }
+    };
+
+    return [...uniqueCatalogCards].sort((a, b) => {
+      const diff = getSortValue(a.card_id) - getSortValue(b.card_id);
+      if (diff !== 0) return diff;
+      return a.card_id.localeCompare(b.card_id);
+    });
+  }, [uniqueCatalogCards, profile, sortBy]);
 
   const handleToggle = (cardId) => {
     onProfileChange(togglePlayDeckCard(profile, cardId));
@@ -132,11 +161,25 @@ export default function Library({ profile, onProfileChange, onMainMenu }) {
         </div>
       )}
 
-      <h3 style={{ fontFamily: 'var(--font-display)', color: 'var(--accent-gold)', margin: '20px 0 12px' }}>
-        {mode === 'deck' ? `Your Cards (${uniqueCatalogCards.length})` : 'Choose Cards to Sacrifice'}
+      <h3 style={{ fontFamily: 'var(--font-display)', color: 'var(--accent-gold)', margin: '20px 0 12px', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12 }}>
+        <span>{mode === 'deck' ? `Your Cards (${uniqueCatalogCards.length})` : 'Choose Cards to Sacrifice'}</span>
+        <label className="library-sort-control">
+          <span className="library-sort-label">Sort by</span>
+          <select
+            className="library-sort-select"
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value)}
+          >
+            <option value="level">Level</option>
+            <option value="attack">Attack</option>
+            <option value="defense">Defense</option>
+            <option value="hp">HP</option>
+            <option value="timer">Timer</option>
+          </select>
+        </label>
       </h3>
       <div className="collection-grid">
-        {uniqueCatalogCards.map(({ card_id, key }) => {
+        {sortedCatalogCards.map(({ card_id, key }) => {
           const catalog = getCatalogCard(card_id, profile);
           const inDeck = countInPlayDeck(playDeck, card_id);
           const owned = getCollectionCount(profile, card_id);

@@ -131,18 +131,16 @@ export default function BattleView({
   };
 
   const handleMagicTargetSelect = (target) => {
-    if (!magicMode) return;
-    if (magicMode === 'slow' && bossAbilitiesUsed?.slow) return;
-    if (magicMode === 'heal' && bossAbilitiesUsed?.heal) return;
-    if (magicMode === 'haste' && bossAbilitiesUsed?.haste) return;
+    if (!magicMode || bossMagicExhausted) return;
     if (magicMode === 'slow') onBossSlow(target.instanceId);
-    else if (magicMode === 'heal') onBossHeal(target.instanceId);
     else if (magicMode === 'haste') onBossHaste(target.instanceId);
     setMagicMode(null);
   };
 
+  const bossMagicExhausted = bossAbilitiesUsed?.slow || bossAbilitiesUsed?.heal || bossAbilitiesUsed?.haste;
+
   const startBossMagic = (mode) => {
-    if (bossAbilitiesUsed?.[mode] || winnerId) return;
+    if (bossMagicExhausted || winnerId) return;
     setTargetMode(null);
     setReplaceMode(null);
     setSelectedSlot(null);
@@ -244,7 +242,11 @@ export default function BattleView({
     return [];
   };
 
-  const getHealTargets = () => getAliveFieldFighters(myPlayer.field);
+  const canUseBossHeal = () => {
+    const fighters = getAliveFieldFighters(myPlayer.field);
+    if (fighters.length) return true;
+    return !!(myPlayer.boss?.alive && bossCanAttack);
+  };
 
   const getHasteTargets = () => {
     const fighters = getAliveFieldFighters(myPlayer.field);
@@ -255,38 +257,45 @@ export default function BattleView({
 
   const BOSS_ABILITY_LABELS = {
     slow: 'Slow Timer',
-    heal: 'Heal Fighter',
+    heal: 'Heal All',
     haste: 'Haste Timer',
   };
 
-  const renderBossMagicActions = (abilitiesUsed, isPlayerSide) => (
+  const renderBossMagicActions = (abilitiesUsed, isPlayerSide) => {
+    const exhausted = abilitiesUsed?.slow || abilitiesUsed?.heal || abilitiesUsed?.haste;
+    const healAvailable = isPlayerSide && canUseBossHeal();
+    return (
     <div className={`boss-magic-actions${isPlayerSide ? '' : ' npc-boss-magic'}`}>
       <button
         type="button"
-        className={`boss-magic-btn slow-btn${abilitiesUsed?.slow ? ' ability-used' : ''}`}
-        disabled={!isPlayerSide || abilitiesUsed?.slow || !!winnerId}
+        className={`boss-magic-btn slow-btn${exhausted ? ' ability-used' : ''}`}
+        disabled={!isPlayerSide || exhausted || !!winnerId}
         onClick={() => isPlayerSide && startBossMagic('slow')}
       >
         Slow Timer
       </button>
       <button
         type="button"
-        className={`boss-magic-btn heal-btn${abilitiesUsed?.heal ? ' ability-used' : ''}`}
-        disabled={!isPlayerSide || abilitiesUsed?.heal || !!winnerId}
-        onClick={() => isPlayerSide && startBossMagic('heal')}
+        className={`boss-magic-btn heal-btn${exhausted ? ' ability-used' : ''}`}
+        disabled={!isPlayerSide || exhausted || !!winnerId || !healAvailable}
+        onClick={() => {
+          if (!isPlayerSide || exhausted || winnerId || !healAvailable) return;
+          onBossHeal();
+        }}
       >
-        Heal Fighter
+        Heal All
       </button>
       <button
         type="button"
-        className={`boss-magic-btn haste-btn${abilitiesUsed?.haste ? ' ability-used' : ''}`}
-        disabled={!isPlayerSide || abilitiesUsed?.haste || !!winnerId}
+        className={`boss-magic-btn haste-btn${exhausted ? ' ability-used' : ''}`}
+        disabled={!isPlayerSide || exhausted || !!winnerId}
         onClick={() => isPlayerSide && startBossMagic('haste')}
       >
         Haste Timer
       </button>
     </div>
-  );
+    );
+  };
 
   const renderStatusEffects = (card) => {
     const effects = [];
@@ -393,9 +402,8 @@ export default function BattleView({
       && inTargetMode
       && (targetMode.step === 'direct-target' || targetMode.step === 'chain-target')
       && attackableTargets.some((t) => t.instanceId === card.instanceId);
-    const isMagicTargetable = !!magicMode && !winnerId && (
+    const isMagicTargetable = !!magicMode && !winnerId && !bossMagicExhausted && (
       (magicMode === 'slow' && !isPlayer && getSlowTargets().some((t) => t.instanceId === card.instanceId))
-      || (magicMode === 'heal' && isPlayer && getHealTargets().some((t) => t.instanceId === card.instanceId))
       || (magicMode === 'haste' && isPlayer && getHasteTargets().some((t) => t.instanceId === card.instanceId))
     );
     const isTargetHighlighted = isChainPartner || isLeadAttacker || isEnemyTargetable || isMagicTargetable;
@@ -594,7 +602,6 @@ export default function BattleView({
           <div className="battlefield-target-hint magic-target-hint">
             <span>
               {magicMode === 'slow' && 'Slow Timer — click an enemy card'}
-              {magicMode === 'heal' && 'Heal Fighter — click one of your fighters'}
               {magicMode === 'haste' && 'Haste Timer — click one of your cards'}
             </span>
             <button type="button" className="battlefield-hint-cancel" onClick={() => setMagicMode(null)}>
