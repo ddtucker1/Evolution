@@ -201,17 +201,40 @@ function promoteToBoss(card) {
   card.attack = Math.floor(card.attack * 2);
 }
 
+function getReadyFieldFighters(player) {
+  return getAliveFieldFighters(player).filter((c) => c.cooldownRemaining <= 0);
+}
+
+function calculateChainAttackDamage(attackers, defender) {
+  const totalAttack = attackers.reduce((sum, a) => sum + Math.round(a.attack), 0);
+  const bonus = attackers.length >= 3 ? 1.2 : 1.1;
+  const effectiveAttack = Math.round(totalAttack * bonus);
+  return Math.max(0, effectiveAttack - Math.round(defender.defense));
+}
+
 function processPendingAttack(game) {
   if (!game.pendingPlayerAttack || isBattlePaused(game)) return;
-  const { attackerId, defenderId } = game.pendingPlayerAttack;
+  const pending = game.pendingPlayerAttack;
   game.pendingPlayerAttack = null;
   const player = game.players[0];
   const opp = game.players[1];
-  const attacker = getFieldCards(player).find((c) => c.instanceId === attackerId);
-  const defender = getFieldCards(opp).find((c) => c.instanceId === defenderId);
+  const defender = getFieldCards(opp).find((c) => c.instanceId === pending.defenderId);
+  if (!defender?.alive) return;
+  if (!getAttackableTargets(opp).some((c) => c.instanceId === pending.defenderId)) return;
+
+  if (pending.isChain) {
+    const attackers = (pending.attackerIds || [])
+      .map((id) => getAliveFieldFighters(player).find((c) => c.instanceId === id))
+      .filter(Boolean);
+    if (attackers.length < 2) return;
+    if (!attackers.every((a) => a.cooldownRemaining <= 0)) return;
+    beginChainAttackAnimation(game, attackers, defender, 'You');
+    return;
+  }
+
+  const attacker = getFieldCards(player).find((c) => c.instanceId === pending.attackerId);
   if (!attacker || !defender?.alive) return;
   if (!canCardAttack(attacker, player)) return;
-  if (!getAttackableTargets(opp).some((c) => c.instanceId === defenderId)) return;
   beginAttackAnimation(game, attacker, defender, 'You');
 }
 
@@ -357,9 +380,14 @@ function completeAttackAnimation(game) {
   const anim = game.attackAnimation;
   if (!anim) return;
 
-  const attackerRef = findFieldCard(game, anim.attackerInstanceId);
   const defenderRef = findFieldCard(game, anim.defenderInstanceId);
-  if (attackerRef?.card?.alive && defenderRef?.card) {
+  const attackerRefs = anim.isChainAttack
+    ? (anim.attackerInstanceIds || [])
+      .map((id) => findFieldCard(game, id))
+      .filter((ref) => ref?.card?.alive)
+    : [findFieldCard(game, anim.attackerInstanceId)].filter((ref) => ref?.card?.alive);
+
+  if (attackerRefs.length && defenderRef?.card) {
     if (anim.damage > 0) {
       defenderRef.card.hp -= anim.damage;
     }
@@ -368,8 +396,10 @@ function completeAttackAnimation(game) {
       defenderRef.card.hp = 0;
       defenderRef.card.alive = false;
     }
-    applyAttackAbility(game, attackerRef, defenderRef);
-    attackerRef.card.cooldownRemaining = attackerRef.card.cooldown;
+    for (const attackerRef of attackerRefs) {
+      applyAttackAbility(game, attackerRef, defenderRef);
+      attackerRef.card.cooldownRemaining = attackerRef.card.cooldown;
+    }
 
     if (killed) {
       game.deathAnimation = {
@@ -413,6 +443,41 @@ function beginAttackAnimation(game, attacker, defender, logPrefix) {
     damage,
     durationMs,
   };
+
+  if (game.onUpdate) game.onUpdate(toPrivateState(game, 'player'));
+
+  game.attackTimeout = setTimeout(() => completeAttackAnimation(game), durationMs);
+  return { success: true, damage, pending: true };
+}
+
+function beginChainAttackAnimation(game, attackers, defender, logPrefix) {
+  if (isBattlePaused(game)) return { success: false, message: 'Attack in progress' };
+  if (!attackers?.length || attackers.length < 2) {
+    return { success: false, message: 'Need at least 2 ready fighters for a chain attack' };
+  }
+
+  const player = game.players[0];
+  const readyIds = new Set(getReadyFieldFighters(player).map((c) => c.instanceId));
+  if (!attackers.every((a) => readyIds.has(a.instanceId))) {
+    return { success: false, message: 'All fighters must be ready for a chain attack' };
+  }
+
+  const damage = calculateChainAttackDamage(attackers, defender);
+  const durationMs = getAttackAnimationMs();
+  game.attackAnimation = {
+    attackerInstanceId: attackers[0].instanceId,
+    attackerInstanceIds: attackers.map((a) => a.instanceId),
+    defenderInstanceId: defender.instanceId,
+    damage,
+    isChainAttack: true,
+    chainCount: attackers.length,
+    durationMs,
+  };
+
+  const bonusPct = attackers.length >= 3 ? 20 : 10;
+  game.log.push(
+    `${logPrefix} chain attack (${attackers.length} cards, +${bonusPct}%) → ${defender.name} for ${damage} damage`,
+  );
 
   if (game.onUpdate) game.onUpdate(toPrivateState(game, 'player'));
 
@@ -749,6 +814,39 @@ export function offlineAttack(game, attackerId, defenderId) {
     return { success: true, queued: true };
   }
   return beginAttackAnimation(game, attacker, defender, 'You');
+}
+
+export function offlineChainAttack(game, attackerIds, defenderId) {
+  const player = game.players[0];
+  const opp = game.players[1];
+  const readyFighters = getReadyFieldFighters(player);
+  const readyIds = new Set(readyFighters.map((c) => c.instanceId));
+  const attackers = (attackerIds || [])
+    .map((id) => readyFighters.find((c) => c.instanceId === id))
+    .filter(Boolean);
+
+  if (attackers.length < 2) {
+    return { success: false, message: 'Need at least 2 ready fighters for a chain attack' };
+  }
+  if (attackers.length !== readyFighters.length) {
+    return { success: false, message: 'All ready fighters must participate in the chain attack' };
+  }
+  if (!attackers.every((a) => readyIds.has(a.instanceId))) {
+    return { success: false, message: 'All fighters must be ready for a chain attack' };
+  }
+
+  const defender = getFieldCards(opp).find((c) => c.instanceId === defenderId);
+  if (!defender?.alive) return { success: false };
+  if (!getAttackableTargets(opp).some((c) => c.instanceId === defenderId)) {
+    return { success: false, message: 'Boss is protected until all fighters are defeated' };
+  }
+
+  if (isBattlePaused(game)) {
+    game.pendingPlayerAttack = { attackerIds: attackers.map((a) => a.instanceId), defenderId, isChain: true };
+    if (game.onUpdate) game.onUpdate(toPrivateState(game, 'player'));
+    return { success: true, queued: true };
+  }
+  return beginChainAttackAnimation(game, attackers, defender, 'You');
 }
 
 function applyBossSlow(owner, target) {

@@ -12,6 +12,7 @@ import {
   registerEvolvedCards,
   offlineSetup,
   offlineAttack,
+  offlineChainAttack,
   offlineDrawCard,
   offlineReplace,
   offlineDismissReplacement,
@@ -55,6 +56,11 @@ export default function App() {
   const handleAttack = (attackerId, defenderId) => {
     if (!offlineGameRef.current) return;
     offlineAttack(offlineGameRef.current, attackerId, defenderId);
+  };
+
+  const handleChainAttack = (attackerIds, defenderId) => {
+    if (!offlineGameRef.current) return;
+    offlineChainAttack(offlineGameRef.current, attackerIds, defenderId);
   };
 
   const handleDraw = () => {
@@ -124,6 +130,7 @@ export default function App() {
           gameState={gameState}
           onSetup={handleSetup}
           onAttack={handleAttack}
+          onChainAttack={handleChainAttack}
           onDraw={handleDraw}
           onReplace={handleReplace}
           onDismissReplacement={handleDismissReplacement}

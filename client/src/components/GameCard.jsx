@@ -10,6 +10,7 @@ export default function GameCard({
   pendingDamage = 0,
   cooldownPreview = null,
   levelLabel = null,
+  hideRole = false,
 }) {
   if (card?.hidden) {
     return (
@@ -55,7 +56,7 @@ export default function GameCard({
     <div className={classes} onClick={disabled ? undefined : onClick}>
       {card.isBase && !card.role && <span className="card-base-badge">base</span>}
       {levelLabel && <span className="card-level-badge">{levelLabel}</span>}
-      {card.role && <span className="card-role">{card.role}</span>}
+      {card.role && !hideRole && <span className="card-role">{card.role}</span>}
       <div className="card-name">{card.name}</div>
       <div className="card-stats">
         DEF: {Math.round(card.defense ?? 0)}

@@ -6,6 +6,7 @@ export default function BattleView({
   gameState,
   onSetup,
   onAttack,
+  onChainAttack,
   onDraw,
   onReplace,
   onDismissReplacement,
@@ -144,6 +145,17 @@ export default function BattleView({
   };
   const oppPlayer = opponent || players?.find((p) => p.id !== me?.id);
 
+  const getReadyChainAttackers = () => (
+    getAliveFieldFighters(myPlayer.field).filter((c) => c.cooldownRemaining <= 0)
+  );
+
+  const handleChainTargetSelect = (target) => {
+    const chainAttackers = getReadyChainAttackers();
+    if (chainAttackers.length < 2) return;
+    onChainAttack(chainAttackers.map((c) => c.instanceId), target.instanceId);
+    setTargetMode(null);
+  };
+
   const countAliveFighters = (field) => (field || []).filter((c) => c && c.alive).length;
   const myAliveFighters = countAliveFighters(myPlayer.field);
   const oppAliveFighters = countAliveFighters(oppPlayer?.field);
@@ -240,12 +252,18 @@ export default function BattleView({
     );
   };
 
-  const cardAnimProps = (card) => ({
-    isAttacking: attackAnimation?.attackerInstanceId === card?.instanceId,
-    isHit: attackAnimation?.defenderInstanceId === card?.instanceId,
-    isDying: deathAnimation?.instanceId === card?.instanceId,
-    pendingDamage: attackAnimation?.defenderInstanceId === card?.instanceId ? (attackAnimation?.damage || 0) : 0,
-  });
+  const cardAnimProps = (card) => {
+    const chainAttackerIds = attackAnimation?.isChainAttack
+      ? (attackAnimation.attackerInstanceIds || [])
+      : [];
+    const isChainAttacker = chainAttackerIds.includes(card?.instanceId);
+    return {
+      isAttacking: attackAnimation?.attackerInstanceId === card?.instanceId || isChainAttacker,
+      isHit: attackAnimation?.defenderInstanceId === card?.instanceId,
+      isDying: deathAnimation?.instanceId === card?.instanceId,
+      pendingDamage: attackAnimation?.defenderInstanceId === card?.instanceId ? (attackAnimation?.damage || 0) : 0,
+    };
+  };
 
   const renderFieldSlot = (card, slotIndex, isPlayer, options = {}) => {
     if (!card) {
@@ -279,6 +297,7 @@ export default function BattleView({
         <GameCard
           card={{ ...card, bossLocked, bossProtected }}
           showCooldown
+          hideRole
           disabled={bossLocked || (isPlayer && !canSelectForAttack)}
           selected={isQueuedAttacker || targetMode?.attacker?.instanceId === card.instanceId}
           {...cardAnimProps(card)}
@@ -328,7 +347,9 @@ export default function BattleView({
 
       {animationInProgress && pendingPlayerAttack && (
         <div className="attack-banner queued-attack-banner">
-          Attack queued — will execute when the current animation finishes
+          {pendingPlayerAttack.isChain
+            ? 'Chain attack queued — will execute when the current animation finishes'
+            : 'Attack queued — will execute when the current animation finishes'}
         </div>
       )}
 
@@ -344,6 +365,7 @@ export default function BattleView({
             containerRef={battlefieldRef}
             cardRefs={cardRefs}
             fromId={attackAnimation.attackerInstanceId}
+            fromIds={attackAnimation.isChainAttack ? attackAnimation.attackerInstanceIds : undefined}
             toId={attackAnimation.defenderInstanceId}
           />
         )}
@@ -415,28 +437,65 @@ export default function BattleView({
         </div>
       )}
 
-      {targetMode && (
-        <div className="target-overlay" onClick={() => setTargetMode(null)}>
-          <div className="target-panel" onClick={(e) => e.stopPropagation()}>
-            <h3>Choose target to attack</h3>
-            {animationInProgress && (
-              <p className="replace-hint">This attack will execute after the current animation finishes</p>
-            )}
-            <div className="field-cards" style={{ marginBottom: 16 }}>
-              {getAttackableTargets()
-                .filter((c) => c && !c.hidden && c.alive !== false)
-                .map((card) => (
+      {targetMode && (() => {
+        const chainAttackers = getReadyChainAttackers();
+        const canChainAttack = chainAttackers.length >= 2;
+        const chainBonus = chainAttackers.length >= 3 ? 20 : 10;
+        const totalChainAttack = chainAttackers.reduce((sum, c) => sum + Math.round(c.attack ?? 0), 0);
+        const chainDamagePreview = canChainAttack
+          ? Math.round(totalChainAttack * (chainAttackers.length >= 3 ? 1.2 : 1.1))
+          : 0;
+        const attackableTargets = getAttackableTargets()
+          .filter((c) => c && !c.hidden && c.alive !== false);
+
+        return (
+          <div className="target-overlay" onClick={() => setTargetMode(null)}>
+            <div className="target-panel" onClick={(e) => e.stopPropagation()}>
+              <h3>Choose target to attack</h3>
+              <p className="replace-hint">
+                Attacking with <strong>{targetMode.attacker.name}</strong>
+              </p>
+              {animationInProgress && (
+                <p className="replace-hint">This attack will execute after the current animation finishes</p>
+              )}
+              <div className="field-cards" style={{ marginBottom: 16 }}>
+                {attackableTargets.map((card) => (
                   <GameCard
                     key={card.instanceId}
                     card={card}
+                    hideRole
                     onClick={() => handleTargetSelect(card)}
                   />
                 ))}
+              </div>
+              {canChainAttack && (
+                <div className="chain-attack-section">
+                  <h4 className="chain-attack-title">
+                    Chain Attack — {chainAttackers.length} fighters (+{chainBonus}% power)
+                  </h4>
+                  <p className="replace-hint">
+                    Combines {chainAttackers.map((c) => c.name).join(', ')} for {chainDamagePreview} total attack power and all their abilities.
+                  </p>
+                  <div className="field-cards chain-attack-targets">
+                    {attackableTargets.map((card) => (
+                      <button
+                        key={`chain-${card.instanceId}`}
+                        type="button"
+                        className="chain-attack-target-btn"
+                        onClick={() => handleChainTargetSelect(card)}
+                      >
+                        <GameCard card={card} hideRole />
+                        <span className="chain-attack-label">Chain Attack</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+              <button className="btn-secondary" style={{ width: '100%' }} onClick={() => setTargetMode(null)}>Cancel</button>
             </div>
-            <button className="btn-secondary" style={{ width: '100%' }} onClick={() => setTargetMode(null)}>Cancel</button>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {magicMode === 'slow' && (
         <div className="target-overlay" onClick={() => setMagicMode(null)}>
