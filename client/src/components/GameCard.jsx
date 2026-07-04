@@ -1,4 +1,12 @@
-export default function GameCard({ card, onClick, selected, disabled, showCooldown = true }) {
+export default function GameCard({
+  card,
+  onClick,
+  selected,
+  disabled,
+  showCooldown = true,
+  isAttacking = false,
+  isHit = false,
+}) {
   if (card?.hidden) {
     return (
       <div className="game-card disabled" style={{ opacity: 0.3 }}>
@@ -11,8 +19,12 @@ export default function GameCard({ card, onClick, selected, disabled, showCooldo
   if (!card) return null;
 
   const isStandard = card.type === 'standard';
-  const isReady = !isStandard && card.alive && card.cooldownRemaining <= 0;
+  const bossLocked = card.bossLocked;
+  const isReady = !isStandard && card.alive && card.cooldownRemaining <= 0 && !bossLocked;
   const isDead = card.alive === false;
+  const timerMax = card.cooldown || 0;
+  const timerRemaining = Math.max(0, card.cooldownRemaining ?? 0);
+  const timerProgress = timerMax > 0 ? ((timerMax - timerRemaining) / timerMax) * 100 : 100;
 
   const classes = [
     'game-card',
@@ -22,6 +34,9 @@ export default function GameCard({ card, onClick, selected, disabled, showCooldo
     isDead ? 'dead' : '',
     isReady ? 'ready' : '',
     disabled ? 'disabled' : '',
+    bossLocked ? 'boss-locked' : '',
+    isAttacking ? 'attacking' : '',
+    isHit ? 'hit' : '',
   ].filter(Boolean).join(' ');
 
   return (
@@ -44,19 +59,26 @@ export default function GameCard({ card, onClick, selected, disabled, showCooldo
           <div className="card-stats">
             ATK: {card.attack} | DEF: {card.defense}
             <br />HP: {card.hp}/{card.maxHp}
+            {timerMax > 0 && (
+              <>
+                <br />
+                <span className="timer-stat">Timer: {timerMax}s</span>
+              </>
+            )}
           </div>
           <div className="hp-bar">
             <div className="hp-fill" style={{ width: `${(card.hp / card.maxHp) * 100}%` }} />
           </div>
-          {showCooldown && card.cooldown > 0 && (
-            <div className="cooldown-bar">
-              <div
-                className="cooldown-fill"
-                style={{ width: `${((card.cooldown - card.cooldownRemaining) / card.cooldown) * 100}%` }}
-              />
+          {showCooldown && timerMax > 0 && (
+            <div className={`timer-bar${isReady ? ' timer-ready' : ''}`}>
+              <div className="timer-fill" style={{ width: `${timerProgress}%` }} />
             </div>
           )}
-          {isReady && <div style={{ fontSize: 10, color: '#2ecc71', marginTop: 4 }}>READY</div>}
+          {showCooldown && timerMax > 0 && (
+            <div className={`timer-countdown${isReady ? ' timer-countdown-ready' : ''}`}>
+              {bossLocked ? 'Boss locked' : isReady ? 'Ready to attack!' : `${timerRemaining}s`}
+            </div>
+          )}
         </>
       )}
     </div>

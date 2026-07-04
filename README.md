@@ -1,73 +1,62 @@
-# Card Fusion Battle — NPC Prototype
+# Card Fusion Battle — Single Player
 
-Play against CPU opponents on your laptop. No login, no internet required.
+Play against the CPU on your laptop. No login, no internet required.
 
-## What's in this prototype
+## What's in this build
 
-- **NPC battles only** — login, multiplayer, and collection are disabled for now
-- **Random unique card stats** each time a card enters battle:
-  - Attack: 10–25
-  - HP: 30–100
-  - Attack timer: 10–30 seconds
-- **Real-time combat** — cards charge on timers, then you pick targets to attack
-- **Standard support cards** — buff, debuff, heal, and direct damage
+- **Main Menu** — Library and Battle only (no multiplayer)
+- **Library** — view your full card collection and pick **20 cards** for your play deck
+- **Battle** — fight the CPU with your play deck
+- **Random card stats** each battle: Attack 10–25, HP 30–100, Timer 10–30 seconds
+- **Boss rule** — your Boss can only attack after all 3 fighters are defeated
+- **Replacements** — deploy a fighter from your hand when a field slot opens (3 per match)
+- **Draw timer** — every 30 seconds, click your play deck to draw a card into your hand
+- **Attack animations** — 1 second for low damage, up to 4 seconds for heavy hits (timers pause during attacks)
 
 ## Play on your laptop
 
 ### 1. Get the code
 
-Clone or download this repository to your laptop:
-
-```bash
-git clone <your-repo-url>
-cd card-fusion-battle
-```
-
-Or download the ZIP from GitHub and extract it.
+Clone or download this repository, then open a terminal in the project folder.
 
 ### 2. Install dependencies (one time)
 
 ```bash
-npm run install:all
+cd client
+npm install
+cd ..
 ```
 
 ### 3. Run the game
-
-**Recommended — built offline version:**
-
-```bash
-npm run play:local
-```
-
-Then open **http://localhost:4173** in your browser.
-
-**Or for development with hot reload:**
 
 ```bash
 npm run dev:client
 ```
 
-Then open **http://localhost:5173**.
+Open **http://localhost:5173** in your browser.
 
-The NPC battle engine runs entirely in your browser. You do not need to start the server for this prototype.
+For a production build:
 
-### 4. Install as an app (optional)
+```bash
+npm run play:local
+```
 
-In Chrome or Edge, open the game URL and use **Install app** or **Add to desktop** from the browser menu. The included web manifest supports standalone window mode.
+Then open **http://localhost:4173**.
+
+> You do **not** need the server for single-player. Only install the `client` folder.
 
 ## How to play
 
-1. Click **Start Battle vs CPU**
-2. You receive 4 unique cards — pick **1 Boss** and **3 fighters**
-3. The battlefield is revealed and support cards are drawn
-4. When a card's timer fills, tap it and choose an enemy to attack
-5. Destroy the enemy Boss to win
-
-## Full game (future)
-
-The codebase also includes online login, PvP matchmaking, card fusion, and SQLite persistence. Those features are paused while the NPC prototype is refined.
+1. Open the game → **Library**
+2. Tap cards to add/remove them until your **play deck has 20 cards**
+3. Click **Main Menu** → **Battle**
+4. Deploy 1 Boss + 3 fighters from your opening draw
+5. When card timers are ready, attack. Boss attacks only after all fighters fall
+6. When the **play deck timer** fills (30s), click it to draw a card
+7. If a fighter dies, tap a fighter in your hand, then tap an empty field slot (max 3 replacements)
+8. Destroy the enemy Boss to win
 
 ## Tech stack
 
 - React + Vite (client)
-- Node.js + Express + Socket.io (online features, not required for NPC prototype)
+- Node.js server code remains in the repo for future online features but is not required to play

@@ -1,39 +1,11 @@
-const API_BASE = import.meta.env.VITE_API_URL || '';
+import { CARD_DATA } from './offlineEngine';
 
-export function getToken() {
-  return localStorage.getItem('cfb_token');
-}
+export const PLAY_DECK_SIZE = 20;
 
-export function setToken(token) {
-  localStorage.setItem('cfb_token', token);
-}
-
-export function clearToken() {
-  localStorage.removeItem('cfb_token');
-}
-
-export async function api(path, options = {}) {
-  const token = getToken();
-  const headers = { 'Content-Type': 'application/json', ...options.headers };
-  if (token) headers.Authorization = `Bearer ${token}`;
-
-  const res = await fetch(`${API_BASE}${path}`, { ...options, headers });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.error || data.message || 'Request failed');
-  return data;
-}
-
-export async function checkOnline() {
-  if (!navigator.onLine) return false;
-  try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 3000);
-    const res = await fetch(`${API_BASE}/api/health`, { signal: controller.signal });
-    clearTimeout(timeout);
-    return res.ok;
-  } catch {
-    return false;
-  }
+function buildStarterCollection() {
+  const unique = CARD_DATA.unique.map((c) => ({ card_id: c.id, quantity: 2 }));
+  const standard = CARD_DATA.standard.map((c) => ({ card_id: c.id, quantity: 3 }));
+  return [...unique, ...standard];
 }
 
 export function saveOfflineProfile(profile) {
@@ -45,44 +17,73 @@ export function getOfflineProfile() {
   return data ? JSON.parse(data) : null;
 }
 
-const OFFLINE_STARTER = {
-  id: 'offline_user',
-  username: 'Offline Player',
-  deckCap: 50,
-  premium: false,
-  deckCount: 20,
-  cards: [
-    { card_id: 'uni_knight', quantity: 2 },
-    { card_id: 'uni_archer', quantity: 2 },
-    { card_id: 'uni_mage', quantity: 2 },
-    { card_id: 'uni_rogue', quantity: 1 },
-    { card_id: 'uni_paladin', quantity: 1 },
-    { card_id: 'uni_druid', quantity: 1 },
-    { card_id: 'uni_serpent', quantity: 1 },
-    { card_id: 'uni_wraith', quantity: 1 },
-    { card_id: 'uni_berserker', quantity: 1 },
-    { card_id: 'uni_golem', quantity: 1 },
-    { card_id: 'std_shield', quantity: 2 },
-    { card_id: 'std_sword', quantity: 2 },
-    { card_id: 'std_poison', quantity: 1 },
-    { card_id: 'std_heal', quantity: 1 },
-    { card_id: 'std_bolt', quantity: 1 },
-  ],
-};
+function migrateProfile(profile) {
+  if (profile.collection) return profile;
+  const collection = profile.cards || buildStarterCollection();
+  return {
+    id: profile.id || 'offline_user',
+    username: profile.username || 'Player',
+    collection,
+    playDeck: profile.playDeck || [],
+  };
+}
 
 export function getOrCreateOfflineProfile() {
   let profile = getOfflineProfile();
   if (!profile) {
-    profile = { ...OFFLINE_STARTER };
+    profile = {
+      id: 'offline_user',
+      username: 'Player',
+      collection: buildStarterCollection(),
+      playDeck: [],
+    };
     saveOfflineProfile(profile);
   }
+  profile = migrateProfile(profile);
+  saveOfflineProfile(profile);
   return profile;
 }
 
-export function getDeckCardIds(profile) {
-  const ids = [];
-  for (const { card_id, quantity } of profile.cards) {
-    for (let i = 0; i < quantity; i++) ids.push(card_id);
+export function getPlayDeckIds(profile) {
+  return profile.playDeck || [];
+}
+
+export function isPlayDeckComplete(profile) {
+  return getPlayDeckIds(profile).length === PLAY_DECK_SIZE;
+}
+
+export function getCollectionCount(profile, cardId) {
+  const entry = profile.collection?.find((c) => c.card_id === cardId);
+  return entry?.quantity || 0;
+}
+
+export function countInPlayDeck(playDeck, cardId) {
+  return playDeck.filter((id) => id === cardId).length;
+}
+
+export function togglePlayDeckCard(profile, cardId) {
+  const playDeck = [...(profile.playDeck || [])];
+  const inDeck = playDeck.filter((id) => id === cardId).length;
+  const owned = getCollectionCount(profile, cardId);
+
+  if (inDeck > 0) {
+    const idx = playDeck.lastIndexOf(cardId);
+    playDeck.splice(idx, 1);
+  } else if (playDeck.length < PLAY_DECK_SIZE && owned > inDeck) {
+    playDeck.push(cardId);
   }
-  return ids;
+
+  const next = { ...profile, playDeck };
+  saveOfflineProfile(next);
+  return next;
+}
+
+export function clearPlayDeck(profile) {
+  const next = { ...profile, playDeck: [] };
+  saveOfflineProfile(next);
+  return next;
+}
+
+export function getCatalogCard(cardId) {
+  return [...CARD_DATA.unique, ...CARD_DATA.standard].find((c) => c.id === cardId);
 }
