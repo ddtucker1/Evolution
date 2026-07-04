@@ -1,5 +1,5 @@
 import GameCard from './GameCard';
-import { CARD_TIMER_MIN, CARD_TIMER_MAX } from '../offlineEngine';
+import { CARD_TIMER_MIN, CARD_TIMER_MAX, getLibraryCooldownSeconds } from '../offlineEngine';
 import { PLAY_DECK_SIZE, getCatalogCard, getCollectionCount, countInPlayDeck, togglePlayDeckCard, clearPlayDeck } from '../api';
 
 export default function Library({ profile, onProfileChange, onMainMenu }) {
@@ -30,7 +30,7 @@ export default function Library({ profile, onProfileChange, onMainMenu }) {
           </h2>
           <p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
             Tap fighter, defender, and boss cards to add or remove them from your play deck.
-            {' '}Each card gets a random <strong>{CARD_TIMER_MIN}–{CARD_TIMER_MAX} second</strong> attack timer in battle.
+            {' '}Each card shows a sample cooldown between <strong>{CARD_TIMER_MIN}–{CARD_TIMER_MAX} seconds</strong> before it can attack again in battle.
           </p>
         </div>
         <div className="library-actions">
@@ -84,7 +84,7 @@ export default function Library({ profile, onProfileChange, onMainMenu }) {
                 }}
                 selected={selected}
                 showCooldown={false}
-                timerRangeLabel={`${CARD_TIMER_MIN}–${CARD_TIMER_MAX}s`}
+                cooldownPreview={getLibraryCooldownSeconds(key)}
               />
             </div>
           );

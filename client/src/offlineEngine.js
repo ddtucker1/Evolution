@@ -15,16 +15,14 @@ const CARD_DATA = {
   ],
 };
 
-const DRAW_TIMER_MAX = 30;
+const DRAW_TIMER_MAX = 90;
 const CARD_TIMER_MIN = 10;
 const CARD_TIMER_MAX = 60;
-const DEATH_ANIMATION_MS = 4000;
-const DEATH_SHAKE_MS = 2000;
+const DEATH_ANIMATION_MS = 6000;
+const DEATH_SHAKE_MS = 3000;
 const PLAY_DECK_SIZE = 10;
 const MAX_REPLACEMENTS = 3;
-const MIN_ATTACK_ANIM_MS = 1000;
-const MAX_ATTACK_ANIM_MS = 4000;
-const MAX_EXPECTED_DAMAGE = 25;
+const ATTACK_ANIM_MS = 4000;
 
 const LOOKUP = new Map();
 for (const c of CARD_DATA.unique) LOOKUP.set(c.id, c);
@@ -52,11 +50,17 @@ function shuffle(arr) {
   return a;
 }
 
-function getAttackAnimationMs(damage) {
-  if (damage <= 0) return MIN_ATTACK_ANIM_MS;
-  const clamped = Math.min(MAX_EXPECTED_DAMAGE, damage);
-  const ratio = (clamped - 1) / (MAX_EXPECTED_DAMAGE - 1);
-  return Math.round(MIN_ATTACK_ANIM_MS + ratio * (MAX_ATTACK_ANIM_MS - MIN_ATTACK_ANIM_MS));
+function getAttackAnimationMs() {
+  return ATTACK_ANIM_MS;
+}
+
+export function getLibraryCooldownSeconds(cardKey) {
+  let hash = 0;
+  for (let i = 0; i < cardKey.length; i++) {
+    hash = ((hash << 5) - hash) + cardKey.charCodeAt(i);
+    hash |= 0;
+  }
+  return CARD_TIMER_MIN + (Math.abs(hash) % (CARD_TIMER_MAX - CARD_TIMER_MIN + 1));
 }
 
 export function calculateAttackDamage(attacker, defender) {
@@ -189,12 +193,28 @@ function completeDeathAnimation(game) {
   if (!anim) return;
 
   const ref = findFieldCard(game, anim.instanceId);
-  if (ref?.card?.role === 'field') clearDeadFieldSlot(ref.player, ref.card);
+  let clearedSlotIndex = null;
+  if (ref?.card?.role === 'field') {
+    const idx = (ref.player.field || []).findIndex((c) => c?.instanceId === ref.card.instanceId);
+    if (idx >= 0) {
+      clearedSlotIndex = idx;
+      ref.player.field[idx] = null;
+    }
+  }
 
   game.deathAnimation = null;
   if (game.deathTimeout) {
     clearTimeout(game.deathTimeout);
     game.deathTimeout = null;
+  }
+
+  if (
+    clearedSlotIndex !== null
+    && ref?.player?.id === 'player'
+    && ref.player.battleHand.length > 0
+    && ref.player.replacementsUsed < ref.player.maxReplacements
+  ) {
+    game.pendingReplacement = { slotIndex: clearedSlotIndex };
   }
 
   const w = checkWinner(game.players[0], game.players[1]);
@@ -252,7 +272,7 @@ function beginAttackAnimation(game, attacker, defender, logPrefix) {
   if (!owner || !canCardAttack(attacker, owner)) return { success: false, message: 'Cannot attack yet' };
 
   const damage = calculateAttackDamage(attacker, defender);
-  const durationMs = getAttackAnimationMs(damage);
+  const durationMs = getAttackAnimationMs();
   const damageText = damage > 0
     ? `for ${damage} damage`
     : 'but defense blocks all damage';
@@ -332,6 +352,7 @@ function toPrivateState(game, playerId) {
     winnerId: game.winnerId,
     attackAnimation: game.attackAnimation ? { ...game.attackAnimation } : null,
     deathAnimation: game.deathAnimation ? { ...game.deathAnimation } : null,
+    pendingReplacement: game.pendingReplacement ? { ...game.pendingReplacement } : null,
     timersPaused: isBattlePaused(game),
     myHand: me.setupHand.map((c) => ({ ...c })),
     myBattleHand: me.battleHand.map((c) => ({ ...c })),
@@ -374,6 +395,7 @@ export function createOfflineGame(deckIds) {
     attackTimeout: null,
     deathAnimation: null,
     deathTimeout: null,
+    pendingReplacement: null,
   };
   return game;
 }
@@ -516,7 +538,15 @@ export function offlineReplace(game, handCardId, slotIndex) {
   player.field[slotIndex] = card;
   player.battleHand.splice(handIdx, 1);
   player.replacementsUsed += 1;
+  game.pendingReplacement = null;
   game.log.push(`You deployed ${card.name} as a replacement (${player.replacementsUsed}/${player.maxReplacements})`);
+  if (game.onUpdate) game.onUpdate(toPrivateState(game, 'player'));
+  return { success: true };
+}
+
+export function offlineDismissReplacement(game) {
+  if (!game?.pendingReplacement) return { success: false };
+  game.pendingReplacement = null;
   if (game.onUpdate) game.onUpdate(toPrivateState(game, 'player'));
   return { success: true };
 }

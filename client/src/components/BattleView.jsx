@@ -8,6 +8,7 @@ export default function BattleView({
   onAttack,
   onDraw,
   onReplace,
+  onDismissReplacement,
   onMainMenu,
 }) {
   const [targetMode, setTargetMode] = useState(null);
@@ -29,6 +30,7 @@ export default function BattleView({
     players,
     attackAnimation,
     deathAnimation,
+    pendingReplacement,
     drawTimer,
     drawTimerMax,
     drawReady,
@@ -68,10 +70,15 @@ export default function BattleView({
       setReplaceMode(null);
       return;
     }
-    const slot = myField?.[slotIndex];
-    if (!slot && replacementsUsed < maxReplacements) {
-      // highlight empty slots when user has fighters in hand — handled via replace mode from hand
+    if (pendingReplacement?.slotIndex === slotIndex && myBattleHand?.length === 1) {
+      onReplace(myBattleHand[0].instanceId, slotIndex);
     }
+  };
+
+  const handlePendingReplace = (handCard) => {
+    if (pendingReplacement == null) return;
+    onReplace(handCard.instanceId, pendingReplacement.slotIndex);
+    setReplaceMode(null);
   };
 
   const startReplace = (handCard) => {
@@ -118,11 +125,13 @@ export default function BattleView({
     isAttacking: attackAnimation?.attackerInstanceId === card?.instanceId,
     isHit: attackAnimation?.defenderInstanceId === card?.instanceId,
     isDying: deathAnimation?.instanceId === card?.instanceId,
+    pendingDamage: attackAnimation?.defenderInstanceId === card?.instanceId ? (attackAnimation?.damage || 0) : 0,
   });
 
   const renderFieldSlot = (card, slotIndex, isPlayer) => {
     if (!card) {
-      const canReplace = isPlayer && !battleLocked && replacementsUsed < maxReplacements && replaceMode;
+      const canReplace = isPlayer && !battleLocked && replacementsUsed < maxReplacements
+        && (replaceMode || (pendingReplacement?.slotIndex === slotIndex));
       return (
         <div
           key={`empty-${slotIndex}`}
@@ -266,6 +275,31 @@ export default function BattleView({
       <div className="battle-log">
         {log?.map((entry, i) => <p key={i}>{entry}</p>)}
       </div>
+
+      {pendingReplacement && !battleLocked && myBattleHand?.length > 0 && (
+        <div className="target-overlay">
+          <div className="target-panel replacement-panel" onClick={(e) => e.stopPropagation()}>
+            <h3>Fighter destroyed — replace from hand?</h3>
+            <p className="replace-hint">
+              Choose a card to deploy in slot {pendingReplacement.slotIndex + 1}
+              {' '}({replacementsUsed}/{maxReplacements} replacements used)
+            </p>
+            <div className="hand-cards" style={{ marginBottom: 16 }}>
+              {myBattleHand.map((card) => (
+                <GameCard
+                  key={card.instanceId}
+                  card={card}
+                  showCooldown
+                  onClick={() => handlePendingReplace(card)}
+                />
+              ))}
+            </div>
+            <button className="btn-secondary" style={{ width: '100%' }} onClick={onDismissReplacement}>
+              Skip for now
+            </button>
+          </div>
+        </div>
+      )}
 
       {targetMode && (
         <div className="target-overlay" onClick={() => setTargetMode(null)}>
