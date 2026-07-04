@@ -32,7 +32,7 @@ export function getPlayerGame(playerId) {
 export function createNPCGame(playerId, username, deckCardIds) {
   const gameId = uuidv4();
   const npcId = `npc_${uuidv4().slice(0, 8)}`;
-  const npcDeck = generateNPCDeck(deckCardIds);
+  const npcDeck = generateNPCDeck();
 
   const game = createGameState(gameId, BATTLE_MODES.NPC, [
     { id: playerId, username, deckCardIds },
@@ -63,19 +63,15 @@ export function createPvPGame(mode, player1, player2) {
   return game;
 }
 
-function generateNPCDeck(playerDeck) {
+function generateNPCDeck() {
   const uniqueIds = [
     'uni_knight', 'uni_archer', 'uni_mage', 'uni_golem',
     'uni_rogue', 'uni_paladin', 'uni_berserker', 'uni_druid',
-  ];
-  const standardIds = [
-    'std_shield', 'std_sword', 'std_poison', 'std_heal',
-    'std_bolt', 'std_haste', 'std_curse', 'std_fortify',
+    'uni_wraith', 'uni_titan',
   ];
 
   const deck = [];
-  for (let i = 0; i < 12; i++) deck.push(uniqueIds[i % uniqueIds.length]);
-  for (let i = 0; i < 8; i++) deck.push(standardIds[i % standardIds.length]);
+  for (let i = 0; i < 10; i++) deck.push(uniqueIds[i % uniqueIds.length]);
   return deck;
 }
 

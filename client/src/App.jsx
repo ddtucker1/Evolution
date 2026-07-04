@@ -11,7 +11,6 @@ import {
   createOfflineGame,
   offlineSetup,
   offlineAttack,
-  offlineUseStandard,
   offlineDrawCard,
   offlineReplace,
   getOfflineState,
@@ -50,12 +49,6 @@ export default function App() {
   const handleAttack = (attackerId, defenderId) => {
     if (!offlineGameRef.current) return;
     offlineAttack(offlineGameRef.current, attackerId, defenderId);
-  };
-
-  const handleUseStandard = (cardId, targetId, targetPlayerId) => {
-    if (!offlineGameRef.current) return;
-    offlineUseStandard(offlineGameRef.current, cardId, targetId, targetPlayerId);
-    setGameState(getOfflineState(offlineGameRef.current));
   };
 
   const handleDraw = () => {
@@ -105,7 +98,6 @@ export default function App() {
           gameState={gameState}
           onSetup={handleSetup}
           onAttack={handleAttack}
-          onUseStandard={handleUseStandard}
           onDraw={handleDraw}
           onReplace={handleReplace}
           onMainMenu={handleLeaveBattle}

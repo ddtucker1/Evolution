@@ -20,9 +20,8 @@ export default function GameCard({
 
   if (!card) return null;
 
-  const isStandard = card.type === 'standard';
   const bossLocked = card.bossLocked;
-  const isReady = !isStandard && card.alive && card.cooldownRemaining <= 0 && !bossLocked;
+  const isReady = card.alive && card.cooldownRemaining <= 0 && !bossLocked;
   const isDead = card.alive === false && !isDying;
   const timerMax = card.cooldown || 0;
   const timerRemaining = Math.max(0, card.cooldownRemaining ?? 0);
@@ -30,7 +29,6 @@ export default function GameCard({
 
   const classes = [
     'game-card',
-    isStandard ? 'standard' : '',
     card.role === 'boss' ? 'boss' : '',
     selected ? 'selected' : '',
     isDead ? 'dead' : '',
@@ -46,48 +44,29 @@ export default function GameCard({
     <div className={classes} onClick={disabled ? undefined : onClick}>
       {card.role && <span className="card-role">{card.role}</span>}
       <div className="card-name">{card.name}</div>
-      {isStandard ? (
-        <div className="card-stats">
-          {card.effect?.replace(/_/g, ' ')}
-          <br />Value: {card.value}
-          {card.used && (
-            <>
-              <br />
-              <span style={{ color: '#e74c3c' }}>Used</span>
-            </>
-          )}
+      <div className="card-stats">
+        DEF: {card.defense ?? 0}
+        <br />HP: {card.hp ?? card.maxHp}/{card.maxHp ?? card.hp}
+        <br />ATK: {card.attack ?? 0}
+        <br />
+        <span className="timer-stat">
+          Timer: {timerRangeLabel || (timerMax > 0 ? `${timerMax}s` : '—')}
+        </span>
+      </div>
+      {card.maxHp > 0 && (
+        <div className="hp-bar">
+          <div className="hp-fill" style={{ width: `${((card.hp ?? card.maxHp) / card.maxHp) * 100}%` }} />
         </div>
-      ) : (
-        <>
-          <div className="card-stats">
-            ATK: {card.attack} | DEF: {card.defense}
-            <br />HP: {card.hp}/{card.maxHp}
-            {timerRangeLabel ? (
-              <>
-                <br />
-                <span className="timer-stat">Timer: {timerRangeLabel} (random)</span>
-              </>
-            ) : timerMax > 0 && (
-              <>
-                <br />
-                <span className="timer-stat">Timer: {timerMax}s</span>
-              </>
-            )}
-          </div>
-          <div className="hp-bar">
-            <div className="hp-fill" style={{ width: `${(card.hp / card.maxHp) * 100}%` }} />
-          </div>
-          {showCooldown && timerMax > 0 && (
-            <div className={`timer-bar${isReady ? ' timer-ready' : ''}`}>
-              <div className="timer-fill" style={{ width: `${timerProgress}%` }} />
-            </div>
-          )}
-          {showCooldown && timerMax > 0 && (
-            <div className={`timer-countdown${isReady ? ' timer-countdown-ready' : ''}`}>
-              {bossLocked ? 'Boss locked' : isReady ? 'Ready to attack!' : `${timerRemaining}s`}
-            </div>
-          )}
-        </>
+      )}
+      {showCooldown && timerMax > 0 && (
+        <div className={`timer-bar${isReady ? ' timer-ready' : ''}`}>
+          <div className="timer-fill" style={{ width: `${timerProgress}%` }} />
+        </div>
+      )}
+      {showCooldown && timerMax > 0 && (
+        <div className={`timer-countdown${isReady ? ' timer-countdown-ready' : ''}`}>
+          {bossLocked ? 'Boss locked' : isReady ? 'Ready to attack!' : `${timerRemaining}s`}
+        </div>
       )}
     </div>
   );

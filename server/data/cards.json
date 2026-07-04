@@ -1,34 +1,25 @@
 {
-  "standard": [
-    { "id": "std_shield", "name": "Iron Shield", "type": "standard", "effect": "buff_defense", "value": 5, "description": "+5 defense to one of your cards" },
-    { "id": "std_sword", "name": "Sharpening Stone", "type": "standard", "effect": "buff_attack", "value": 5, "description": "+5 attack to one of your cards" },
-    { "id": "std_poison", "name": "Venom Vial", "type": "standard", "effect": "debuff_attack", "value": 4, "description": "-4 attack to an enemy card" },
-    { "id": "std_curse", "name": "Weakening Curse", "type": "standard", "effect": "debuff_defense", "value": 4, "description": "-4 defense to an enemy card" },
-    { "id": "std_heal", "name": "Healing Potion", "type": "standard", "effect": "heal", "value": 8, "description": "Restore 8 HP to one of your cards" },
-    { "id": "std_bolt", "name": "Lightning Bolt", "type": "standard", "effect": "damage", "value": 6, "description": "Deal 6 damage to an enemy card" },
-    { "id": "std_haste", "name": "Haste Charm", "type": "standard", "effect": "reduce_cooldown", "value": 2, "description": "Reduce attack timer by 2 seconds" },
-    { "id": "std_fortify", "name": "Fortify", "type": "standard", "effect": "buff_both", "value": 3, "description": "+3 attack and defense to your card" }
-  ],
+  "standard": [],
   "unique": [
-    { "id": "uni_knight", "name": "Steel Knight", "type": "unique", "attack": 12, "defense": 14, "hp": 40, "cooldown": 5, "description": "A stalwart defender" },
-    { "id": "uni_archer", "name": "Shadow Archer", "type": "unique", "attack": 16, "defense": 8, "hp": 30, "cooldown": 4, "description": "Swift ranged striker" },
-    { "id": "uni_mage", "name": "Flame Mage", "type": "unique", "attack": 18, "defense": 6, "hp": 28, "cooldown": 6, "description": "Devastating spellcaster" },
-    { "id": "uni_golem", "name": "Stone Golem", "type": "unique", "attack": 10, "defense": 18, "hp": 50, "cooldown": 7, "description": "Slow but nearly unbreakable" },
-    { "id": "uni_rogue", "name": "Night Rogue", "type": "unique", "attack": 15, "defense": 10, "hp": 32, "cooldown": 3, "description": "Strikes quickly from shadows" },
-    { "id": "uni_paladin", "name": "Holy Paladin", "type": "unique", "attack": 13, "defense": 15, "hp": 42, "cooldown": 5, "description": "Balanced holy warrior" },
-    { "id": "uni_berserker", "name": "Blood Berserker", "type": "unique", "attack": 20, "defense": 5, "hp": 35, "cooldown": 4, "description": "All-out aggression" },
-    { "id": "uni_druid", "name": "Forest Druid", "type": "unique", "attack": 11, "defense": 12, "hp": 38, "cooldown": 5, "description": "Nature's guardian" },
-    { "id": "uni_wraith", "name": "Soul Wraith", "type": "unique", "attack": 17, "defense": 7, "hp": 26, "cooldown": 4, "description": "Ethereal assassin" },
-    { "id": "uni_titan", "name": "Storm Titan", "type": "unique", "attack": 19, "defense": 12, "hp": 45, "cooldown": 6, "description": "Boss-tier elemental force" },
-    { "id": "uni_phoenix", "name": "Ember Phoenix", "type": "unique", "attack": 16, "defense": 9, "hp": 33, "cooldown": 5, "description": "Rises with fiery power" },
-    { "id": "uni_serpent", "name": "Viper Serpent", "type": "unique", "attack": 14, "defense": 11, "hp": 31, "cooldown": 3, "description": "Fast and venomous" }
+    { "id": "uni_knight", "name": "Steel Knight", "type": "unique", "attack": 12, "defense": 14, "hp": 40, "description": "A stalwart defender" },
+    { "id": "uni_archer", "name": "Shadow Archer", "type": "unique", "attack": 16, "defense": 8, "hp": 30, "description": "Swift ranged striker" },
+    { "id": "uni_mage", "name": "Flame Mage", "type": "unique", "attack": 18, "defense": 6, "hp": 28, "description": "Devastating spellcaster" },
+    { "id": "uni_golem", "name": "Stone Golem", "type": "unique", "attack": 10, "defense": 18, "hp": 50, "description": "Slow but nearly unbreakable" },
+    { "id": "uni_rogue", "name": "Night Rogue", "type": "unique", "attack": 15, "defense": 10, "hp": 32, "description": "Strikes quickly from shadows" },
+    { "id": "uni_paladin", "name": "Holy Paladin", "type": "unique", "attack": 13, "defense": 15, "hp": 42, "description": "Balanced holy warrior" },
+    { "id": "uni_berserker", "name": "Blood Berserker", "type": "unique", "attack": 20, "defense": 5, "hp": 35, "description": "All-out aggression" },
+    { "id": "uni_druid", "name": "Forest Druid", "type": "unique", "attack": 11, "defense": 12, "hp": 38, "description": "Nature's guardian" },
+    { "id": "uni_wraith", "name": "Soul Wraith", "type": "unique", "attack": 17, "defense": 7, "hp": 26, "description": "Ethereal assassin" },
+    { "id": "uni_titan", "name": "Storm Titan", "type": "unique", "attack": 19, "defense": 12, "hp": 45, "description": "Boss-tier elemental force" },
+    { "id": "uni_phoenix", "name": "Ember Phoenix", "type": "unique", "attack": 16, "defense": 9, "hp": 33, "description": "Rises with fiery power" },
+    { "id": "uni_serpent", "name": "Viper Serpent", "type": "unique", "attack": 14, "defense": 11, "hp": 31, "description": "Fast and venomous" }
   ],
   "fusions": [
-    { "inputs": ["uni_knight", "uni_paladin"], "output": { "id": "fus_guardian", "name": "Divine Guardian", "type": "unique", "attack": 15, "defense": 20, "hp": 55, "cooldown": 6, "description": "Fused knight and paladin" } },
-    { "inputs": ["uni_archer", "uni_rogue"], "output": { "id": "fus_assassin", "name": "Phantom Assassin", "type": "unique", "attack": 22, "defense": 9, "hp": 34, "cooldown": 3, "description": "Fused archer and rogue" } },
-    { "inputs": ["uni_mage", "uni_phoenix"], "output": { "id": "fus_inferno", "name": "Inferno Lord", "type": "unique", "attack": 24, "defense": 10, "hp": 40, "cooldown": 5, "description": "Fused mage and phoenix" } },
-    { "inputs": ["uni_golem", "uni_druid"], "output": { "id": "fus_colossus", "name": "Ancient Colossus", "type": "unique", "attack": 14, "defense": 22, "hp": 65, "cooldown": 7, "description": "Fused golem and druid" } },
-    { "inputs": ["uni_berserker", "uni_wraith", "uni_serpent"], "output": { "id": "fus_reaper", "name": "Death Reaper", "type": "unique", "attack": 26, "defense": 8, "hp": 38, "cooldown": 4, "description": "Triple fusion of berserker, wraith, and serpent" } },
-    { "inputs": ["uni_titan", "uni_phoenix", "uni_mage"], "output": { "id": "fus_stormlord", "name": "Stormlord", "type": "unique", "attack": 28, "defense": 15, "hp": 60, "cooldown": 5, "description": "Triple fusion of titan, phoenix, and mage" } }
+    { "inputs": ["uni_knight", "uni_paladin"], "output": { "id": "fus_guardian", "name": "Divine Guardian", "type": "unique", "attack": 15, "defense": 20, "hp": 55, "description": "Fused knight and paladin" } },
+    { "inputs": ["uni_archer", "uni_rogue"], "output": { "id": "fus_assassin", "name": "Phantom Assassin", "type": "unique", "attack": 22, "defense": 9, "hp": 34, "description": "Fused archer and rogue" } },
+    { "inputs": ["uni_mage", "uni_phoenix"], "output": { "id": "fus_inferno", "name": "Inferno Lord", "type": "unique", "attack": 24, "defense": 10, "hp": 40, "description": "Fused mage and phoenix" } },
+    { "inputs": ["uni_golem", "uni_druid"], "output": { "id": "fus_colossus", "name": "Ancient Colossus", "type": "unique", "attack": 14, "defense": 22, "hp": 65, "description": "Fused golem and druid" } },
+    { "inputs": ["uni_berserker", "uni_wraith", "uni_serpent"], "output": { "id": "fus_reaper", "name": "Death Reaper", "type": "unique", "attack": 26, "defense": 8, "hp": 38, "description": "Triple fusion of berserker, wraith, and serpent" } },
+    { "inputs": ["uni_titan", "uni_phoenix", "uni_mage"], "output": { "id": "fus_stormlord", "name": "Stormlord", "type": "unique", "attack": 28, "defense": 15, "hp": 60, "description": "Triple fusion of titan, phoenix, and mage" } }
   ]
 }
