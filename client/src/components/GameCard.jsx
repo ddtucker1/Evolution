@@ -6,6 +6,7 @@ export default function GameCard({
   showCooldown = true,
   isAttacking = false,
   isHit = false,
+  timerRangeLabel = null,
 }) {
   if (card?.hidden) {
     return (
@@ -59,7 +60,12 @@ export default function GameCard({
           <div className="card-stats">
             ATK: {card.attack} | DEF: {card.defense}
             <br />HP: {card.hp}/{card.maxHp}
-            {timerMax > 0 && (
+            {timerRangeLabel ? (
+              <>
+                <br />
+                <span className="timer-stat">Timer: {timerRangeLabel} (random)</span>
+              </>
+            ) : timerMax > 0 && (
               <>
                 <br />
                 <span className="timer-stat">Timer: {timerMax}s</span>

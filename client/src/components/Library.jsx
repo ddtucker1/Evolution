@@ -1,4 +1,5 @@
 import GameCard from './GameCard';
+import { CARD_TIMER_MIN, CARD_TIMER_MAX } from '../offlineEngine';
 import { PLAY_DECK_SIZE, getCatalogCard, getCollectionCount, countInPlayDeck, togglePlayDeckCard, clearPlayDeck } from '../api';
 
 export default function Library({ profile, onProfileChange, onMainMenu }) {
@@ -29,6 +30,7 @@ export default function Library({ profile, onProfileChange, onMainMenu }) {
           </h2>
           <p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
             Tap cards to add or remove them from your play deck.
+            {' '}Fighter cards get a random <strong>{CARD_TIMER_MIN}–{CARD_TIMER_MAX} second</strong> attack timer in battle.
           </p>
         </div>
         <div className="library-actions">
@@ -76,13 +78,13 @@ export default function Library({ profile, onProfileChange, onMainMenu }) {
                   defense: catalog?.defense,
                   hp: catalog?.hp,
                   maxHp: catalog?.hp,
-                  cooldown: catalog?.cooldown,
                   effect: catalog?.effect,
                   value: catalog?.value,
                   alive: true,
                 }}
                 selected={selected}
-                showCooldown={catalog?.type === 'unique'}
+                showCooldown={false}
+                timerRangeLabel={catalog?.type === 'unique' ? `${CARD_TIMER_MIN}–${CARD_TIMER_MAX}s` : null}
               />
             </div>
           );

@@ -1,3 +1,5 @@
+import { CARD_TIMER_MIN, CARD_TIMER_MAX } from '../offlineEngine';
+
 export default function MainMenu({ onLibrary, onBattle, playDeckCount, battleReady }) {
   return (
     <div>
@@ -6,6 +8,7 @@ export default function MainMenu({ onLibrary, onBattle, playDeckCount, battleRea
       </h2>
       <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 20, lineHeight: 1.6 }}>
         Build a 20-card play deck in the Library, then battle the CPU.
+        Each fighter&apos;s attack timer is random: <strong>{CARD_TIMER_MIN}–{CARD_TIMER_MAX} seconds</strong>.
       </p>
 
       <div className="mode-grid" style={{ gridTemplateColumns: '1fr 1fr', maxWidth: 560 }}>

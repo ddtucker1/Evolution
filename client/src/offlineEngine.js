@@ -26,6 +26,8 @@ const CARD_DATA = {
 };
 
 const DRAW_TIMER_MAX = 30;
+const CARD_TIMER_MIN = 10;
+const CARD_TIMER_MAX = 60;
 const MAX_REPLACEMENTS = 3;
 const MIN_ATTACK_ANIM_MS = 1000;
 const MAX_ATTACK_ANIM_MS = 4000;
@@ -69,7 +71,7 @@ function makeBattleCard(templateId, instanceId) {
   const isUnique = t.type === 'unique';
   const attack = isUnique ? randomStat(10, 25) : (t.attack || 0);
   const maxHp = isUnique ? randomStat(30, 100) : (t.hp || 0);
-  const cooldown = isUnique ? randomStat(10, 60) : (t.cooldown || 0);
+  const cooldown = isUnique ? randomStat(CARD_TIMER_MIN, CARD_TIMER_MAX) : (t.cooldown || 0);
   return {
     instanceId, templateId, name: t.name, type: t.type || 'unique',
     attack, defense: t.defense || 0,
@@ -541,4 +543,4 @@ export function getOfflineState(game) {
   return toPrivateState(game, 'player');
 }
 
-export { CARD_DATA };
+export { CARD_DATA, CARD_TIMER_MIN, CARD_TIMER_MAX };
