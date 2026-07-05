@@ -9,6 +9,7 @@ export default function GameCard({
   isAttacking = false,
   isHit = false,
   isDying = false,
+  isFadingAway = false,
   pendingDamage = 0,
   cooldownPreview = null,
   levelLabel = null,
@@ -75,6 +76,7 @@ export default function GameCard({
     isAttacking ? 'attacking' : '',
     isHit ? 'hit' : '',
     isDying ? 'dying' : '',
+    isFadingAway ? 'fade-away' : '',
   ].filter(Boolean).join(' ');
 
   const displayLevel = levelDigit ?? (levelLabel ? levelLabel.replace(/\D/g, '') || null : getLevelDigit(card));

@@ -155,6 +155,7 @@ export default function BattleView({
   };
 
   const handleReplaceSlotClick = (slotIndex) => {
+    if (bossCanAttack) return;
     if (replaceMode) {
       onReplace(replaceMode.handCardId, slotIndex);
       setReplaceMode(null);
@@ -174,7 +175,7 @@ export default function BattleView({
   };
 
   const handleHandCardClick = (handCard) => {
-    if (battleEnded || replacementsUsed >= maxReplacements) return;
+    if (battleEnded || bossCanAttack || replacementsUsed >= maxReplacements) return;
     if (selectedSlot != null) {
       onReplace(handCard.instanceId, selectedSlot);
       setSelectedSlot(null);
@@ -239,7 +240,7 @@ export default function BattleView({
   const myAliveFighters = countAliveFighters(myPlayer.field);
   const oppAliveFighters = countAliveFighters(oppPlayer?.field);
   const oppBossTargetable = !oppAliveFighters && oppPlayer?.boss?.alive;
-  const showDeckAndHand = !bossPhase;
+  const isBossOnlySide = (isPlayer) => (isPlayer ? bossCanAttack : opponentBossCanAttack);
 
   const getAttackableTargets = () => {
     const fighters = (oppPlayer?.field || []).filter((c) => c && c.alive);
@@ -389,13 +390,14 @@ export default function BattleView({
     const remaining = isPlayer ? deckRemaining : (oppPlayer?.deckRemaining ?? 0);
     const timer = isPlayer ? drawTimer : (oppPlayer?.drawTimer ?? 0);
     const timerMax = isPlayer ? drawTimerMax : (oppPlayer?.drawTimerMax ?? 0);
-    const ready = isPlayer && drawReady && !battleEnded;
+    const fadingAway = isBossOnlySide(isPlayer);
+    const ready = isPlayer && drawReady && !battleEnded && !fadingAway;
     const progress = timerMax > 0 ? (timer / timerMax) * 100 : 0;
 
     return (
-      <div className="deck-draw-zone">
+      <div className={`deck-draw-zone${fadingAway ? ' fade-away' : ''}`}>
         <div
-          className={`deck-pile${ready ? ' draw-ready' : ''}${isPlayer && drawQueued ? ' selected' : ''}${!isPlayer ? ' deck-pile-opponent' : ''}`}
+          className={`deck-pile${ready ? ' draw-ready' : ''}${isPlayer && drawQueued ? ' selected' : ''}${!isPlayer ? ' deck-pile-opponent' : ''}${fadingAway ? ' fade-away' : ''}`}
           onClick={() => ready && onDraw()}
         >
           <div className="deck-pile-label">Play Deck</div>
@@ -412,11 +414,12 @@ export default function BattleView({
   };
 
   const renderDrawnCardsColumn = (hand, isPlayer) => {
-    const interactive = isPlayer;
+    const interactive = isPlayer && !isBossOnlySide(isPlayer);
+    const fadingAway = isBossOnlySide(isPlayer);
     const rowSlots = [0, 1, 2];
 
     return (
-      <div className={`drawn-cards-wrap${isPlayer ? ' drawn-cards-wrap-player' : ' drawn-cards-wrap-opponent'}`}>
+      <div className={`drawn-cards-wrap${isPlayer ? ' drawn-cards-wrap-player' : ' drawn-cards-wrap-opponent'}${fadingAway ? ' fade-away' : ''}`}>
         {interactive && hand?.length > 0 && (
           <>
             <h4 className="drawn-cards-label">Your Hand</h4>
@@ -443,6 +446,7 @@ export default function BattleView({
                       showCooldown
                       hideStatusEffects
                       disabled={interactive ? battleEnded : true}
+                      isFadingAway={fadingAway}
                       onClick={interactive ? () => handleHandCardClick(card) : undefined}
                     />
                     {interactive && replacementsUsed < maxReplacements && (
@@ -458,6 +462,7 @@ export default function BattleView({
                       showCooldown
                       hideStatusEffects
                       disabled={interactive ? battleEnded : true}
+                      isFadingAway={fadingAway}
                       onClick={interactive ? () => handleHandCardClick(overflowCard) : undefined}
                     />
                     {interactive && replacementsUsed < maxReplacements && (
@@ -486,12 +491,10 @@ export default function BattleView({
     );
 
     const formationGrid = (
-      <div className={`formation-grid${isPlayer ? ' player-formation' : ' opponent-formation'}${bossPhase ? ' boss-phase-grid' : ''}`}>
-        {showDeckAndHand && (
-          <div className="grid-cell grid-cell-deck">
-            {renderDeckPile(isPlayer)}
-          </div>
-        )}
+      <div className={`formation-grid${isPlayer ? ' player-formation' : ' opponent-formation'}`}>
+        <div className="grid-cell grid-cell-deck">
+          {renderDeckPile(isPlayer)}
+        </div>
         {boss && (
           <div className="grid-cell grid-cell-boss">
             {renderFieldSlot(boss, 'boss', isPlayer, {
@@ -500,7 +503,7 @@ export default function BattleView({
             })}
           </div>
         )}
-        {showDeckAndHand && magicActions && (
+        {magicActions && (
           <div className="grid-cell grid-cell-abilities">
             {magicActions}
           </div>
@@ -515,9 +518,9 @@ export default function BattleView({
 
     return (
       <div className={`zone-battle-row${isPlayer ? ' zone-battle-row-player' : ' zone-battle-row-opponent'}`}>
-        {isPlayer && showDeckAndHand && renderDrawnCardsColumn(hand, true)}
+        {isPlayer && renderDrawnCardsColumn(hand, true)}
         {formationGrid}
-        {!isPlayer && showDeckAndHand && renderDrawnCardsColumn(hand, false)}
+        {!isPlayer && renderDrawnCardsColumn(hand, false)}
       </div>
     );
   };
@@ -542,7 +545,7 @@ export default function BattleView({
       : [];
 
     if (!card) {
-      const canReplace = isPlayer && !battleEnded && replacementsUsed < maxReplacements
+      const canReplace = isPlayer && !battleEnded && !bossCanAttack && replacementsUsed < maxReplacements
         && myBattleHand?.length > 0
         && (replaceMode || selectedSlot === slotIndex || pendingReplacement?.slotIndex === slotIndex);
       return (
@@ -631,7 +634,7 @@ export default function BattleView({
       <div className="battle-top-bar">
         <button className="btn-secondary" onClick={onMainMenu}>Main Menu</button>
         <span className="replacement-counter">
-          {showDeckAndHand ? `Replacements: ${replacementsUsed}/${maxReplacements}` : 'Boss Phase'}
+          {bossPhase ? 'Boss Phase' : `Replacements: ${replacementsUsed}/${maxReplacements}`}
         </span>
       </div>
 
@@ -659,20 +662,20 @@ export default function BattleView({
             />
           </>
         )}
-        <div className={`player-zone zone-player${winnerId && winnerId !== me?.id && winnerId !== 'player' ? ' blood-splattered' : ''}${bossPhase ? ' boss-phase' : ''}`}>
+        <div className={`player-zone zone-player${winnerId && winnerId !== me?.id && winnerId !== 'player' ? ' blood-splattered' : ''}`}>
           {winnerId && winnerId !== me?.id && winnerId !== 'player' && <BloodSplatter />}
           <h3>Your Battlefield</h3>
           {renderBattlefield(myPlayer, true)}
-          {!bossCanAttack && myPlayer.boss?.alive && !bossPhase && (
+          {!bossCanAttack && myPlayer.boss?.alive && (
             <p className="boss-hint">Boss locked until all 3 fighters are defeated</p>
           )}
         </div>
 
-        <div className={`player-zone zone-opponent${winnerId && (winnerId === me?.id || winnerId === 'player') ? ' blood-splattered' : ''}${bossPhase ? ' boss-phase' : ''}`}>
+        <div className={`player-zone zone-opponent${winnerId && (winnerId === me?.id || winnerId === 'player') ? ' blood-splattered' : ''}`}>
           {winnerId && (winnerId === me?.id || winnerId === 'player') && <BloodSplatter />}
           <h3>{oppPlayer?.username || 'CPU Opponent'}</h3>
           {renderBattlefield(oppPlayer || { boss: null, field: [null, null, null] }, false)}
-          {oppAliveFighters > 0 && oppPlayer?.boss?.alive && !bossPhase && (
+          {oppAliveFighters > 0 && oppPlayer?.boss?.alive && (
             <p className="boss-hint">Boss protected behind fighters</p>
           )}
         </div>

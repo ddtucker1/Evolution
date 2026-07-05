@@ -497,11 +497,6 @@ input:focus {
   gap: 8px;
 }
 
-.player-zone.boss-phase {
-  padding-top: 10px;
-  padding-bottom: 10px;
-}
-
 .player-zone h3 {
   font-family: var(--font-display);
   color: var(--accent-gold);
@@ -591,22 +586,6 @@ input:focus {
   align-items: center;
 }
 
-.formation-grid.boss-phase-grid {
-  grid-template-columns: 1fr;
-  grid-template-rows: minmax(var(--card-height), 1fr);
-  justify-items: center;
-}
-
-.formation-grid.boss-phase-grid .grid-cell-boss {
-  grid-column: 1;
-  grid-row: 1;
-  justify-content: center;
-}
-
-.formation-grid.boss-phase-grid .grid-cell-fighter {
-  display: none;
-}
-
 /* Player: deck/boss/abilities left, fighters right */
 .player-formation .grid-cell-deck { grid-column: 1; grid-row: 1; }
 .player-formation .grid-cell-boss { grid-column: 1; grid-row: 2; }
@@ -694,6 +673,26 @@ input:focus {
 
 .battlefield .game-card.dying {
   animation: card-death-sequence 6s ease-in-out forwards !important;
+}
+
+.battlefield .game-card.fade-away,
+.drawn-cards-wrap.fade-away .game-card,
+.deck-draw-zone.fade-away,
+.deck-pile.fade-away {
+  animation: card-fade-away 3s ease-in-out forwards !important;
+  pointer-events: none;
+}
+
+.drawn-cards-wrap.fade-away .drawn-cards-label,
+.drawn-cards-wrap.fade-away .replace-hint,
+.drawn-cards-wrap.fade-away .hand-card-label {
+  animation: card-fade-away 3s ease-in-out forwards;
+  pointer-events: none;
+}
+
+@keyframes card-fade-away {
+  0% { transform: scale(1); opacity: 1; }
+  100% { transform: scale(0.82); opacity: 0; }
 }
 
 .battle-log {
