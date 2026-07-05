@@ -390,30 +390,98 @@ function calculateChainAttackDamage(attackers, defender) {
   return Math.max(0, effectiveAttack - Math.round(defender.defense));
 }
 
-function processPendingAttack(game) {
-  if (!game.pendingPlayerAttack || isBattlePaused(game)) return;
-  const pending = game.pendingPlayerAttack;
-  game.pendingPlayerAttack = null;
+function queuePlayerAction(game, action) {
+  if (!game.pendingPlayerActions) game.pendingPlayerActions = [];
+  game.pendingPlayerActions.push(action);
+  if (game.onUpdate) game.onUpdate(toPrivateState(game, 'player'));
+  return { success: true, queued: true };
+}
+
+function executeQueuedAttack(game, action) {
   const player = game.players[0];
   const opp = game.players[1];
-  const defender = getFieldCards(opp).find((c) => c.instanceId === pending.defenderId);
-  if (!defender?.alive) return;
-  if (!getAttackableTargets(opp).some((c) => c.instanceId === pending.defenderId)) return;
-
-  if (pending.isChain) {
-    const attackers = (pending.attackerIds || [])
-      .map((id) => getAliveFieldFighters(player).find((c) => c.instanceId === id))
-      .filter(Boolean);
-    if (attackers.length < 2) return;
-    if (!attackers.every((a) => isCardReady(a))) return;
-    beginChainAttackAnimation(game, attackers, defender, 'You');
-    return;
+  const defender = getFieldCards(opp).find((c) => c.instanceId === action.defenderId);
+  if (!defender?.alive) return { success: false };
+  if (!getAttackableTargets(opp).some((c) => c.instanceId === action.defenderId)) {
+    return { success: false };
   }
 
-  const attacker = getFieldCards(player).find((c) => c.instanceId === pending.attackerId);
-  if (!attacker || !defender?.alive) return;
-  if (!canCardAttack(attacker, player)) return;
-  beginAttackAnimation(game, attacker, defender, 'You');
+  if (action.type === 'chainAttack') {
+    const attackers = (action.attackerIds || [])
+      .map((id) => getAliveFieldFighters(player).find((c) => c.instanceId === id))
+      .filter(Boolean);
+    if (attackers.length < 2) return { success: false };
+    if (!attackers.every((a) => isCardReady(a))) return { success: false };
+    return beginChainAttackAnimation(game, attackers, defender, 'You');
+  }
+
+  const attacker = getFieldCards(player).find((c) => c.instanceId === action.attackerId);
+  if (!attacker || !canCardAttack(attacker, player)) return { success: false };
+  return beginAttackAnimation(game, attacker, defender, 'You');
+}
+
+function executeQueuedAction(game, action) {
+  switch (action.type) {
+    case 'attack':
+    case 'chainAttack':
+      return executeQueuedAttack(game, action);
+    case 'draw': {
+      const player = game.players[0];
+      const drew = drawCardForPlayer(game, player, 'You');
+      return drew ? { success: true } : { success: false };
+    }
+    case 'replace':
+      return executePlayerReplace(game, action.handCardId, action.slotIndex);
+    case 'bossSlow':
+      return resolveBossAbility(game, game.players[0], 'slow', action.targetInstanceId);
+    case 'bossHeal':
+      return resolveBossAbility(game, game.players[0], 'heal');
+    case 'bossHaste':
+      return resolveBossAbility(game, game.players[0], 'haste', action.targetInstanceId);
+    case 'bossAttack2x':
+      return resolveBossAbilityPhase2(game, game.players[0], 'attack2x', action.targetInstanceId);
+    case 'bossDefenseHalved':
+      return resolveBossAbilityPhase2(game, game.players[0], 'defenseHalved', action.targetInstanceId);
+    case 'bossPoisonAll':
+      return resolveBossAbilityPhase2(game, game.players[0], 'poisonAll');
+    default:
+      return { success: false };
+  }
+}
+
+function processPendingActions(game) {
+  if (isBattlePaused(game) || game.winnerId) return;
+
+  while (game.pendingPlayerActions?.length) {
+    const action = game.pendingPlayerActions.shift();
+    const result = executeQueuedAction(game, action);
+    if (result?.pending) return;
+    if (game.onUpdate) game.onUpdate(toPrivateState(game, 'player'));
+  }
+}
+
+function executePlayerReplace(game, handCardId, slotIndex) {
+  const player = game.players[0];
+  if (player.replacementsUsed >= player.maxReplacements) {
+    return { success: false, message: 'No replacements left' };
+  }
+  if (slotIndex < 0 || slotIndex > 2) return { success: false };
+  const slotCard = player.field[slotIndex];
+  if (slotCard?.alive) return { success: false, message: 'Slot is occupied' };
+
+  const handIdx = player.battleHand.findIndex((c) => c.instanceId === handCardId);
+  if (handIdx < 0) return { success: false };
+  const card = player.battleHand[handIdx];
+  if (!card) return { success: false };
+
+  card.role = 'field';
+  player.field[slotIndex] = card;
+  player.battleHand.splice(handIdx, 1);
+  player.replacementsUsed += 1;
+  game.pendingReplacement = null;
+  game.log.push(`You deployed ${card.name} as a replacement (${player.replacementsUsed}/${player.maxReplacements})`);
+  if (game.onUpdate) game.onUpdate(toPrivateState(game, 'player'));
+  return { success: true };
 }
 
 function getReadyAttackers(player) {
@@ -506,7 +574,7 @@ function completeDeathAnimation(game) {
   if (w) finishOffline(game, w);
   else {
     if (game.onUpdate) game.onUpdate(toPrivateState(game, 'player'));
-    processPendingAttack(game);
+    processPendingActions(game);
   }
 }
 
@@ -644,7 +712,7 @@ function completeAttackAnimation(game) {
   if (w) finishOffline(game, w);
   else {
     if (game.onUpdate) game.onUpdate(toPrivateState(game, 'player'));
-    processPendingAttack(game);
+    processPendingActions(game);
   }
 }
 
@@ -772,7 +840,7 @@ function toPrivateState(game, playerId) {
     bossMagicPhase: getBossMagicPhase(game),
     attackAnimation: game.attackAnimation ? { ...game.attackAnimation } : null,
     deathAnimation: game.deathAnimation ? { ...game.deathAnimation } : null,
-    pendingPlayerAttack: game.pendingPlayerAttack ? { ...game.pendingPlayerAttack } : null,
+    pendingPlayerActions: (game.pendingPlayerActions || []).map((action) => ({ ...action })),
     pendingReplacement: game.pendingReplacement ? { ...game.pendingReplacement } : null,
     timersPaused: isBattlePaused(game),
     myHand: me.setupHand.map((c) => ({ ...c })),
@@ -824,7 +892,7 @@ export function createOfflineGame(deckIds) {
     deathAnimation: null,
     deathTimeout: null,
     pendingReplacement: null,
-    pendingPlayerAttack: null,
+    pendingPlayerActions: [],
     battleElapsed: 0,
   };
   return game;
@@ -1115,11 +1183,17 @@ function clearDeathAnimation(game) {
 export function clearBattleAnimations(game) {
   clearAttackAnimation(game);
   clearDeathAnimation(game);
+  if (game) game.pendingPlayerActions = [];
 }
 
 export function offlineDrawCard(game) {
-  if (isBattlePaused(game)) return { success: false };
   const player = game.players[0];
+  if (player.drawTimer < player.drawTimerMax || !player.deck.length) {
+    return { success: false, message: 'Cannot draw yet' };
+  }
+  if (isBattlePaused(game)) {
+    return queuePlayerAction(game, { type: 'draw' });
+  }
   const drew = drawCardForPlayer(game, player, 'You');
   if (!drew) return { success: false, message: 'Cannot draw yet' };
   if (game.onUpdate) game.onUpdate(toPrivateState(game, 'player'));
@@ -1127,28 +1201,20 @@ export function offlineDrawCard(game) {
 }
 
 export function offlineReplace(game, handCardId, slotIndex) {
-  if (isBattlePaused(game)) return { success: false };
-  const player = game.players[0];
-  if (player.replacementsUsed >= player.maxReplacements) {
-    return { success: false, message: 'No replacements left' };
+  if (isBattlePaused(game)) {
+    const player = game.players[0];
+    if (player.replacementsUsed >= player.maxReplacements) {
+      return { success: false, message: 'No replacements left' };
+    }
+    if (slotIndex < 0 || slotIndex > 2) return { success: false };
+    const slotCard = player.field[slotIndex];
+    if (slotCard?.alive) return { success: false, message: 'Slot is occupied' };
+    if (!player.battleHand.some((c) => c.instanceId === handCardId)) {
+      return { success: false };
+    }
+    return queuePlayerAction(game, { type: 'replace', handCardId, slotIndex });
   }
-  if (slotIndex < 0 || slotIndex > 2) return { success: false };
-  const slotCard = player.field[slotIndex];
-  if (slotCard?.alive) return { success: false, message: 'Slot is occupied' };
-
-  const handIdx = player.battleHand.findIndex((c) => c.instanceId === handCardId);
-  if (handIdx < 0) return { success: false };
-  const card = player.battleHand[handIdx];
-  if (!card) return { success: false };
-
-  card.role = 'field';
-  player.field[slotIndex] = card;
-  player.battleHand.splice(handIdx, 1);
-  player.replacementsUsed += 1;
-  game.pendingReplacement = null;
-  game.log.push(`You deployed ${card.name} as a replacement (${player.replacementsUsed}/${player.maxReplacements})`);
-  if (game.onUpdate) game.onUpdate(toPrivateState(game, 'player'));
-  return { success: true };
+  return executePlayerReplace(game, handCardId, slotIndex);
 }
 
 export function offlineDismissReplacement(game) {
@@ -1169,9 +1235,7 @@ export function offlineAttack(game, attackerId, defenderId) {
     return { success: false, message: 'Boss is protected until all fighters are defeated' };
   }
   if (isBattlePaused(game)) {
-    game.pendingPlayerAttack = { attackerId, defenderId };
-    if (game.onUpdate) game.onUpdate(toPrivateState(game, 'player'));
-    return { success: true, queued: true };
+    return queuePlayerAction(game, { type: 'attack', attackerId, defenderId });
   }
   return beginAttackAnimation(game, attacker, defender, 'You');
 }
@@ -1199,9 +1263,11 @@ export function offlineChainAttack(game, attackerIds, defenderId) {
   }
 
   if (isBattlePaused(game)) {
-    game.pendingPlayerAttack = { attackerIds: attackers.map((a) => a.instanceId), defenderId, isChain: true };
-    if (game.onUpdate) game.onUpdate(toPrivateState(game, 'player'));
-    return { success: true, queued: true };
+    return queuePlayerAction(game, {
+      type: 'chainAttack',
+      attackerIds: attackers.map((a) => a.instanceId),
+      defenderId,
+    });
   }
   return beginChainAttackAnimation(game, attackers, defender, 'You');
 }
@@ -1358,26 +1424,44 @@ function resolveBossAbilityPhase2(game, owner, ability, targetInstanceId) {
 }
 
 export function offlineBossSlow(game, targetInstanceId) {
+  if (isBattlePaused(game)) {
+    return queuePlayerAction(game, { type: 'bossSlow', targetInstanceId });
+  }
   return resolveBossAbility(game, game.players[0], 'slow', targetInstanceId);
 }
 
 export function offlineBossHeal(game) {
+  if (isBattlePaused(game)) {
+    return queuePlayerAction(game, { type: 'bossHeal' });
+  }
   return resolveBossAbility(game, game.players[0], 'heal');
 }
 
 export function offlineBossHaste(game, targetInstanceId) {
+  if (isBattlePaused(game)) {
+    return queuePlayerAction(game, { type: 'bossHaste', targetInstanceId });
+  }
   return resolveBossAbility(game, game.players[0], 'haste', targetInstanceId);
 }
 
 export function offlineBossAttack2x(game, targetInstanceId) {
+  if (isBattlePaused(game)) {
+    return queuePlayerAction(game, { type: 'bossAttack2x', targetInstanceId });
+  }
   return resolveBossAbilityPhase2(game, game.players[0], 'attack2x', targetInstanceId);
 }
 
 export function offlineBossDefenseHalved(game, targetInstanceId) {
+  if (isBattlePaused(game)) {
+    return queuePlayerAction(game, { type: 'bossDefenseHalved', targetInstanceId });
+  }
   return resolveBossAbilityPhase2(game, game.players[0], 'defenseHalved', targetInstanceId);
 }
 
 export function offlineBossPoisonAll(game) {
+  if (isBattlePaused(game)) {
+    return queuePlayerAction(game, { type: 'bossPoisonAll' });
+  }
   return resolveBossAbilityPhase2(game, game.players[0], 'poisonAll');
 }
 

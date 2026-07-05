@@ -40,7 +40,7 @@ export default function BattleView({
     players,
     attackAnimation,
     deathAnimation,
-    pendingPlayerAttack,
+    pendingPlayerActions,
     pendingReplacement,
     drawTimer,
     drawTimerMax,
@@ -55,8 +55,14 @@ export default function BattleView({
   } = gameState;
 
   const me = players?.find((p) => p.id === 'player') || players?.[0];
-  const animationInProgress = !!attackAnimation || !!deathAnimation;
-  const battleLocked = animationInProgress || !!winnerId;
+  const battleEnded = !!winnerId;
+  const queuedActions = pendingPlayerActions || [];
+  const drawQueued = queuedActions.some((action) => action.type === 'draw');
+  const queuedAttackerIds = queuedActions.flatMap((action) => {
+    if (action.type === 'attack') return [action.attackerId];
+    if (action.type === 'chainAttack') return action.attackerIds || [];
+    return [];
+  });
 
   const handleBossSelect = (cardId) => {
     const fieldIds = myHand.filter((c) => c.instanceId !== cardId).map((c) => c.instanceId);
@@ -175,7 +181,7 @@ export default function BattleView({
   };
 
   const handleHandCardClick = (handCard) => {
-    if (battleLocked || replacementsUsed >= maxReplacements) return;
+    if (battleEnded || replacementsUsed >= maxReplacements) return;
     if (selectedSlot != null) {
       onReplace(handCard.instanceId, selectedSlot);
       setSelectedSlot(null);
@@ -444,7 +450,7 @@ export default function BattleView({
       : [];
 
     if (!card) {
-      const canReplace = isPlayer && !battleLocked && replacementsUsed < maxReplacements
+      const canReplace = isPlayer && !battleEnded && replacementsUsed < maxReplacements
         && myBattleHand?.length > 0
         && (replaceMode || selectedSlot === slotIndex || pendingReplacement?.slotIndex === slotIndex);
       return (
@@ -462,8 +468,7 @@ export default function BattleView({
     const bossProtected = options.bossProtected ?? false;
     const inTargetMode = !!targetMode && !winnerId;
     const canSelectForAttack = isPlayer && phase === 'battle' && !winnerId && !inTargetMode && canAttackWith(card);
-    const isQueuedAttacker = pendingPlayerAttack?.attackerId === card.instanceId
-      || (pendingPlayerAttack?.isChain && pendingPlayerAttack?.attackerIds?.includes(card.instanceId));
+    const isQueuedAttacker = queuedAttackerIds.includes(card.instanceId);
     const isLeadAttacker = targetMode?.attacker?.instanceId === card.instanceId;
     const isChainPartner = targetMode?.step === 'chain-partners' && targetMode.partners?.includes(card.instanceId);
     const isChainPartnerCandidate = isPlayer
@@ -570,8 +575,8 @@ export default function BattleView({
             <h3>Your Battlefield</h3>
             <div className="deck-draw-zone">
               <div
-                className={`deck-pile${drawReady ? ' draw-ready' : ''}`}
-                onClick={() => !battleLocked && drawReady && onDraw()}
+                className={`deck-pile${drawReady ? ' draw-ready' : ''}${drawQueued ? ' selected' : ''}`}
+                onClick={() => !battleEnded && drawReady && onDraw()}
               >
                 <div className="deck-pile-label">Play Deck</div>
                 <div className="deck-pile-count">{deckRemaining} cards</div>
@@ -685,7 +690,7 @@ export default function BattleView({
                   selected={replaceMode?.handCardId === card.instanceId || selectedSlot != null}
                   showCooldown
                   hideStatusEffects
-                  disabled={battleLocked}
+                  disabled={battleEnded}
                   onClick={() => handleHandCardClick(card)}
                 />
                 {replacementsUsed < maxReplacements && (
