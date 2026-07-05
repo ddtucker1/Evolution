@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "tickIntervalSeconds": 6,
+  "tickIntervalSeconds": 8,
   "statFormula": "average",
   "statBonus": {
     "amount": 2,
@@ -51,42 +51,56 @@
     {
       "id": "poison",
       "tier": 0,
-      "label": "Poison — lowers health by 1 every 6 seconds",
+      "name": "Poison",
+      "description": "Lowers health by 1 every 8 seconds",
+      "label": "Poison — lowers health by 1 every 8 seconds",
       "effect": "health_drain_enemy"
     },
     {
       "id": "rust",
       "tier": 0,
-      "label": "Rust — lowers defense by 1 every 6 seconds",
+      "name": "Rust",
+      "description": "Lowers defense by 1 every 8 seconds",
+      "label": "Rust — lowers defense by 1 every 8 seconds",
       "effect": "defense_drain_enemy"
     },
     {
       "id": "fire",
       "tier": 1,
-      "label": "Fire — adjacent enemies lose 1 HP every 6 seconds",
+      "name": "Fire",
+      "description": "Adjacent enemies lose 1 HP every 8 seconds",
+      "label": "Fire — adjacent enemies lose 1 HP every 8 seconds",
       "effect": "fire_adjacent_enemies"
     },
     {
       "id": "sick",
       "tier": 1,
-      "label": "Sick — adds 1 second to an enemy timer every 6 seconds",
+      "name": "Sick",
+      "description": "Adds 1 second to an enemy timer every 8 seconds",
+      "label": "Sick — adds 1 second to an enemy timer every 8 seconds",
       "effect": "timer_increase_enemy"
     },
     {
       "id": "vamp",
       "tier": 2,
-      "label": "Vamp — steals 1 HP from an enemy every 6 seconds and heals a needy ally",
+      "name": "Vamp",
+      "description": "Steals 1 HP from an enemy every 8 seconds and heals a needy ally",
+      "label": "Vamp — steals 1 HP from an enemy every 8 seconds and heals a needy ally",
       "effect": "vamp_steal"
     },
     {
       "id": "stumble",
       "tier": 2,
-      "label": "Stumble — adds 1 second to an enemy timer every 6 seconds",
+      "name": "Stumble",
+      "description": "Adds 1 second to an enemy timer every 8 seconds",
+      "label": "Stumble — adds 1 second to an enemy timer every 8 seconds",
       "effect": "timer_increase_enemy"
     },
     {
       "id": "dazed",
       "tier": 2,
+      "name": "Dazed",
+      "description": "20% chance a solo attack hits an ally instead",
       "label": "Dazed — 20% chance a solo attack hits an ally instead",
       "effect": "dazed_solo_attack"
     }

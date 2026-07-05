@@ -1,4 +1,4 @@
-import { getLevelDigit } from '../combineEngine';
+import { getLevelDigit, getAbilityDisplayName } from '../combineEngine';
 
 export default function GameCard({
   card,
@@ -105,7 +105,7 @@ export default function GameCard({
               : []
           ).map((ability) => (
             <span key={ability.id || ability.label} className="card-ability">
-              {ability.label}
+              {getAbilityDisplayName(ability)}
             </span>
           ))}
         </div>

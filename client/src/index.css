@@ -892,6 +892,56 @@ input:focus {
   color: var(--text-secondary);
 }
 
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.help-dialog {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 24px;
+  max-width: 480px;
+  width: calc(100% - 32px);
+  max-height: 80vh;
+  overflow-y: auto;
+  box-shadow: var(--shadow);
+}
+
+.help-dialog h3 {
+  font-family: var(--font-display);
+  color: var(--accent-gold);
+  margin-bottom: 8px;
+}
+
+.help-dialog-intro {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin-bottom: 16px;
+  line-height: 1.5;
+}
+
+.ability-help-list {
+  list-style: none;
+  margin: 0 0 20px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.ability-help-list li {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-primary);
+}
+
+.ability-help-list strong {
+  color: var(--accent-purple);
+}
+
 .deck-info {
   display: flex;
   gap: 16px;
@@ -1688,6 +1738,13 @@ input:focus {
 .status-effect.status-defense-halved {
   background: rgba(155, 89, 182, 0.92);
   color: #fff;
+}
+
+.status-effect.status-carried {
+  background: rgba(124, 92, 191, 0.88);
+  color: #fff;
+  text-transform: none;
+  letter-spacing: 0;
 }
 
 .boss-magic-btn.ability-used,
