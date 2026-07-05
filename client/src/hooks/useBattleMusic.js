@@ -1,10 +1,21 @@
 import { useEffect } from 'react';
-import { playBossMusic, playGameplayMusic, stopBattleMusic } from '../audio/gameAudio';
+import {
+  pauseBattleMusic,
+  playBossMusic,
+  playGameplayMusic,
+  stopBattleMusic,
+  unpauseBattleMusic,
+} from '../audio/gameAudio';
 
 export default function useBattleMusic(screen, gameState) {
   useEffect(() => {
     if (screen !== 'battle') {
       stopBattleMusic();
+      return undefined;
+    }
+
+    if (gameState?.gamePaused) {
+      pauseBattleMusic();
       return undefined;
     }
 
@@ -14,6 +25,8 @@ export default function useBattleMusic(screen, gameState) {
       playGameplayMusic();
     }
 
+    unpauseBattleMusic();
+
     return undefined;
-  }, [screen, gameState?.bossPhase, gameState?.phase]);
+  }, [screen, gameState?.bossPhase, gameState?.phase, gameState?.gamePaused]);
 }

@@ -19,6 +19,7 @@ export default function BattleView({
   onBossDefenseHalved,
   onBossPoisonAll,
   onMainMenu,
+  onTogglePause,
 }) {
   const [targetMode, setTargetMode] = useState(null);
   const [replaceMode, setReplaceMode] = useState(null);
@@ -54,6 +55,8 @@ export default function BattleView({
     bossAbilitiesUsed,
     bossMagicPhase,
     bossPhase,
+    log,
+    gamePaused,
   } = gameState;
 
   const me = players?.find((p) => p.id === 'player') || players?.[0];
@@ -367,7 +370,11 @@ export default function BattleView({
       : renderBossMagicActionsPhase1(abilitiesUsed, isPlayerSide)
   );
 
-  const renderStatusEffects = (card) => {
+  const renderStatusEffects = (card, isPlayer) => {
+    if (card.role === 'boss') {
+      const bossActive = isPlayer ? bossCanAttack : opponentBossCanAttack;
+      if (!bossActive) return null;
+    }
     const effects = [];
     if (card.hasted) effects.push({ key: 'haste', label: 'Haste', className: 'status-haste' });
     if (card.slowed) effects.push({ key: 'slow', label: 'Slow', className: 'status-slow' });
@@ -612,7 +619,7 @@ export default function BattleView({
         key={card.instanceId}
         className={`field-card-row${isPlayer ? ' player-side' : ' opponent-side'}`}
       >
-        {!isPlayer && renderStatusEffects(card)}
+        {!isPlayer && renderStatusEffects(card, isPlayer)}
         <div
           className={`field-card-anchor${isTargetHighlighted ? ' target-highlight' : ''}`}
           ref={(el) => {
@@ -631,20 +638,51 @@ export default function BattleView({
             onClick={cardClickable || isLeadAttacker ? handleFieldCardClick : undefined}
           />
         </div>
-        {isPlayer && renderStatusEffects(card)}
+        {isPlayer && renderStatusEffects(card, isPlayer)}
       </div>
     );
   };
 
+  const battleLogEntries = log || [];
+
   return (
     <div className="battle-screen">
       <div className="battle-top-bar">
-        <button className="btn-secondary" onClick={onMainMenu}>Main Menu</button>
+        <div className="battle-top-bar-left">
+          <button className="btn-secondary" onClick={onMainMenu}>Main Menu</button>
+          {phase === 'battle' && (
+            <button
+              type="button"
+              className={`btn-secondary battle-pause-btn${gamePaused ? ' battle-pause-btn-active' : ''}`}
+              onClick={onTogglePause}
+              disabled={!!winnerId}
+            >
+              {gamePaused ? 'Resume' : 'Pause'}
+            </button>
+          )}
+        </div>
         <span className="replacement-counter">
-          {bossPhase ? 'Boss Phase' : `Replacements: ${replacementsUsed}/${maxReplacements}`}
+          {gamePaused ? 'Paused' : bossPhase ? 'Boss Phase' : `Replacements: ${replacementsUsed}/${maxReplacements}`}
         </span>
       </div>
 
+      <div className="battle-layout">
+        {phase === 'battle' && (
+          <aside className="battle-log-panel" aria-label="Battle log">
+            <h4 className="battle-log-title">Battle Log</h4>
+            <div className="battle-log-lines">
+              {battleLogEntries.length === 0 ? (
+                <p className="battle-log-empty">No events yet.</p>
+              ) : (
+                battleLogEntries.map((entry, index) => (
+                  <p key={`${index}-${entry}`}>{entry}</p>
+                ))
+              )}
+            </div>
+          </aside>
+        )}
+
+        <div className="battle-main">
       {winnerId && (
         <div className="card" style={{ textAlign: 'center', marginBottom: 16, borderColor: 'var(--accent-gold)' }}>
           <h2 style={{ fontFamily: 'var(--font-display)', color: 'var(--accent-gold)' }}>
@@ -733,6 +771,8 @@ export default function BattleView({
             </button>
           </div>
         )}
+      </div>
+        </div>
       </div>
     </div>
   );

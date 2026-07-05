@@ -300,6 +300,10 @@ function canBossBeTargeted(player) {
   return canBossAttack(player);
 }
 
+function canBossReceiveEffects(player) {
+  return canBossAttack(player);
+}
+
 function defaultBossAbilitiesUsed() {
   return {
     slow: false, heal: false, haste: false,
@@ -535,7 +539,39 @@ function findFieldCard(game, instanceId) {
 }
 
 function isBattlePaused(game) {
-  return !!(game.attackAnimation || game.deathAnimation);
+  return !!(game.userPaused || game.attackAnimation || game.deathAnimation);
+}
+
+function freezeAnimationTimeouts(game) {
+  if (game.attackTimeout && game.attackAnimation) {
+    clearTimeout(game.attackTimeout);
+    game.attackTimeout = null;
+    const elapsed = Date.now() - (game.attackAnimation.startedAt || Date.now());
+    game.attackAnimation.remainingMs = Math.max(0, (game.attackAnimation.durationMs || 0) - elapsed);
+  }
+  if (game.deathTimeout && game.deathAnimation) {
+    clearTimeout(game.deathTimeout);
+    game.deathTimeout = null;
+    const elapsed = Date.now() - (game.deathAnimation.startedAt || Date.now());
+    game.deathAnimation.remainingMs = Math.max(0, (game.deathAnimation.durationMs || 0) - elapsed);
+  }
+}
+
+function resumeAnimationTimeouts(game) {
+  if (game.attackAnimation?.remainingMs != null) {
+    const remaining = game.attackAnimation.remainingMs;
+    game.attackAnimation.startedAt = Date.now();
+    game.attackAnimation.durationMs = remaining;
+    delete game.attackAnimation.remainingMs;
+    game.attackTimeout = setTimeout(() => completeAttackAnimation(game), remaining);
+  }
+  if (game.deathAnimation?.remainingMs != null) {
+    const remaining = game.deathAnimation.remainingMs;
+    game.deathAnimation.startedAt = Date.now();
+    game.deathAnimation.durationMs = remaining;
+    delete game.deathAnimation.remainingMs;
+    game.deathTimeout = setTimeout(() => completeDeathAnimation(game), remaining);
+  }
 }
 
 function completeDeathAnimation(game) {
@@ -665,7 +701,6 @@ function applyPeriodicAbility(game, owner, opponent, sourceCard, ability) {
     case 'health_drain_enemy': {
       const target = pickRandomAlive(getAliveFieldFighters(opponent));
       if (!target) return false;
-      inflictCarriedEffects(target, [ability]);
       const killed = applyHealthDrain(target, strength);
       if (killed) game.log.push(`${sourceCard.name}'s ${ability.id} defeated ${target.name}`);
       return killed ? target : false;
@@ -673,7 +708,6 @@ function applyPeriodicAbility(game, owner, opponent, sourceCard, ability) {
     case 'defense_drain_enemy': {
       const target = pickRandomAlive(getAliveFieldFighters(opponent));
       if (!target) return false;
-      inflictCarriedEffects(target, [ability]);
       target.defense = Math.max(0, target.defense - strength);
       return false;
     }
@@ -684,7 +718,6 @@ function applyPeriodicAbility(game, owner, opponent, sourceCard, ability) {
       for (const adj of getAdjacentFieldSlotIndices(slot)) {
         const target = opponent.field?.[adj];
         if (target?.alive) {
-          inflictCarriedEffects(target, [ability]);
           if (applyHealthDrain(target, strength)) killedCard = target;
         }
       }
@@ -695,16 +728,14 @@ function applyPeriodicAbility(game, owner, opponent, sourceCard, ability) {
       return false;
     }
     case 'timer_increase_enemy': {
-      const target = pickRandomAlive(getFieldCards(opponent));
+      const target = pickRandomAlive(getAliveFieldFighters(opponent));
       if (!target) return false;
-      inflictCarriedEffects(target, [ability]);
       target.cooldown = (target.cooldown || 0) + strength;
       return false;
     }
     case 'vamp_steal': {
       const victim = pickRandomAlive(getAliveFieldFighters(opponent));
       if (!victim) return false;
-      inflictCarriedEffects(victim, [ability]);
       const killed = applyHealthDrain(victim, strength);
       const needy = getAliveFieldFighters(owner).filter((c) => c.hp < c.maxHp);
       const healTarget = pickRandomAlive(needy);
@@ -783,6 +814,7 @@ function completeAttackAnimation(game) {
         instanceId: defenderRef.card.instanceId,
         durationMs: DEATH_ANIMATION_MS,
         shakeMs: DEATH_SHAKE_MS,
+        startedAt: Date.now(),
       };
     }
   }
@@ -823,6 +855,7 @@ function beginAttackAnimation(game, attacker, defender, logPrefix) {
     defenderInstanceId: defender.instanceId,
     damage,
     durationMs,
+    startedAt: Date.now(),
   };
 
   if (game.onUpdate) game.onUpdate(toPrivateState(game, 'player'));
@@ -856,6 +889,7 @@ function beginChainAttackAnimation(game, attackers, defender, logPrefix, ownerPl
     isChainAttack: true,
     chainCount: attackers.length,
     durationMs,
+    startedAt: Date.now(),
   };
 
   const bonusPct = attackers.length >= 3 ? 20 : 10;
@@ -929,7 +963,8 @@ function toPrivateState(game, playerId) {
       drawReady: p.drawTimer >= p.drawTimerMax && p.deck.length > 0,
       bossAbilitiesUsed: { ...(p.bossAbilitiesUsed || defaultBossAbilitiesUsed()) },
     })),
-    log: game.log.slice(-20),
+    log: [...game.log],
+    gamePaused: !!game.userPaused,
     winnerId: game.winnerId,
     battleElapsed: game.battleElapsed || 0,
     bossMagicPhase: getBossMagicPhase(game),
@@ -937,7 +972,7 @@ function toPrivateState(game, playerId) {
     deathAnimation: game.deathAnimation ? { ...game.deathAnimation } : null,
     pendingPlayerActions: (game.pendingPlayerActions || []).map((action) => ({ ...action })),
     pendingReplacement: game.pendingReplacement ? { ...game.pendingReplacement } : null,
-    timersPaused: isBattlePaused(game),
+    timersPaused: isBattlePaused(game) && !game.userPaused,
     myHand: me.setupHand.map((c) => ({ ...c })),
     myBattleHand: me.battleHand.map((c) => ({ ...c })),
     oppBattleHand: opp.battleHand.map((c) => ({ ...c })),
@@ -1050,6 +1085,7 @@ function triggerPoisonDeath(game, card) {
     instanceId: card.instanceId,
     durationMs: DEATH_ANIMATION_MS,
     shakeMs: DEATH_SHAKE_MS,
+    startedAt: Date.now(),
   };
   if (game.onUpdate) game.onUpdate(toPrivateState(game, 'player'));
   game.deathTimeout = setTimeout(() => completeDeathAnimation(game), DEATH_ANIMATION_MS);
@@ -1153,7 +1189,9 @@ function runNpcBossMagic(game) {
     return;
   }
 
-  const hasteCandidates = getFieldCards(npc).filter((c) => c.alive && getCooldownRemaining(c) > 2);
+  const hasteCandidates = getFieldCards(npc).filter(
+    (c) => c.alive && getCooldownRemaining(c) > 2 && (c.role !== 'boss' || canBossReceiveEffects(npc)),
+  );
   if (canUseBossAbility(npc, game) && hasteCandidates.length) {
     const target = hasteCandidates.reduce((a, b) => (
       getCooldownRemaining(a) > getCooldownRemaining(b) ? a : b
@@ -1189,7 +1227,9 @@ function runNpcBossMagicPhase2(game, npc, human) {
     return;
   }
 
-  const allyCards = getFieldCards(npc).filter((c) => c.alive && !c.attackDoubled);
+  const allyCards = getFieldCards(npc).filter(
+    (c) => c.alive && !c.attackDoubled && (c.role !== 'boss' || canBossReceiveEffects(npc)),
+  );
   const attackTarget = allyCards.length
     ? allyCards.reduce((a, b) => (b.attack > a.attack ? b : a))
     : null;
@@ -1375,6 +1415,9 @@ export function offlineChainAttack(game, attackerIds, defenderId) {
 }
 
 function applyBossSlow(game, owner, target) {
+  if (target.role === 'boss' && !canBossReceiveEffects(
+    game.players.find((p) => p.boss?.instanceId === target.instanceId || (p.field || []).some((c) => c?.instanceId === target.instanceId)),
+  )) return;
   const remaining = getCooldownRemaining(target);
   if (!target.slowed) {
     target.slowed = true;
@@ -1405,6 +1448,7 @@ function applyBossHeal(game, owner) {
 }
 
 function applyBossHaste(game, owner, target) {
+  if (target.role === 'boss' && !canBossReceiveEffects(owner)) return;
   const remaining = getCooldownRemaining(target);
   if (!target.hasted) {
     target.hasted = true;
@@ -1417,6 +1461,7 @@ function applyBossHaste(game, owner, target) {
 }
 
 function applyBossAttack2x(game, owner, target) {
+  if (target.role === 'boss' && !canBossReceiveEffects(owner)) return;
   if (!target.attackDoubled) {
     target.attackDoubled = true;
     target.attack = Math.floor(target.attack * 2);
@@ -1425,6 +1470,9 @@ function applyBossAttack2x(game, owner, target) {
 }
 
 function applyBossDefenseHalved(game, owner, target) {
+  if (target.role === 'boss' && !canBossReceiveEffects(
+    game.players.find((p) => p.boss?.instanceId === target.instanceId || (p.field || []).some((c) => c?.instanceId === target.instanceId)),
+  )) return;
   if (!target.defenseHalved) {
     target.defenseHalved = true;
     target.defense = Math.max(0, Math.floor(target.defense / 2));
@@ -1474,6 +1522,9 @@ function resolveBossAbility(game, owner, ability, targetInstanceId) {
   } else if (ability === 'haste') {
     const target = getFieldCards(owner).find((c) => c.instanceId === targetInstanceId);
     if (!target?.alive) return { success: false, message: 'Invalid target' };
+    if (target.role === 'boss' && !canBossReceiveEffects(owner)) {
+      return { success: false, message: 'Boss cannot receive effects until fighting' };
+    }
     applyBossHaste(game, owner, target);
     game.log.push(`${owner.username} boss hastened ${target.name}`);
   } else {
@@ -1498,6 +1549,9 @@ function resolveBossAbilityPhase2(game, owner, ability, targetInstanceId) {
   if (ability === 'attack2x') {
     const target = getFieldCards(owner).find((c) => c.instanceId === targetInstanceId);
     if (!target?.alive) return { success: false, message: 'Invalid target' };
+    if (target.role === 'boss' && !canBossReceiveEffects(owner)) {
+      return { success: false, message: 'Boss cannot receive effects until fighting' };
+    }
     if (target.attackDoubled) return { success: false, message: 'Attack already doubled' };
     applyBossAttack2x(game, owner, target);
     game.log.push(`${owner.username} boss doubled ${target.name}'s attack`);
@@ -1581,6 +1635,23 @@ export function clearAttackAnimation(game) {
 
 export function getOfflineState(game) {
   return toPrivateState(game, 'player');
+}
+
+export function toggleOfflinePause(game) {
+  if (!game || game.phase !== 'battle' || game.winnerId) {
+    return { success: false, paused: !!game?.userPaused };
+  }
+
+  game.userPaused = !game.userPaused;
+  if (game.userPaused) {
+    freezeAnimationTimeouts(game);
+  } else {
+    resumeAnimationTimeouts(game);
+    processPendingActions(game);
+  }
+
+  if (game.onUpdate) game.onUpdate(toPrivateState(game, 'player'));
+  return { success: true, paused: game.userPaused };
 }
 
 export { CARD_DATA, CARD_TIMER_MIN, CARD_TIMER_MAX, PLAY_DECK_SIZE, getTimerPreview, CATALOG_VERSION };
