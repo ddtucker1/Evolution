@@ -107,7 +107,7 @@ export default function BattleView({
   };
 
   const toggleChainPartner = (partnerId) => {
-    if (targetMode?.step !== 'chain-partners') return;
+    if (targetMode?.step !== 'chain-target') return;
     const partners = targetMode.partners || [];
     const next = partners.includes(partnerId)
       ? partners.filter((id) => id !== partnerId)
@@ -120,7 +120,7 @@ export default function BattleView({
     const otherReady = getReadyChainAttackers()
       .filter((c) => c.instanceId !== targetMode.attacker.instanceId);
     setTargetMode({
-      step: 'chain-partners',
+      step: 'chain-target',
       attacker: targetMode.attacker,
       partners: otherReady.map((c) => c.instanceId),
     });
@@ -129,15 +129,6 @@ export default function BattleView({
   const startSingleAttack = () => {
     if (!targetMode?.attacker) return;
     setTargetMode({ step: 'direct-target', attacker: targetMode.attacker });
-  };
-
-  const confirmChainPartners = () => {
-    if (!targetMode?.attacker || !targetMode.partners?.length) return;
-    setTargetMode({
-      step: 'chain-target',
-      attacker: targetMode.attacker,
-      partners: targetMode.partners,
-    });
   };
 
   const handleMagicTargetSelect = (target) => {
@@ -470,9 +461,9 @@ export default function BattleView({
     const canSelectForAttack = isPlayer && phase === 'battle' && !winnerId && !inTargetMode && canAttackWith(card);
     const isQueuedAttacker = queuedAttackerIds.includes(card.instanceId);
     const isLeadAttacker = targetMode?.attacker?.instanceId === card.instanceId;
-    const isChainPartner = targetMode?.step === 'chain-partners' && targetMode.partners?.includes(card.instanceId);
+    const isChainPartner = targetMode?.step === 'chain-target' && targetMode.partners?.includes(card.instanceId);
     const isChainPartnerCandidate = isPlayer
-      && targetMode?.step === 'chain-partners'
+      && targetMode?.step === 'chain-target'
       && otherReady.some((c) => c.instanceId === card.instanceId);
     const isEnemyTargetable = !isPlayer
       && inTargetMode
@@ -624,32 +615,12 @@ export default function BattleView({
           </div>
         )}
 
-        {targetMode?.step === 'chain-partners' && (
-          <div className="battlefield-prompt">
-            <h4>Chain Attack</h4>
-            <p className="battlefield-prompt-detail">
-              Tap ally fighters on the battlefield, then Ready
-            </p>
-            <div className="battlefield-prompt-actions">
-              <button
-                type="button"
-                className="btn-gold"
-                disabled={!targetMode.partners?.length}
-                onClick={confirmChainPartners}
-              >
-                Ready
-              </button>
-              <button type="button" className="btn-secondary" onClick={() => setTargetMode(null)}>
-                Cancel
-              </button>
-            </div>
-          </div>
-        )}
-
         {(targetMode?.step === 'direct-target' || targetMode?.step === 'chain-target') && (
           <div className="battlefield-target-hint">
             <span>
-              {targetMode.step === 'chain-target' ? 'Chain attack — click an enemy' : 'Click an enemy to attack'}
+              {targetMode.step === 'chain-target'
+                ? 'Chain attack — tap allies to adjust, then click an enemy'
+                : 'Click an enemy to attack'}
             </span>
             <button type="button" className="battlefield-hint-cancel" onClick={() => setTargetMode(null)}>
               Cancel
