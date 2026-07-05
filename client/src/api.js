@@ -1,6 +1,6 @@
 import { CARD_DATA, PLAY_DECK_SIZE, getTimerPreview, CATALOG_VERSION } from './offlineEngine';
 import { CATALOG_SIZE, MAX_LIBRARY_SIZE } from '../../shared/baseCardStats.js';
-import { createEvolvedCard, getCardLevel } from './evolveEngine';
+import { createCombinedCard, getCardLevel, canCombineCards } from './combineEngine';
 
 export { PLAY_DECK_SIZE };
 
@@ -14,12 +14,12 @@ function isCatalogCardId(cardId) {
   return !!CARD_DATA.unique.find((c) => c.id === cardId);
 }
 
-function isEvolvedCardId(cardId, profile) {
+function isCombinedCardId(cardId, profile) {
   return cardId.startsWith('evo_') && !!profile?.evolvedCards?.find((c) => c.id === cardId);
 }
 
 function isPlayableCardId(cardId, profile) {
-  return isCatalogCardId(cardId) || isEvolvedCardId(cardId, profile);
+  return isCatalogCardId(cardId) || isCombinedCardId(cardId, profile);
 }
 
 function decrementCollection(collection, cardId) {
@@ -82,15 +82,15 @@ export function getOfflineProfile() {
   return data ? JSON.parse(data) : null;
 }
 
-function migrateEvolvedCard(card) {
+function migrateCombinedCard(card) {
   if (!card) return card;
   const level = getCardLevel(card);
   const timer = card.timer != null ? Math.round(card.timer) : getTimerPreview(card.attack);
-  return { ...card, level, timer };
+  return { ...card, level, timer, combined: true };
 }
 
 function migrateProfile(profile) {
-  const evolvedCards = (profile.evolvedCards || []).map(migrateEvolvedCard);
+  const evolvedCards = (profile.evolvedCards || []).map(migrateCombinedCard);
   const catalogChanged = profile.catalogVersion !== CATALOG_VERSION;
 
   if (catalogChanged) {
@@ -189,12 +189,12 @@ export function getLibraryCardCount(profile) {
   return collectionCardCount(profile?.collection);
 }
 
-export function evolveCards(profile, cardId1, cardId2) {
+export function combineCards(profile, cardId1, cardId2) {
   if (!cardId1 || !cardId2) {
-    return { profile, error: 'Select two cards to sacrifice.' };
+    return { profile, error: 'Select two cards to combine.' };
   }
   if (cardId1 === cardId2 && getCollectionCount(profile, cardId1) < 2) {
-    return { profile, error: 'Select two different cards to sacrifice.' };
+    return { profile, error: 'You need two copies of this card to combine it with itself.' };
   }
 
   const catalog1 = getCatalogCard(cardId1, profile);
@@ -205,20 +205,29 @@ export function evolveCards(profile, cardId1, cardId2) {
   if (getCollectionCount(profile, cardId1) < 1 || getCollectionCount(profile, cardId2) < 1) {
     return { profile, error: 'You do not own both selected cards.' };
   }
+  if (!canCombineCards(catalog1, catalog2)) {
+    return { profile, error: 'Only two cards of the same level can be combined.' };
+  }
 
-  const evolved = createEvolvedCard(catalog1, catalog2);
+  const combined = createCombinedCard(catalog1, catalog2);
+  if (!combined) {
+    return { profile, error: 'These cards cannot be combined.' };
+  }
+
   let collection = decrementCollection(profile.collection || [], cardId1);
   collection = decrementCollection(collection, cardId2);
-  collection.push({ card_id: evolved.id, quantity: 1 });
+  collection.push({ card_id: combined.id, quantity: 1 });
 
   let playDeck = [...(profile.playDeck || [])];
   playDeck = removeOneFromPlayDeck(playDeck, cardId1);
   playDeck = removeOneFromPlayDeck(playDeck, cardId2);
 
-  const evolvedCards = [...(profile.evolvedCards || []), evolved];
+  const evolvedCards = [...(profile.evolvedCards || []), combined];
   const next = { ...profile, collection, playDeck, evolvedCards };
   saveOfflineProfile(next);
-  return { profile: next, evolved };
+  return { profile: next, combined };
 }
+
+export const evolveCards = combineCards;
 
 export { LIBRARY_SIZE, MAX_LIBRARY_SIZE };

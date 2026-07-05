@@ -261,6 +261,9 @@ input:focus {
 .game-card .card-ability-slot {
   min-height: 20px;
   margin: 4px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 
 .game-card .card-footer-slot {

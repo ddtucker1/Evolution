@@ -8,9 +8,10 @@ import {
   MAX_LIBRARY_SIZE,
 } from '../../shared/baseCardStats.js';
 import { generateCardName } from '../../shared/cardNaming.js';
-import { previewEvolve } from './evolveEngine.js';
+import { previewCombine, getCardAbilities } from './combineEngine.js';
+import { COMBINE_TICK_INTERVAL } from '../../shared/combineRules.js';
 
-const CATALOG_VERSION = 2;
+const CATALOG_VERSION = 3;
 const CATALOG_STORAGE_KEY = 'cfb_card_catalog';
 
 function buildRandomCatalog(count = CATALOG_SIZE) {
@@ -167,7 +168,8 @@ function makeBattleCard(templateId, instanceId) {
     maxHp, hp: maxHp,
     cooldown, cooldownElapsed: 0,
     alive: true, role: null,
-    ability: t.ability || null,
+    abilities: getCardAbilities(t),
+    periodicElapsed: 0,
     isBase: isBaseCardId(templateId),
     level: t.level ?? (isEvolved ? 1 : 0),
   };
@@ -209,8 +211,8 @@ function createPlayer(id, username, deckIds) {
 
 let npcEvolvedPool = null;
 
-function createNpcEvolvedCard(card1, card2, id) {
-  const preview = previewEvolve(card1, card2);
+function createNpcCombinedCard(card1, card2, id) {
+  const preview = previewCombine(card1, card2);
   if (!preview) return null;
   const card = {
     id,
@@ -221,10 +223,10 @@ function createNpcEvolvedCard(card1, card2, id) {
     hp: preview.hp,
     timer: preview.timer,
     level: preview.level,
-    level2Bonus: preview.level2Bonus,
-    ability: preview.ability,
+    statBonus: preview.statBonus,
+    abilities: preview.abilities,
     parents: preview.parents,
-    evolved: true,
+    combined: true,
   };
   LOOKUP.set(id, card);
   return card;
@@ -238,7 +240,7 @@ function getNpcEvolvedPool() {
   for (let i = 0; i < 3; i++) {
     const c1 = base[(i * 2) % base.length];
     const c2 = base[(i * 2 + 1) % base.length];
-    const card = createNpcEvolvedCard(c1, c2, `npc_evo_l1_${i}`);
+    const card = createNpcCombinedCard(c1, c2, `npc_evo_l1_${i}`);
     if (card) level1.push(card);
   }
 
@@ -246,7 +248,7 @@ function getNpcEvolvedPool() {
   for (let i = 0; i < 3; i++) {
     const c1 = level1[i % level1.length];
     const c2 = level1[(i + 1) % level1.length];
-    const card = createNpcEvolvedCard(c1, c2, `npc_evo_l2_${i}`);
+    const card = createNpcCombinedCard(c1, c2, `npc_evo_l2_${i}`);
     if (card) level2.push(card);
   }
 
@@ -254,7 +256,7 @@ function getNpcEvolvedPool() {
   for (let i = 0; i < 4; i++) {
     const c1 = level2[i % level2.length];
     const c2 = level2[(i + 1) % level2.length];
-    const card = createNpcEvolvedCard(c1, c2, `npc_evo_l3_${i}`);
+    const card = createNpcCombinedCard(c1, c2, `npc_evo_l3_${i}`);
     if (card) level3.push(card);
   }
 
@@ -516,6 +518,7 @@ function sanitize(card, revealed) {
     alive: card.alive,
     type: card.type,
     ability: card.ability || null,
+    abilities: card.abilities || getCardAbilities(card),
     slowed: !!card.slowed,
     hasted: !!card.hasted,
     poisoned: !!card.poisoned,
@@ -618,48 +621,118 @@ function processEffectExpiry(game) {
   }
 }
 
-function applyAttackAbility(game, attackerRef, defenderRef) {
-  const ability = attackerRef?.card?.ability;
-  if (!ability) return;
+function getFieldSlotIndex(player, card) {
+  if (!player?.field || !card || card.role === 'boss') return -1;
+  return player.field.findIndex((c) => c?.instanceId === card.instanceId);
+}
 
-  const attackerPlayer = attackerRef.player;
-  const defenderPlayer = game.players.find((p) => p.id !== attackerPlayer.id);
+function getAdjacentFieldSlotIndices(slotIndex) {
+  if (slotIndex === 0) return [1];
+  if (slotIndex === 1) return [0, 2];
+  if (slotIndex === 2) return [1];
+  return [];
+}
 
-  switch (ability.type) {
-    case 'poison': {
-      applyPoison(defenderRef.card);
-      break;
+function pickRandomAlive(cards) {
+  const alive = (cards || []).filter((c) => c?.alive);
+  if (!alive.length) return null;
+  return alive[Math.floor(Math.random() * alive.length)];
+}
+
+function applyHealthDrain(card, amount = 1) {
+  if (!card?.alive || amount <= 0) return false;
+  card.hp -= amount;
+  if (card.hp <= 0) {
+    card.hp = 0;
+    card.alive = false;
+    return true;
+  }
+  return false;
+}
+
+function applyPeriodicAbility(game, owner, opponent, sourceCard, ability) {
+  switch (ability.effect) {
+    case 'health_drain_enemy': {
+      const target = pickRandomAlive(getAliveFieldFighters(opponent));
+      if (!target) return false;
+      const killed = applyHealthDrain(target, 1);
+      if (killed) game.log.push(`${sourceCard.name}'s ${ability.id} defeated ${target.name}`);
+      return killed ? target : false;
     }
-    case 'piercing_aoe': {
-      const others = getAliveFieldFighters(defenderPlayer)
-        .filter((c) => c.instanceId !== defenderRef.card.instanceId);
-      for (const target of others) {
-        applyFlatDamage(target, ability.value);
+    case 'defense_drain_enemy': {
+      const target = pickRandomAlive(getAliveFieldFighters(opponent));
+      if (!target) return false;
+      target.defense = Math.max(0, target.defense - 1);
+      return false;
+    }
+    case 'fire_adjacent_enemies': {
+      const slot = getFieldSlotIndex(owner, sourceCard);
+      if (slot < 0) return false;
+      let killedCard = null;
+      for (const adj of getAdjacentFieldSlotIndices(slot)) {
+        const target = opponent.field?.[adj];
+        if (target?.alive && applyHealthDrain(target, 1)) killedCard = target;
       }
-      break;
-    }
-    case 'heal_companions': {
-      const companions = getAliveFieldFighters(attackerPlayer)
-        .filter((c) => c.instanceId !== attackerRef.card.instanceId);
-      for (const ally of companions) {
-        ally.hp = Math.min(ally.maxHp, ally.hp + ability.value);
+      if (killedCard) {
+        game.log.push(`${sourceCard.name}'s Fire defeated ${killedCard.name}`);
+        return killedCard;
       }
-      break;
+      return false;
     }
-    case 'lifesteal': {
-      attackerRef.card.hp = Math.min(
-        attackerRef.card.maxHp,
-        attackerRef.card.hp + ability.value,
-      );
-      break;
+    case 'timer_increase_enemy': {
+      const target = pickRandomAlive(getFieldCards(opponent));
+      if (!target) return false;
+      target.cooldown = (target.cooldown || 0) + 1;
+      return false;
     }
-    case 'armor_break': {
-      defenderRef.card.defense = Math.max(0, defenderRef.card.defense - ability.value);
-      break;
+    case 'vamp_steal': {
+      const victim = pickRandomAlive(getAliveFieldFighters(opponent));
+      if (!victim) return false;
+      const killed = applyHealthDrain(victim, 1);
+      const needy = getAliveFieldFighters(owner).filter((c) => c.hp < c.maxHp);
+      const healTarget = pickRandomAlive(needy);
+      if (healTarget) {
+        healTarget.hp = Math.min(healTarget.maxHp, healTarget.hp + 1);
+      }
+      if (killed) game.log.push(`${sourceCard.name}'s Vamp defeated ${victim.name}`);
+      return killed ? victim : false;
     }
     default:
-      break;
+      return false;
   }
+}
+
+function processPeriodicAbilities(game) {
+  if (isBattlePaused(game)) return false;
+
+  for (const owner of game.players) {
+    const opponent = game.players.find((p) => p.id !== owner.id);
+    for (const card of getFieldCards(owner)) {
+      if (!card?.alive) continue;
+      card.periodicElapsed = (card.periodicElapsed || 0) + 1;
+      if (card.periodicElapsed < COMBINE_TICK_INTERVAL) continue;
+      card.periodicElapsed = 0;
+
+      for (const ability of getCardAbilities(card)) {
+        if (ability.effect === 'dazed_solo_attack') continue;
+        const killedCard = applyPeriodicAbility(game, owner, opponent, card, ability);
+        if (killedCard) return triggerPoisonDeath(game, killedCard);
+      }
+    }
+  }
+  return false;
+}
+
+function resolveDazedTarget(game, attacker, owner, defender, defenderOwner) {
+  const hasDazed = getCardAbilities(attacker).some((a) => a.effect === 'dazed_solo_attack');
+  if (!hasDazed || Math.random() >= 0.2) {
+    return { defender, defenderOwner };
+  }
+  const allies = getAliveFieldFighters(owner).filter((c) => c.instanceId !== attacker.instanceId);
+  if (!allies.length) return { defender, defenderOwner };
+  const ally = allies[Math.floor(Math.random() * allies.length)];
+  game.log.push(`${attacker.name} is dazed and strikes ${ally.name}!`);
+  return { defender: ally, defenderOwner: owner };
 }
 
 function completeAttackAnimation(game) {
@@ -683,7 +756,6 @@ function completeAttackAnimation(game) {
       defenderRef.card.alive = false;
     }
     for (const attackerRef of attackerRefs) {
-      applyAttackAbility(game, attackerRef, defenderRef);
       attackerRef.card.cooldownElapsed = 0;
     }
 
@@ -720,6 +792,10 @@ function beginAttackAnimation(game, attacker, defender, logPrefix) {
   if (isBattlePaused(game)) return { success: false, message: 'Attack in progress' };
   const owner = game.players.find((p) => p.boss?.instanceId === attacker.instanceId || (p.field || []).some((c) => c?.instanceId === attacker.instanceId));
   if (!owner || !canCardAttack(attacker, owner)) return { success: false, message: 'Cannot attack yet' };
+
+  const defenderOwner = game.players.find((p) => p.boss?.instanceId === defender.instanceId || (p.field || []).some((c) => c?.instanceId === defender.instanceId));
+  const resolved = resolveDazedTarget(game, attacker, owner, defender, defenderOwner);
+  defender = resolved.defender;
 
   const damage = calculateAttackDamage(attacker, defender);
   const durationMs = getAttackAnimationMs();
@@ -987,6 +1063,12 @@ function startTicks(game) {
     if (game.phase !== 'battle' || isBattlePaused(game)) return;
 
     processEffectExpiry(game);
+
+    if (processPeriodicAbilities(game)) {
+      const w = checkWinner(game.players[0], game.players[1]);
+      if (w) finishOffline(game, w);
+      return;
+    }
 
     if (processPoisonTicks(game)) {
       const w = checkWinner(game.players[0], game.players[1]);

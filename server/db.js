@@ -2,7 +2,7 @@ import Database from 'better-sqlite3';
 import bcrypt from 'bcryptjs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
-import { DEFAULT_DECK_CAP, PREMIUM_DECK_CAP, findFusion } from './game/CardEngine.js';
+import { DEFAULT_DECK_CAP, PREMIUM_DECK_CAP } from './game/CardEngine.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const dbPath = join(__dirname, 'data', 'game.db');
@@ -138,25 +138,6 @@ export function upgradeDeckCap(userId) {
   if (user.premium) return { success: false, message: 'Already upgraded' };
   db.prepare('UPDATE users SET deck_cap = ?, premium = 1 WHERE id = ?').run(PREMIUM_DECK_CAP, userId);
   return { success: true, newCap: PREMIUM_DECK_CAP };
-}
-
-export function fuseCards(userId, inputCardIds) {
-  const sorted = [...inputCardIds].sort();
-  const output = findFusion(sorted);
-  if (!output) return { success: false, message: 'No fusion recipe found' };
-
-  for (const cardId of inputCardIds) {
-    const removed = removeCardFromUser(userId, cardId);
-    if (!removed) return { success: false, message: 'Missing required cards' };
-  }
-
-  if (!canAddCard(userId)) {
-    for (const cardId of inputCardIds) addCardToUser(userId, cardId);
-    return { success: false, message: 'Deck is full' };
-  }
-
-  addCardToUser(userId, output.id);
-  return { success: true, output };
 }
 
 export function recordMatch(winnerId, loserId, mode, transferredCard = null) {

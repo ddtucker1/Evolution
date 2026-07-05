@@ -14,7 +14,6 @@ import {
   getUserById,
   verifyPassword,
   getPublicProfile,
-  fuseCards,
   upgradeDeckCap,
   transferCompetitiveCard,
   getUserDeckCardIds,
@@ -34,7 +33,7 @@ import {
   BATTLE_MODES,
 } from './game/BattleManager.js';
 
-import { getAllStandardCards, getAllUniqueCards, getFusionRecipes } from './game/CardEngine.js';
+import { getAllStandardCards, getAllUniqueCards } from './game/CardEngine.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const JWT_SECRET = process.env.JWT_SECRET || 'card-fusion-battle-secret-dev';
@@ -75,7 +74,6 @@ app.get('/api/cards', (_req, res) => {
   res.json({
     standard: getAllStandardCards(),
     unique: getAllUniqueCards(),
-    fusions: getFusionRecipes(),
   });
 });
 
@@ -104,16 +102,6 @@ app.post('/api/auth/login', (req, res) => {
 
 app.get('/api/profile', authMiddleware, (req, res) => {
   res.json(getPublicProfile(req.user.id));
-});
-
-app.post('/api/fuse', authMiddleware, (req, res) => {
-  const { cardIds } = req.body;
-  if (!Array.isArray(cardIds) || cardIds.length < 2 || cardIds.length > 3) {
-    return res.status(400).json({ error: 'Select 2 or 3 cards to fuse' });
-  }
-  const result = fuseCards(req.user.id, cardIds);
-  if (!result.success) return res.status(400).json(result);
-  res.json({ ...result, user: getPublicProfile(req.user.id) });
 });
 
 app.post('/api/upgrade-deck', authMiddleware, (req, res) => {
