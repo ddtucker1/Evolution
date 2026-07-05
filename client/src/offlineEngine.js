@@ -8,8 +8,9 @@ import {
   MAX_LIBRARY_SIZE,
 } from '../../shared/baseCardStats.js';
 import { generateCardName } from '../../shared/cardNaming.js';
-import { previewCombine, getCardAbilities } from './combineEngine.js';
+import { getCardAbilities, createCombinedCard, getCardLevel } from './combineEngine.js';
 import { COMBINE_TICK_INTERVAL, getAbilityDisplayName } from '../../shared/combineRules.js';
+import { getAbilityStrength } from './combineEngine.js';
 
 const CATALOG_VERSION = 3;
 const CATALOG_STORAGE_KEY = 'cfb_card_catalog';
@@ -213,22 +214,13 @@ function createPlayer(id, username, deckIds) {
 let npcEvolvedPool = null;
 
 function createNpcCombinedCard(card1, card2, id) {
-  const preview = previewCombine(card1, card2);
-  if (!preview) return null;
-  const card = {
-    id,
-    name: preview.name,
-    type: 'unique',
-    attack: preview.attack,
-    defense: preview.defense,
-    hp: preview.hp,
-    timer: preview.timer,
-    level: preview.level,
-    statBonus: preview.statBonus,
-    abilities: preview.abilities,
-    parents: preview.parents,
-    combined: true,
-  };
+  const inputLevel = getCardLevel(card1);
+  const abilityChoice = inputLevel >= 1
+    ? (Math.random() < 0.5 ? 'upgrade' : 'new')
+    : undefined;
+  const combined = createCombinedCard(card1, card2, { abilityChoice, deterministic: true });
+  if (!combined) return null;
+  const card = { ...combined, id };
   LOOKUP.set(id, card);
   return card;
 }
@@ -668,12 +660,13 @@ function applyHealthDrain(card, amount = 1) {
 }
 
 function applyPeriodicAbility(game, owner, opponent, sourceCard, ability) {
+  const strength = getAbilityStrength(ability);
   switch (ability.effect) {
     case 'health_drain_enemy': {
       const target = pickRandomAlive(getAliveFieldFighters(opponent));
       if (!target) return false;
       inflictCarriedEffects(target, [ability]);
-      const killed = applyHealthDrain(target, 1);
+      const killed = applyHealthDrain(target, strength);
       if (killed) game.log.push(`${sourceCard.name}'s ${ability.id} defeated ${target.name}`);
       return killed ? target : false;
     }
@@ -681,7 +674,7 @@ function applyPeriodicAbility(game, owner, opponent, sourceCard, ability) {
       const target = pickRandomAlive(getAliveFieldFighters(opponent));
       if (!target) return false;
       inflictCarriedEffects(target, [ability]);
-      target.defense = Math.max(0, target.defense - 1);
+      target.defense = Math.max(0, target.defense - strength);
       return false;
     }
     case 'fire_adjacent_enemies': {
@@ -692,7 +685,7 @@ function applyPeriodicAbility(game, owner, opponent, sourceCard, ability) {
         const target = opponent.field?.[adj];
         if (target?.alive) {
           inflictCarriedEffects(target, [ability]);
-          if (applyHealthDrain(target, 1)) killedCard = target;
+          if (applyHealthDrain(target, strength)) killedCard = target;
         }
       }
       if (killedCard) {
@@ -705,18 +698,18 @@ function applyPeriodicAbility(game, owner, opponent, sourceCard, ability) {
       const target = pickRandomAlive(getFieldCards(opponent));
       if (!target) return false;
       inflictCarriedEffects(target, [ability]);
-      target.cooldown = (target.cooldown || 0) + 1;
+      target.cooldown = (target.cooldown || 0) + strength;
       return false;
     }
     case 'vamp_steal': {
       const victim = pickRandomAlive(getAliveFieldFighters(opponent));
       if (!victim) return false;
       inflictCarriedEffects(victim, [ability]);
-      const killed = applyHealthDrain(victim, 1);
+      const killed = applyHealthDrain(victim, strength);
       const needy = getAliveFieldFighters(owner).filter((c) => c.hp < c.maxHp);
       const healTarget = pickRandomAlive(needy);
       if (healTarget) {
-        healTarget.hp = Math.min(healTarget.maxHp, healTarget.hp + 1);
+        healTarget.hp = Math.min(healTarget.maxHp, healTarget.hp + strength);
       }
       if (killed) game.log.push(`${sourceCard.name}'s Vamp defeated ${victim.name}`);
       return killed ? victim : false;
@@ -748,8 +741,9 @@ function processPeriodicAbilities(game) {
 }
 
 function resolveDazedTarget(game, attacker, owner, defender, defenderOwner) {
-  const hasDazed = getCardAbilities(attacker).some((a) => a.effect === 'dazed_solo_attack');
-  if (!hasDazed || Math.random() >= 0.2) {
+  const dazedAbility = getCardAbilities(attacker).find((a) => a.effect === 'dazed_solo_attack');
+  const dazedChance = 0.2 * getAbilityStrength(dazedAbility);
+  if (!dazedAbility || Math.random() >= dazedChance) {
     return { defender, defenderOwner };
   }
   const allies = getAliveFieldFighters(owner).filter((c) => c.instanceId !== attacker.instanceId);

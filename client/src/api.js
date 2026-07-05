@@ -1,6 +1,13 @@
 import { CARD_DATA, PLAY_DECK_SIZE, getTimerPreview, CATALOG_VERSION } from './offlineEngine';
 import { CATALOG_SIZE, MAX_LIBRARY_SIZE } from '../../shared/baseCardStats.js';
-import { createCombinedCard, getCardLevel, canCombineCards } from './combineEngine';
+import {
+  createCombinedCard,
+  getCardLevel,
+  canCombineCards,
+  needsAbilityChoice,
+} from './combineEngine';
+
+export { needsAbilityChoice };
 
 export { PLAY_DECK_SIZE };
 
@@ -189,7 +196,7 @@ export function getLibraryCardCount(profile) {
   return collectionCardCount(profile?.collection);
 }
 
-export function combineCards(profile, cardId1, cardId2) {
+export function combineCards(profile, cardId1, cardId2, options = {}) {
   if (!cardId1 || !cardId2) {
     return { profile, error: 'Select two cards to combine.' };
   }
@@ -209,7 +216,8 @@ export function combineCards(profile, cardId1, cardId2) {
     return { profile, error: 'Only two cards of the same level can be combined.' };
   }
 
-  const combined = createCombinedCard(catalog1, catalog2);
+  const { abilityChoice } = options;
+  const combined = createCombinedCard(catalog1, catalog2, { abilityChoice });
   if (!combined) {
     return { profile, error: 'These cards cannot be combined.' };
   }

@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import GameCard from './GameCard';
 import { getTimerPreview } from '../offlineEngine';
-import { getCardLevel, getLevelDigit, getCardAbilities } from '../combineEngine';
+import { getCardLevel, getLevelDigit, getCardAbilities, getCombineAbilityChoiceContext } from '../combineEngine';
 import { getCombineHelpLines } from '../../../shared/combineRules.js';
 import {
   PLAY_DECK_SIZE,
@@ -11,6 +11,7 @@ import {
   togglePlayDeckCard,
   clearPlayDeck,
   combineCards,
+  needsAbilityChoice,
 } from '../api';
 
 export default function Library({ profile, onProfileChange, onMainMenu }) {
@@ -18,6 +19,7 @@ export default function Library({ profile, onProfileChange, onMainMenu }) {
   const [sortBy, setSortBy] = useState('level');
   const [combineSelection, setCombineSelection] = useState([]);
   const [combineMessage, setCombineMessage] = useState('');
+  const [showAbilityChoice, setShowAbilityChoice] = useState(false);
 
   const combineHelpLines = getCombineHelpLines();
   const playDeck = profile.playDeck || [];
@@ -93,30 +95,55 @@ export default function Library({ profile, onProfileChange, onMainMenu }) {
     });
   };
 
-  const handleCombine = () => {
+  const finalizeCombine = (abilityChoice) => {
     if (combineSelection.length < 2) return;
     const [first, second] = combineSelection;
-    const result = combineCards(profile, first.card_id, second.card_id);
+    const result = combineCards(profile, first.card_id, second.card_id, { abilityChoice });
     if (result.error) {
       setCombineMessage(result.error);
       return;
     }
     onProfileChange(result.profile);
     setCombineSelection([]);
+    setShowAbilityChoice(false);
     setCombineMessage(`Combined into ${result.combined.name}!`);
+  };
+
+  const handleCombineConfirm = () => {
+    if (combineSelection.length < 2) return;
+    const [first, second] = combineSelection;
+    const catalog1 = getCatalogCard(first.card_id, profile);
+    const catalog2 = getCatalogCard(second.card_id, profile);
+    if (needsAbilityChoice(catalog1, catalog2)) {
+      setShowAbilityChoice(true);
+      return;
+    }
+    finalizeCombine();
+  };
+
+  const handleCombine = () => {
+    handleCombineConfirm();
   };
 
   const cancelCombine = () => {
     setCombineSelection([]);
+    setShowAbilityChoice(false);
   };
 
   const exitCombineMode = () => {
     setMode('deck');
     setCombineSelection([]);
+    setShowAbilityChoice(false);
     setCombineMessage('');
   };
 
-  const showCombineConfirm = mode === 'combine' && combineSelection.length === 2;
+  const showCombineConfirm = mode === 'combine' && combineSelection.length === 2 && !showAbilityChoice;
+  const abilityChoiceContext = showAbilityChoice && combineSelection.length === 2
+    ? getCombineAbilityChoiceContext(
+      getCatalogCard(combineSelection[0].card_id, profile),
+      getCatalogCard(combineSelection[1].card_id, profile),
+    )
+    : null;
 
   return (
     <div>
@@ -134,7 +161,7 @@ export default function Library({ profile, onProfileChange, onMainMenu }) {
             ) : (
               <>
                 Select two cards of the <strong>same level</strong> to combine. Mismatched levels clear your selection.
-                {' '}Combining adds +2 to one main stat and grants abilities based on card level.
+                {' '}Each combined card keeps <strong>one</strong> special ability. Level 1+ combines let you upgrade or swap abilities.
               </>
             )}
           </p>
@@ -268,9 +295,53 @@ export default function Library({ profile, onProfileChange, onMainMenu }) {
               Sacrifice these two cards to combine them into a new card?
             </p>
             <div className="confirm-dialog-actions">
-              <button type="button" className="btn-primary" onClick={handleCombine}>
+              <button type="button" className="btn-primary" onClick={handleCombineConfirm}>
                 Confirm
               </button>
+              <button type="button" className="btn-secondary" onClick={cancelCombine}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showAbilityChoice && abilityChoiceContext && (
+        <div className="target-overlay" onClick={cancelCombine}>
+          <div className="confirm-dialog ability-choice-dialog" onClick={(e) => e.stopPropagation()}>
+            <h3>Choose Special Ability</h3>
+            <p className="confirm-dialog-text">
+              Your new Level {abilityChoiceContext.outputLevel} card can only have one special ability.
+            </p>
+            <div className="ability-choice-options">
+              <button
+                type="button"
+                className="ability-choice-btn"
+                onClick={() => finalizeCombine('upgrade')}
+                disabled={!abilityChoiceContext.upgradedPreview}
+              >
+                <span className="ability-choice-title">Upgrade current ability</span>
+                <span className="ability-choice-detail">
+                  {abilityChoiceContext.upgradedPreview
+                    ? `Double strength: ${abilityChoiceContext.upgradeSource?.name || 'Ability'} → ${abilityChoiceContext.upgradedPreview.name}`
+                    : 'Neither parent card has an ability to upgrade.'}
+                </span>
+              </button>
+              <button
+                type="button"
+                className="ability-choice-btn"
+                onClick={() => finalizeCombine('new')}
+              >
+                <span className="ability-choice-title">Gain a new ability</span>
+                <span className="ability-choice-detail">
+                  Random Level {abilityChoiceContext.outputLevel} ability
+                  {abilityChoiceContext.newAbilityOptions.length
+                    ? `: ${abilityChoiceContext.newAbilityOptions.join(', ')}`
+                    : ''}
+                </span>
+              </button>
+            </div>
+            <div className="confirm-dialog-actions">
               <button type="button" className="btn-secondary" onClick={cancelCombine}>
                 Cancel
               </button>
