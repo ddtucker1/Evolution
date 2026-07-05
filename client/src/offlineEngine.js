@@ -845,6 +845,7 @@ function toPrivateState(game, playerId) {
     timersPaused: isBattlePaused(game),
     myHand: me.setupHand.map((c) => ({ ...c })),
     myBattleHand: me.battleHand.map((c) => ({ ...c })),
+    oppBattleHand: opp.battleHand.map((c) => ({ ...c })),
     myBoss: me.boss ? { ...me.boss, bossLocked: !bossCanAttack } : null,
     myField: (me.field || []).map((c) => (c ? { ...c } : null)),
     replacementsUsed: me.replacementsUsed,
