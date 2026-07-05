@@ -451,39 +451,79 @@ export default function BattleView({
     const boss = player.boss;
     const field = player.field || [];
 
-    const bossSlot = boss && (
-      <div className="boss-slot">
-        <div className="boss-side">
-          {renderFieldSlot(boss, 'boss', isPlayer, {
-            bossLocked: isPlayer ? !bossCanAttack : !opponentBossCanAttack,
-            bossProtected: aliveFighters > 0,
-          })}
-          {isPlayer && boss.alive && !winnerId && renderBossMagicActions(bossAbilitiesUsed, true)}
-          {!isPlayer && boss.alive && renderBossMagicActions(player.bossAbilitiesUsed, false)}
+    const renderFighterAt = (index) => {
+      const card = field[index];
+      if (!card) return null;
+      return (
+        <div key={`fighter-pos-${index}`} className={`fighter-grid-pos fighter-pos-${index}`}>
+          {renderFieldSlot(card, index, isPlayer)}
         </div>
+      );
+    };
+
+    const edgeSlots = (
+      <div className="formation-edge-slots">
+        {field.map((card, i) => (
+          <div
+            key={`edge-slot-${i}`}
+            className={`formation-edge-slot${card ? ' formation-edge-inactive' : ''}`}
+          >
+            {card ? (
+              <div className="field-slot empty formation-edge-placeholder" aria-hidden="true">
+                <span>Empty slot</span>
+              </div>
+            ) : (
+              renderFieldSlot(null, i, isPlayer)
+            )}
+          </div>
+        ))}
       </div>
     );
 
-    const fighterColumn = (
-      <div className="fighter-column">
-        {field.map((card, i) => renderFieldSlot(card, i, isPlayer))}
+    const mainGrid = (
+      <div className="formation-main">
+        {boss && (
+          <div className="boss-slot formation-boss">
+            {renderFieldSlot(boss, 'boss', isPlayer, {
+              bossLocked: isPlayer ? !bossCanAttack : !opponentBossCanAttack,
+              bossProtected: aliveFighters > 0,
+            })}
+          </div>
+        )}
+        {renderFighterAt(0)}
+        {renderFighterAt(1)}
+        {renderFighterAt(2)}
       </div>
+    );
+
+    const showMagic = boss?.alive && (isPlayer ? !winnerId : true);
+    const magicActions = showMagic && (
+      isPlayer
+        ? renderBossMagicActions(bossAbilitiesUsed, true)
+        : renderBossMagicActions(player.bossAbilitiesUsed, false)
     );
 
     return (
-      <div className={`field-formation${isPlayer ? ' player-formation' : ' opponent-formation'}`}>
-        {isPlayer ? (
-          <>
-            {bossSlot}
-            {fighterColumn}
-          </>
-        ) : (
-          <>
-            {fighterColumn}
-            {bossSlot}
-          </>
+      <>
+        <div className={`field-formation${isPlayer ? ' player-formation' : ' opponent-formation'}`}>
+          {isPlayer ? (
+            <>
+              {edgeSlots}
+              {mainGrid}
+            </>
+          ) : (
+            <>
+              {mainGrid}
+              {edgeSlots}
+            </>
+          )}
+        </div>
+        {magicActions && (
+          <div className={`boss-magic-footer${isPlayer ? '' : ' boss-magic-footer-opponent'}`}>
+            {magicActions}
+          </div>
         )}
-      </div>
+      </>
     );
   };
 

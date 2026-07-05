@@ -565,11 +565,18 @@ input:focus {
 .field-formation {
   display: flex;
   flex-direction: row;
-  gap: 12px;
   align-items: flex-start;
-  justify-content: center;
-  min-height: calc(var(--card-height) * 3 + 20px);
+  gap: 10px;
+  min-height: calc(var(--card-height) * 2.5 + 30px);
   padding: 4px 0;
+}
+
+.player-formation {
+  justify-content: flex-start;
+}
+
+.opponent-formation {
+  justify-content: flex-end;
 }
 
 .player-zone.boss-phase .field-formation {
@@ -577,27 +584,85 @@ input:focus {
   align-items: center;
 }
 
-.boss-slot {
-  flex-shrink: 0;
-}
-
-.boss-side {
-  flex-shrink: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-}
-
-.boss-side .game-card:hover:not(.disabled) {
-  transform: none;
-}
-
-.fighter-column {
+.formation-edge-slots {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  align-items: center;
+  flex-shrink: 0;
+}
+
+.formation-edge-inactive .formation-edge-placeholder {
+  opacity: 0.35;
+  pointer-events: none;
+}
+
+.formation-main {
+  display: grid;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.player-formation .formation-main {
+  grid-template-columns: var(--card-width) var(--card-width);
+  grid-template-rows: auto auto auto;
+}
+
+.player-formation .formation-boss {
+  grid-column: 1 / -1;
+  justify-self: center;
+}
+
+.player-formation .fighter-pos-0 {
+  grid-column: 1;
+  grid-row: 2;
+}
+
+.player-formation .fighter-pos-1 {
+  grid-column: 2;
+  grid-row: 2;
+}
+
+.player-formation .fighter-pos-2 {
+  grid-column: 2;
+  grid-row: 3;
+}
+
+.opponent-formation .formation-main {
+  grid-template-columns: var(--card-width) var(--card-width);
+  grid-template-rows: auto auto auto;
+}
+
+.opponent-formation .formation-boss {
+  grid-column: 1 / -1;
+  justify-self: center;
+}
+
+.opponent-formation .fighter-pos-0 {
+  grid-column: 1;
+  grid-row: 2;
+}
+
+.opponent-formation .fighter-pos-1 {
+  grid-column: 1;
+  grid-row: 3;
+}
+
+.opponent-formation .fighter-pos-2 {
+  grid-column: 2;
+  grid-row: 2;
+}
+
+.boss-magic-footer {
+  display: flex;
+  justify-content: flex-start;
+  margin-top: 2px;
+}
+
+.boss-magic-footer-opponent {
+  justify-content: flex-end;
+}
+
+.boss-slot {
   flex-shrink: 0;
 }
 
@@ -610,7 +675,7 @@ input:focus {
 }
 
 .boss-card-slot {
-  height: auto;
+  height: var(--card-height);
   min-height: var(--card-height);
 }
 
