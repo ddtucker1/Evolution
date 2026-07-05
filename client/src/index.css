@@ -488,17 +488,169 @@ input:focus {
 .player-zone {
   background: var(--bg-elevated);
   border-radius: var(--radius);
-  padding: 16px;
+  padding: 12px;
   border: 1px solid var(--border);
   position: relative;
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.player-zone.boss-phase {
+  padding-top: 10px;
+  padding-bottom: 10px;
 }
 
 .player-zone h3 {
   font-family: var(--font-display);
   color: var(--accent-gold);
-  margin-bottom: 12px;
+  margin: 0;
   font-size: 1rem;
+}
+
+.zone-player h3 {
+  text-align: left;
+}
+
+.zone-opponent h3 {
+  text-align: right;
+}
+
+.zone-battle-row {
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  gap: 10px;
+}
+
+.zone-battle-row-opponent {
+  justify-content: flex-end;
+}
+
+.drawn-cards-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex-shrink: 0;
+  width: var(--card-width);
+}
+
+.drawn-cards-wrap-opponent {
+  align-items: flex-end;
+}
+
+.drawn-cards-column {
+  display: grid;
+  grid-template-rows: repeat(3, minmax(var(--card-height), 1fr));
+  width: 100%;
+  gap: 10px;
+  align-content: start;
+}
+
+.drawn-cards-player {
+  align-items: flex-end;
+}
+
+.drawn-cards-opponent {
+  align-items: flex-start;
+}
+
+.drawn-cards-label {
+  font-size: 11px;
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+.drawn-cards-wrap .replace-hint {
+  font-size: 10px;
+  margin: 0;
+  line-height: 1.3;
+}
+
+.drawn-card-slot {
+  display: flex;
+  flex-direction: column;
+  align-items: inherit;
+  justify-content: center;
+  min-height: var(--card-height);
+  gap: 6px;
+}
+
+.drawn-card-overflow {
+  margin-top: 4px;
+}
+
+.formation-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: repeat(3, minmax(var(--card-height), 1fr));
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+  align-items: center;
+}
+
+.formation-grid.boss-phase-grid {
+  grid-template-columns: 1fr;
+  grid-template-rows: minmax(var(--card-height), 1fr);
+  justify-items: center;
+}
+
+.formation-grid.boss-phase-grid .grid-cell-boss {
+  grid-column: 1;
+  grid-row: 1;
+  justify-content: center;
+}
+
+.formation-grid.boss-phase-grid .grid-cell-fighter {
+  display: none;
+}
+
+/* Player: deck/boss/abilities left, fighters right */
+.player-formation .grid-cell-deck { grid-column: 1; grid-row: 1; }
+.player-formation .grid-cell-boss { grid-column: 1; grid-row: 2; }
+.player-formation .grid-cell-abilities { grid-column: 1; grid-row: 3; }
+.player-formation .grid-cell-fighter-0 { grid-column: 2; grid-row: 1; }
+.player-formation .grid-cell-fighter-1 { grid-column: 2; grid-row: 2; }
+.player-formation .grid-cell-fighter-2 { grid-column: 2; grid-row: 3; }
+
+/* NPC mirrored: fighters left, deck/boss/abilities right */
+.opponent-formation .grid-cell-deck { grid-column: 2; grid-row: 1; }
+.opponent-formation .grid-cell-boss { grid-column: 2; grid-row: 2; }
+.opponent-formation .grid-cell-abilities { grid-column: 2; grid-row: 3; }
+.opponent-formation .grid-cell-fighter-0 { grid-column: 1; grid-row: 1; }
+.opponent-formation .grid-cell-fighter-1 { grid-column: 1; grid-row: 2; }
+.opponent-formation .grid-cell-fighter-2 { grid-column: 1; grid-row: 3; }
+
+.grid-cell {
+  display: flex;
+  align-items: center;
+  min-height: var(--card-height);
+}
+
+.player-formation .grid-cell-deck,
+.player-formation .grid-cell-boss,
+.player-formation .grid-cell-fighter {
+  justify-content: flex-start;
+}
+
+.player-formation .grid-cell-abilities {
+  justify-content: center;
+  align-items: flex-start;
+  padding-top: 4px;
+}
+
+.opponent-formation .grid-cell-deck,
+.opponent-formation .grid-cell-boss,
+.opponent-formation .grid-cell-fighter {
+  justify-content: flex-end;
+}
+
+.opponent-formation .grid-cell-abilities {
+  justify-content: center;
+  align-items: flex-start;
+  padding-top: 4px;
 }
 
 .field-cards {
@@ -506,35 +658,6 @@ input:focus {
   flex-wrap: wrap;
   gap: 10px;
   justify-content: center;
-}
-
-.field-formation {
-  display: flex;
-  flex-direction: row;
-  gap: 16px;
-  align-items: center;
-  justify-content: center;
-  min-height: var(--card-height);
-  padding: 8px 0;
-}
-
-.boss-side {
-  flex-shrink: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-}
-
-.boss-side .game-card:hover:not(.disabled) {
-  transform: translateY(-2px);
-}
-
-.fighter-column {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  align-items: center;
 }
 
 .hand-area {
@@ -551,6 +674,26 @@ input:focus {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+}
+
+/* Battlefield cards stay fixed — only shake on death */
+.battlefield .game-card:hover:not(.disabled) {
+  transform: none;
+  border-color: var(--border);
+}
+
+.battlefield .game-card.attacking {
+  animation: none;
+  z-index: 2;
+  box-shadow: 0 0 12px rgba(212, 168, 83, 0.45);
+}
+
+.battlefield .game-card.hit {
+  animation: hit-flash 0.4s ease-in-out infinite;
+}
+
+.battlefield .game-card.dying {
+  animation: card-death-sequence 6s ease-in-out forwards !important;
 }
 
 .battle-log {
@@ -1280,9 +1423,13 @@ input:focus {
   width: 100%;
 }
 
+.opponent-formation .deck-draw-zone {
+  justify-content: flex-end;
+}
+
 .deck-pile {
   width: 100%;
-  max-width: 140px;
+  max-width: var(--card-width);
   padding: 7px 8px;
   background: var(--bg-elevated);
   border: 1px solid var(--border);
@@ -1300,6 +1447,12 @@ input:focus {
 
 .deck-pile.draw-ready:hover {
   transform: translateY(-1px);
+}
+
+.deck-pile-opponent {
+  cursor: default;
+  pointer-events: none;
+  opacity: 0.85;
 }
 
 .deck-pile-label {
@@ -1379,6 +1532,7 @@ input:focus {
   gap: 6px;
   width: 100%;
   max-width: 130px;
+  align-items: stretch;
 }
 
 .boss-magic-btn {
@@ -1479,14 +1633,17 @@ input:focus {
   display: flex;
   align-items: center;
   gap: 6px;
-}
-
-.field-card-row.opponent-side {
-  flex-direction: row;
+  width: 100%;
 }
 
 .field-card-row.player-side {
   flex-direction: row;
+  justify-content: flex-start;
+}
+
+.field-card-row.opponent-side {
+  flex-direction: row;
+  justify-content: flex-end;
 }
 
 .card-status-effects {
