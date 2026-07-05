@@ -1,4 +1,4 @@
-import { getLevelDigit } from '../evolveEngine';
+import { getLevelDigit } from '../combineEngine';
 
 export default function GameCard({
   card,
@@ -98,9 +98,16 @@ export default function GameCard({
         </div>
         <div>ATK: {Math.round(card.attack ?? 0)}</div>
         <div className="card-ability-slot">
-          {card.ability?.label && (
-            <span className="card-ability">{card.ability.label}</span>
-          )}
+          {(card.abilities?.length
+            ? card.abilities
+            : card.ability?.label
+              ? [card.ability]
+              : []
+          ).map((ability) => (
+            <span key={ability.id || ability.label} className="card-ability">
+              {ability.label}
+            </span>
+          ))}
         </div>
         <div className="stat-row">
           <span className="timer-stat">Timer: {timerLabel}</span>
