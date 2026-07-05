@@ -16,8 +16,8 @@
   --font-body: 'Inter', sans-serif;
   --card-width: 160px;
   --card-height: 183px;
-  --player-zone-width: calc(5 * var(--card-width));
-  --player-zone-height: calc(5 * var(--card-height));
+  --player-zone-width: calc(4.5 * var(--card-width));
+  --player-zone-height: calc(4.5 * var(--card-height));
 }
 
 * {
@@ -502,8 +502,25 @@ input:focus {
 
 @media (min-width: 768px) {
   .battlefield {
-    grid-template-columns: 1fr 1fr;
+    display: block;
+    position: relative;
     align-items: stretch;
+  }
+
+  .player-zone.zone-player {
+    position: fixed;
+    right: calc(50vw + 10px);
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 1;
+  }
+
+  .player-zone.zone-opponent {
+    position: fixed;
+    left: calc(50vw + 10px);
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 1;
   }
 }
 
