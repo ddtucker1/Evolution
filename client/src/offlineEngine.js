@@ -814,6 +814,7 @@ function completeAttackAnimation(game) {
     let vampKill = null;
     for (const attackerRef of attackerRefs) {
       attackerRef.card.cooldownElapsed = 0;
+      if (anim.isChainAttack) continue;
       const abilities = getCardAbilities(attackerRef.card);
       inflictCarriedEffects(defenderRef.card, abilities);
       for (const ability of abilities) {

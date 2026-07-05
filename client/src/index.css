@@ -16,6 +16,8 @@
   --font-body: 'Inter', sans-serif;
   --card-width: 160px;
   --card-height: 183px;
+  --player-zone-width: calc(5 * var(--card-width));
+  --player-zone-height: calc(5 * var(--card-height));
 }
 
 * {
@@ -515,7 +517,11 @@ input:focus {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  min-width: 0;
+  width: var(--player-zone-width);
+  height: var(--player-zone-height);
+  min-width: var(--player-zone-width);
+  min-height: var(--player-zone-height);
+  flex-shrink: 0;
 }
 
 .zone-player .replace-hint {
