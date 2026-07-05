@@ -674,13 +674,16 @@ function inflictCarriedEffects(target, abilities) {
   if (!target.carriedEffects) target.carriedEffects = [];
   const existing = new Set(target.carriedEffects.map((e) => e.id));
   for (const ability of abilities) {
-    if (ability.effect === 'dazed_solo_attack') continue;
+    if (ability.effect === 'dazed_solo_attack' || ability.effect === 'vamp_steal') continue;
     if (!ability.id || existing.has(ability.id)) continue;
     target.carriedEffects.push({
       id: ability.id,
       name: getAbilityDisplayName(ability),
+      effect: ability.effect,
+      strength: getAbilityStrength(ability),
     });
     existing.add(ability.id);
+    target.periodicElapsed = 0;
   }
 }
 
@@ -695,75 +698,79 @@ function applyHealthDrain(card, amount = 1) {
   return false;
 }
 
-function applyPeriodicAbility(game, owner, opponent, sourceCard, ability) {
+function getAdjacentOpponentCards(game, card) {
+  const ref = findFieldCard(game, card.instanceId);
+  if (!ref) return [];
+  const slot = getFieldSlotIndex(ref.player, card);
+  if (slot < 0) return [];
+  const opponent = game.players.find((p) => p.id !== ref.player.id);
+  return getAdjacentFieldSlotIndices(slot)
+    .map((adj) => opponent.field?.[adj])
+    .filter((c) => c?.alive);
+}
+
+function applyVampSteal(game, owner, sourceCard, ability) {
+  const opponent = game.players.find((p) => p.id !== owner.id);
   const strength = getAbilityStrength(ability);
-  switch (ability.effect) {
+  const victim = pickRandomAlive(getAliveFieldFighters(opponent));
+  if (!victim) return false;
+  const killed = applyHealthDrain(victim, strength);
+  const needy = getAliveFieldFighters(owner).filter((c) => c.hp < c.maxHp);
+  const healTarget = pickRandomAlive(needy);
+  if (healTarget) {
+    healTarget.hp = Math.min(healTarget.maxHp, healTarget.hp + strength);
+  }
+  if (killed) game.log.push(`${sourceCard.name}'s Vamp defeated ${victim.name}`);
+  return killed ? victim : false;
+}
+
+function applyCarriedEffectTick(game, card, carried) {
+  const strength = carried.strength || 1;
+  switch (carried.effect) {
     case 'health_drain_enemy': {
-      const target = pickRandomAlive(getAliveFieldFighters(opponent));
-      if (!target) return false;
-      const killed = applyHealthDrain(target, strength);
-      if (killed) game.log.push(`${sourceCard.name}'s ${ability.id} defeated ${target.name}`);
-      return killed ? target : false;
+      const killed = applyHealthDrain(card, strength);
+      if (killed) game.log.push(`${card.name} succumbed to ${carried.name}`);
+      return killed ? card : false;
     }
     case 'defense_drain_enemy': {
-      const target = pickRandomAlive(getAliveFieldFighters(opponent));
-      if (!target) return false;
-      target.defense = Math.max(0, target.defense - strength);
+      card.defense = Math.max(0, card.defense - strength);
       return false;
     }
     case 'fire_adjacent_enemies': {
-      const slot = getFieldSlotIndex(owner, sourceCard);
-      if (slot < 0) return false;
       let killedCard = null;
-      for (const adj of getAdjacentFieldSlotIndices(slot)) {
-        const target = opponent.field?.[adj];
-        if (target?.alive) {
-          if (applyHealthDrain(target, strength)) killedCard = target;
-        }
+      for (const target of getAdjacentOpponentCards(game, card)) {
+        if (applyHealthDrain(target, strength)) killedCard = target;
       }
       if (killedCard) {
-        game.log.push(`${sourceCard.name}'s Fire defeated ${killedCard.name}`);
+        game.log.push(`${card.name}'s Fire defeated ${killedCard.name}`);
         return killedCard;
       }
       return false;
     }
     case 'timer_increase_enemy': {
-      const target = pickRandomAlive(getAliveFieldFighters(opponent));
-      if (!target) return false;
-      target.cooldown = (target.cooldown || 0) + strength;
+      card.cooldown = (card.cooldown || 0) + strength;
       return false;
-    }
-    case 'vamp_steal': {
-      const victim = pickRandomAlive(getAliveFieldFighters(opponent));
-      if (!victim) return false;
-      const killed = applyHealthDrain(victim, strength);
-      const needy = getAliveFieldFighters(owner).filter((c) => c.hp < c.maxHp);
-      const healTarget = pickRandomAlive(needy);
-      if (healTarget) {
-        healTarget.hp = Math.min(healTarget.maxHp, healTarget.hp + strength);
-      }
-      if (killed) game.log.push(`${sourceCard.name}'s Vamp defeated ${victim.name}`);
-      return killed ? victim : false;
     }
     default:
       return false;
   }
 }
 
-function processPeriodicAbilities(game) {
+function processCarriedEffectTicks(game) {
   if (isBattlePaused(game)) return false;
 
   for (const owner of game.players) {
-    const opponent = game.players.find((p) => p.id !== owner.id);
     for (const card of getFieldCards(owner)) {
       if (!card?.alive) continue;
+      const effects = card.carriedEffects || [];
+      if (!effects.length) continue;
+
       card.periodicElapsed = (card.periodicElapsed || 0) + 1;
       if (card.periodicElapsed < COMBINE_TICK_INTERVAL) continue;
       card.periodicElapsed = 0;
 
-      for (const ability of getCardAbilities(card)) {
-        if (ability.effect === 'dazed_solo_attack') continue;
-        const killedCard = applyPeriodicAbility(game, owner, opponent, card, ability);
+      for (const carried of effects) {
+        const killedCard = applyCarriedEffectTick(game, card, carried);
         if (killedCard) return triggerPoisonDeath(game, killedCard);
       }
     }
@@ -804,14 +811,28 @@ function completeAttackAnimation(game) {
       defenderRef.card.hp = 0;
       defenderRef.card.alive = false;
     }
+    let vampKill = null;
     for (const attackerRef of attackerRefs) {
       attackerRef.card.cooldownElapsed = 0;
-      inflictCarriedEffects(defenderRef.card, getCardAbilities(attackerRef.card));
+      const abilities = getCardAbilities(attackerRef.card);
+      inflictCarriedEffects(defenderRef.card, abilities);
+      for (const ability of abilities) {
+        if (ability.effect !== 'vamp_steal') continue;
+        const vampVictim = applyVampSteal(game, attackerRef.player, attackerRef.card, ability);
+        if (vampVictim) vampKill = vampVictim;
+      }
     }
 
     if (killed) {
       game.deathAnimation = {
         instanceId: defenderRef.card.instanceId,
+        durationMs: DEATH_ANIMATION_MS,
+        shakeMs: DEATH_SHAKE_MS,
+        startedAt: Date.now(),
+      };
+    } else if (vampKill) {
+      game.deathAnimation = {
+        instanceId: vampKill.instanceId,
         durationMs: DEATH_ANIMATION_MS,
         shakeMs: DEATH_SHAKE_MS,
         startedAt: Date.now(),
@@ -1119,7 +1140,7 @@ function startTicks(game) {
 
     processEffectExpiry(game);
 
-    if (processPeriodicAbilities(game)) {
+    if (processCarriedEffectTicks(game)) {
       const w = checkWinner(game.players[0], game.players[1]);
       if (w) finishOffline(game, w);
       return;
