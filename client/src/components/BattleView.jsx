@@ -427,67 +427,49 @@ export default function BattleView({
     );
   };
 
-  const renderDrawnCardsColumn = (hand, isPlayer) => {
+  const renderHandCardSlot = (row, hand, isPlayer) => {
     const interactive = isPlayer && !isBossOnlySide(isPlayer);
     const fadingAway = isBossOnlySide(isPlayer);
-    const rowSlots = [0, 1, 2];
+    const card = hand?.[row];
+    const overflowCards = row === 2 ? (hand?.slice(3) || []) : [];
 
     return (
-      <div className={`drawn-cards-wrap${isPlayer ? ' drawn-cards-wrap-player' : ' drawn-cards-wrap-opponent'}${fadingAway ? ' fade-away' : ''}`}>
-        {interactive && hand?.length > 0 && (
-          <>
-            <h4 className="drawn-cards-label">Your Hand</h4>
-            {(replaceMode || selectedSlot != null) && (
-              <p className="replace-hint">
-                {replaceMode
-                  ? 'Select an empty field slot to deploy'
-                  : `Slot ${selectedSlot + 1} selected — tap a hand card to deploy`}
-              </p>
+      <div
+        key={`hand-${row}`}
+        className={`grid-cell grid-cell-hand grid-cell-hand-${row}${fadingAway ? ' fade-away' : ''}`}
+      >
+        {card && (
+          <div className="hand-card-wrap">
+            <GameCard
+              card={card}
+              selected={interactive && (replaceMode?.handCardId === card.instanceId || selectedSlot != null)}
+              showCooldown
+              hideStatusEffects
+              disabled={interactive ? battleEnded : true}
+              isFadingAway={fadingAway}
+              onClick={interactive ? () => handleHandCardClick(card) : undefined}
+            />
+            {interactive && replacementsUsed < maxReplacements && (
+              <span className="hand-card-label">Deploy</span>
             )}
-          </>
+          </div>
         )}
-        <div className={`drawn-cards-column${isPlayer ? ' drawn-cards-player' : ' drawn-cards-opponent'}`}>
-          {rowSlots.map((row) => {
-            const card = hand?.[row];
-            const overflowCards = row === 2 ? (hand?.slice(3) || []) : [];
-            return (
-              <div key={row} className="drawn-card-slot">
-                {card && (
-                  <div className="hand-card-wrap">
-                    <GameCard
-                      card={card}
-                      selected={interactive && (replaceMode?.handCardId === card.instanceId || selectedSlot != null)}
-                      showCooldown
-                      hideStatusEffects
-                      disabled={interactive ? battleEnded : true}
-                      isFadingAway={fadingAway}
-                      onClick={interactive ? () => handleHandCardClick(card) : undefined}
-                    />
-                    {interactive && replacementsUsed < maxReplacements && (
-                      <span className="hand-card-label">Deploy</span>
-                    )}
-                  </div>
-                )}
-                {overflowCards.map((overflowCard) => (
-                  <div key={overflowCard.instanceId} className="hand-card-wrap drawn-card-overflow">
-                    <GameCard
-                      card={overflowCard}
-                      selected={interactive && (replaceMode?.handCardId === overflowCard.instanceId || selectedSlot != null)}
-                      showCooldown
-                      hideStatusEffects
-                      disabled={interactive ? battleEnded : true}
-                      isFadingAway={fadingAway}
-                      onClick={interactive ? () => handleHandCardClick(overflowCard) : undefined}
-                    />
-                    {interactive && replacementsUsed < maxReplacements && (
-                      <span className="hand-card-label">Deploy</span>
-                    )}
-                  </div>
-                ))}
-              </div>
-            );
-          })}
-        </div>
+        {overflowCards.map((overflowCard) => (
+          <div key={overflowCard.instanceId} className="hand-card-wrap drawn-card-overflow">
+            <GameCard
+              card={overflowCard}
+              selected={interactive && (replaceMode?.handCardId === overflowCard.instanceId || selectedSlot != null)}
+              showCooldown
+              hideStatusEffects
+              disabled={interactive ? battleEnded : true}
+              isFadingAway={fadingAway}
+              onClick={interactive ? () => handleHandCardClick(overflowCard) : undefined}
+            />
+            {interactive && replacementsUsed < maxReplacements && (
+              <span className="hand-card-label">Deploy</span>
+            )}
+          </div>
+        ))}
       </div>
     );
   };
@@ -504,8 +486,9 @@ export default function BattleView({
         : renderBossMagicActions(player.bossAbilitiesUsed, false)
     );
 
-    const formationGrid = (
+    return (
       <div className={`formation-grid${isPlayer ? ' player-formation' : ' opponent-formation'}`}>
+        {[0, 1, 2].map((row) => renderHandCardSlot(row, hand, isPlayer))}
         <div className="grid-cell grid-cell-deck">
           {renderDeckPile(isPlayer)}
         </div>
@@ -527,14 +510,6 @@ export default function BattleView({
             {renderFieldSlot(card, i, isPlayer)}
           </div>
         ))}
-      </div>
-    );
-
-    return (
-      <div className={`zone-battle-row${isPlayer ? ' zone-battle-row-player' : ' zone-battle-row-opponent'}`}>
-        {isPlayer && renderDrawnCardsColumn(hand, true)}
-        {formationGrid}
-        {!isPlayer && renderDrawnCardsColumn(hand, false)}
       </div>
     );
   };
@@ -645,39 +620,42 @@ export default function BattleView({
 
   const battleLogEntries = log || [];
 
+  const statusLabel = gamePaused
+    ? 'Paused'
+    : bossPhase
+      ? 'Boss Phase'
+      : `Replacements: ${replacementsUsed}/${maxReplacements}`;
+
   return (
     <div className="battle-screen">
-      <div className="battle-top-bar">
-        <div className="battle-top-bar-left">
-          <button className="btn-secondary" onClick={onMainMenu}>Main Menu</button>
-          {phase === 'battle' && (
-            <button
-              type="button"
-              className={`btn-secondary battle-pause-btn${gamePaused ? ' battle-pause-btn-active' : ''}`}
-              onClick={onTogglePause}
-              disabled={!!winnerId}
-            >
-              {gamePaused ? 'Resume' : 'Pause'}
-            </button>
-          )}
-        </div>
-        <span className="replacement-counter">
-          {gamePaused ? 'Paused' : bossPhase ? 'Boss Phase' : `Replacements: ${replacementsUsed}/${maxReplacements}`}
-        </span>
-      </div>
-
       <div className="battle-layout">
         {phase === 'battle' && (
-          <aside className="battle-log-panel" aria-label="Battle log">
-            <h4 className="battle-log-title">Battle Log</h4>
-            <div className="battle-log-lines">
-              {battleLogEntries.length === 0 ? (
-                <p className="battle-log-empty">No events yet.</p>
-              ) : (
-                battleLogEntries.map((entry, index) => (
-                  <p key={`${index}-${entry}`}>{entry}</p>
-                ))
-              )}
+          <aside className="battle-sidebar" aria-label="Battle controls and log">
+            <div className="battle-sidebar-controls">
+              <button type="button" className="btn-secondary battle-quit-btn" onClick={onMainMenu}>
+                Quit
+              </button>
+              <button
+                type="button"
+                className={`btn-secondary battle-pause-btn${gamePaused ? ' battle-pause-btn-active' : ''}`}
+                onClick={onTogglePause}
+                disabled={!!winnerId}
+              >
+                {gamePaused ? 'Resume' : 'Pause'}
+              </button>
+            </div>
+            <span className="battle-status-label">{statusLabel}</span>
+            <div className="battle-log-panel">
+              <h4 className="battle-log-title">Battle Log</h4>
+              <div className="battle-log-lines">
+                {battleLogEntries.length === 0 ? (
+                  <p className="battle-log-empty">No events yet.</p>
+                ) : (
+                  battleLogEntries.map((entry, index) => (
+                    <p key={`${index}-${entry}`}>{entry}</p>
+                  ))
+                )}
+              </div>
             </div>
           </aside>
         )}
@@ -709,7 +687,13 @@ export default function BattleView({
         )}
         <div className={`player-zone zone-player${winnerId && winnerId !== me?.id && winnerId !== 'player' ? ' blood-splattered' : ''}`}>
           {winnerId && winnerId !== me?.id && winnerId !== 'player' && <BloodSplatter />}
-          <h3>Your Battlefield</h3>
+          {(replaceMode || selectedSlot != null) && (
+            <p className="replace-hint">
+              {replaceMode
+                ? 'Select an empty field slot to deploy'
+                : `Slot ${selectedSlot + 1} selected — tap a hand card to deploy`}
+            </p>
+          )}
           {renderBattlefield(myPlayer, true)}
           {!bossCanAttack && myPlayer.boss?.alive && (
             <p className="boss-hint">Boss locked until all 3 fighters are defeated</p>
@@ -718,7 +702,6 @@ export default function BattleView({
 
         <div className={`player-zone zone-opponent${winnerId && (winnerId === me?.id || winnerId === 'player') ? ' blood-splattered' : ''}`}>
           {winnerId && (winnerId === me?.id || winnerId === 'player') && <BloodSplatter />}
-          <h3>{oppPlayer?.username || 'CPU Opponent'}</h3>
           {renderBattlefield(oppPlayer || { boss: null, field: [null, null, null] }, false)}
           {oppAliveFighters > 0 && oppPlayer?.boss?.alive && (
             <p className="boss-hint">Boss protected behind fighters</p>
