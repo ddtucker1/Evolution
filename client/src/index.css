@@ -1152,14 +1152,28 @@ input:focus {
 .library-card-wrap {
   position: relative;
   cursor: pointer;
-  transition: transform 0.15s;
+  border-radius: var(--radius);
 }
 
-.library-card-wrap.in-deck {
-  transform: scale(0.98);
+.library-card-wrap .game-card:hover:not(.disabled) {
+  border-color: var(--border);
+  transform: none;
 }
 
-.library-card-wrap.full:not(.in-deck) {
+.library-card-wrap.selected {
+  animation: library-selected-pulse 2.5s ease-in-out infinite;
+}
+
+@keyframes library-selected-pulse {
+  0%, 100% {
+    box-shadow: 0 0 6px rgba(212, 168, 83, 0.2);
+  }
+  50% {
+    box-shadow: 0 0 12px rgba(212, 168, 83, 0.35);
+  }
+}
+
+.library-card-wrap.full:not(.selected) {
   opacity: 0.45;
   cursor: not-allowed;
 }
@@ -1238,16 +1252,6 @@ input:focus {
 .evolve-counter {
   color: var(--accent-purple);
   border: 1px solid var(--accent-purple);
-}
-
-.library-card-wrap.evolve-selected {
-  transform: scale(0.98);
-  outline: 2px solid var(--accent-purple);
-  border-radius: var(--radius);
-}
-
-.library-card-wrap.evolved-card .game-card {
-  border-color: var(--accent-purple);
 }
 
 .evolved-badge {
