@@ -116,7 +116,7 @@ export default function BattleView({
     setTargetMode({
       step: 'chain-partners',
       attacker: targetMode.attacker,
-      partners: otherReady.length === 1 ? [otherReady[0].instanceId] : [],
+      partners: otherReady.map((c) => c.instanceId),
     });
   };
 
