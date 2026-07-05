@@ -81,6 +81,7 @@ export default function GameCard({
 
   return (
     <div className={classes} onClick={disabled ? undefined : onClick}>
+      {isReady && <div className="timer-fire-ring" aria-hidden="true" />}
       {card.role && !hideRole && <span className="card-role">{card.role}</span>}
       <div className="card-name-row">
         <div className="card-name">{card.name}</div>
