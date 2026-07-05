@@ -52,6 +52,7 @@ export default function App() {
 
   const handleStartBattle = () => {
     if (!battleReady) return;
+    if (offlineGameRef.current) clearBattleAnimations(offlineGameRef.current);
     stopTicks();
     const deck = getPlayDeckIds(profile);
     registerEvolvedCards(profile.evolvedCards || []);
