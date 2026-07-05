@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "tickIntervalSeconds": 8,
   "statFormula": "average",
   "statBonus": {
@@ -12,39 +12,29 @@
     {
       "inputLevel": 0,
       "outputLevel": 1,
-      "description": "Two basic cards combine into Level 1 with one extra ability.",
-      "abilityPicks": [
-        { "action": "randomFromPool", "tier": 0, "count": 1 }
-      ]
+      "description": "Two basic cards combine into Level 1 with one random special ability.",
+      "requiresAbilityChoice": false
     },
     {
       "inputLevel": 1,
       "outputLevel": 2,
-      "description": "Two Level 1 cards combine into Level 2, keeping one parent ability and gaining a second.",
-      "abilityPicks": [
-        { "action": "randomFromParents", "tier": 0, "count": 1 },
-        { "action": "randomFromPool", "tier": 1, "count": 1 }
-      ]
+      "description": "Two Level 1 cards combine into Level 2. Upgrade your current ability (double strength, add \"2\" to the name) or gain a new Level 2 ability.",
+      "requiresAbilityChoice": true,
+      "newAbilityTier": 1
     },
     {
       "inputLevel": 2,
       "outputLevel": 3,
-      "description": "Two Level 2 cards combine into Level 3 with parent abilities plus a new top-tier ability.",
-      "abilityPicks": [
-        { "action": "randomFromParents", "tier": 0, "count": 1 },
-        { "action": "randomFromParents", "tier": 1, "count": 1 },
-        { "action": "randomFromPool", "tier": 2, "count": 1 }
-      ]
+      "description": "Two Level 2 cards combine into Level 3. Upgrade your current ability or gain a new top-tier ability.",
+      "requiresAbilityChoice": true,
+      "newAbilityTier": 2
     },
     {
       "inputLevel": 3,
       "outputLevel": 3,
-      "description": "Two Level 3 cards combine into a refined Level 3 card with one ability from each tier.",
-      "abilityPicks": [
-        { "action": "randomFromParents", "tier": 0, "count": 1 },
-        { "action": "randomFromParents", "tier": 1, "count": 1 },
-        { "action": "randomFromParents", "tier": 2, "count": 1 }
-      ]
+      "description": "Two Level 3 cards combine into a refined Level 3 card. Upgrade your current ability or gain a new top-tier ability.",
+      "requiresAbilityChoice": true,
+      "newAbilityTier": 2
     }
   ],
   "abilities": [

@@ -54,17 +54,153 @@ function getCardTimer(card) {
 
 export function getCardAbilities(card) {
   if (!card) return [];
-  if (Array.isArray(card.abilities) && card.abilities.length) return card.abilities;
-  if (card.ability?.id || card.ability?.type) {
+  let abilities = [];
+  if (Array.isArray(card.abilities) && card.abilities.length) {
+    abilities = card.abilities;
+  } else if (card.ability?.id || card.ability?.type) {
     const legacyId = card.ability.id || card.ability.type;
     const entry = buildAbilityEntry(legacyId);
-    return entry ? [entry] : [];
+    if (entry) abilities = [entry];
   }
-  return [];
+  return abilities.slice(0, 1);
 }
 
-function getAbilitiesByTier(card, tier) {
-  return getCardAbilities(card).filter((a) => a.tier === tier);
+function getPrimaryAbility(card) {
+  return getCardAbilities(card)[0] || null;
+}
+
+function pickParentAbility(card1, card2, seed, deterministic) {
+  const candidates = [getPrimaryAbility(card1), getPrimaryAbility(card2)].filter(Boolean);
+  if (!candidates.length) return null;
+  return deterministic
+    ? seededPick(candidates, seed, 500)
+    : randomPick(candidates);
+}
+
+export function upgradeAbility(ability) {
+  if (!ability) return null;
+  const displayName = ability.name || getAbilityDisplayName(ability);
+  return {
+    ...ability,
+    name: `${displayName}2`,
+    strength: (ability.strength || 1) * 2,
+    upgraded: true,
+  };
+}
+
+function getNewAbilityTier(inputLevel) {
+  const rule = getLevelRule(inputLevel);
+  if (rule?.newAbilityTier != null) return rule.newAbilityTier;
+  return Math.min(inputLevel, 2);
+}
+
+function pickRandomAbilityFromTier(tier, seed, deterministic, salt = 400) {
+  const pool = getAbilityPoolForTier(tier)
+    .map((def) => buildAbilityEntry(def.id))
+    .filter(Boolean);
+  return deterministic
+    ? seededPick(pool, seed, salt)
+    : randomPick(pool);
+}
+
+function resolveSingleAbility(card1, card2, seed, deterministic, abilityChoice) {
+  const inputLevel = getCardLevel(card1);
+  const rule = getLevelRule(inputLevel);
+
+  if (!rule) return [];
+
+  if (inputLevel === 0) {
+    const choice = pickRandomAbilityFromTier(0, seed, deterministic);
+    return choice ? [choice] : [];
+  }
+
+  if (abilityChoice === 'upgrade') {
+    const parent = pickParentAbility(card1, card2, seed, deterministic);
+    const upgraded = parent ? upgradeAbility(parent) : null;
+    if (upgraded) return [upgraded];
+  }
+
+  const tier = getNewAbilityTier(inputLevel);
+  const choice = pickRandomAbilityFromTier(tier, seed, deterministic, 401);
+  return choice ? [choice] : [];
+}
+
+function computeOutputLevel(card1, card2) {
+  const level1 = getCardLevel(card1);
+  const level2 = getCardLevel(card2);
+  if (level1 !== level2) return null;
+  const rule = getLevelRule(level1);
+  if (!rule) return null;
+  return Math.min(rule.outputLevel, COMBINE_MAX_LEVEL);
+}
+
+export function canCombineCards(card1, card2) {
+  if (!card1 || !card2) return false;
+  return getCardLevel(card1) === getCardLevel(card2) && computeOutputLevel(card1, card2) != null;
+}
+
+export function needsAbilityChoice(card1, card2) {
+  if (!canCombineCards(card1, card2)) return false;
+  const rule = getLevelRule(getCardLevel(card1));
+  return Boolean(rule?.requiresAbilityChoice);
+}
+
+export function getCombineAbilityChoiceContext(card1, card2) {
+  if (!needsAbilityChoice(card1, card2)) return null;
+  const seed = [card1.id, card2.id].sort().join('|');
+  const inputLevel = getCardLevel(card1);
+  const upgradeSource = pickParentAbility(card1, card2, seed, true);
+  const upgradedPreview = upgradeSource ? upgradeAbility(upgradeSource) : null;
+  const newTier = getNewAbilityTier(inputLevel);
+  const newPool = getAbilityPoolForTier(newTier)
+    .map((def) => buildAbilityEntry(def.id))
+    .filter(Boolean);
+
+  return {
+    inputLevel,
+    outputLevel: computeOutputLevel(card1, card2),
+    upgradeSource,
+    upgradedPreview,
+    newAbilityTier: newTier,
+    newAbilityOptions: newPool.map((a) => a.name),
+  };
+}
+
+function buildCombinedCard(card1, card2, { deterministic = false, abilityChoice } = {}) {
+  const seed = [card1.id, card2.id].sort().join('|');
+  const inputLevel = getCardLevel(card1);
+  const level = computeOutputLevel(card1, card2);
+  if (level == null) return null;
+
+  const rule = getLevelRule(inputLevel);
+  if (!rule) return null;
+
+  if (rule.requiresAbilityChoice && !abilityChoice) return null;
+
+  let attack = averageStat(card1.attack, card2.attack);
+  let defense = averageStat(card1.defense, card2.defense);
+  let hp = averageStat(card1.hp, card2.hp);
+  let timer = averageStat(getCardTimer(card1), getCardTimer(card2));
+
+  const bonus = applyStatBonus({ attack, defense, hp }, seed, deterministic);
+  attack = bonus.stats.attack;
+  defense = bonus.stats.defense;
+  hp = bonus.stats.hp;
+
+  const abilities = resolveSingleAbility(card1, card2, seed, deterministic, abilityChoice);
+  const name = generateCardName({ attack, defense, hp, timer }, seed);
+
+  return {
+    attack,
+    defense,
+    hp,
+    timer,
+    level,
+    statBonus: bonus.statBonus,
+    abilities,
+    name,
+    parents: [card1.id, card2.id],
+  };
 }
 
 function applyStatBonus(stats, seed, deterministic) {
@@ -83,106 +219,20 @@ function applyStatBonus(stats, seed, deterministic) {
   return { stats: next, statBonus: { stat: choice, label } };
 }
 
-function collectParentAbilities(card1, card2, tier) {
-  return [...getAbilitiesByTier(card1, tier), ...getAbilitiesByTier(card2, tier)];
-}
-
-function pickAbilitiesForRule(rule, card1, card2, seed, deterministic) {
-  const picked = [];
-  const usedIds = new Set();
-
-  for (let i = 0; i < rule.abilityPicks.length; i++) {
-    const pick = rule.abilityPicks[i];
-    const salt = 400 + i * 17;
-
-    if (pick.action === 'randomFromPool') {
-      const pool = getAbilityPoolForTier(pick.tier)
-        .map((def) => buildAbilityEntry(def.id))
-        .filter((entry) => entry && !usedIds.has(entry.id));
-      const choice = deterministic
-        ? seededPick(pool, seed, salt)
-        : randomPick(pool);
-      if (choice) {
-        picked.push(choice);
-        usedIds.add(choice.id);
-      }
-      continue;
-    }
-
-    if (pick.action === 'randomFromParents') {
-      const parentPool = collectParentAbilities(card1, card2, pick.tier)
-        .filter((entry) => !usedIds.has(entry.id));
-      const choice = deterministic
-        ? seededPick(parentPool, seed, salt)
-        : randomPick(parentPool);
-      if (choice) {
-        picked.push(choice);
-        usedIds.add(choice.id);
-      }
-    }
-  }
-
-  return picked;
-}
-
-function computeOutputLevel(card1, card2) {
-  const level1 = getCardLevel(card1);
-  const level2 = getCardLevel(card2);
-  if (level1 !== level2) return null;
-  const rule = getLevelRule(level1);
-  if (!rule) return null;
-  return Math.min(rule.outputLevel, COMBINE_MAX_LEVEL);
-}
-
-export function canCombineCards(card1, card2) {
-  if (!card1 || !card2) return false;
-  return getCardLevel(card1) === getCardLevel(card2) && computeOutputLevel(card1, card2) != null;
-}
-
-function buildCombinedCard(card1, card2, { deterministic = false } = {}) {
-  const seed = [card1.id, card2.id].sort().join('|');
-  const inputLevel = getCardLevel(card1);
-  const level = computeOutputLevel(card1, card2);
-  if (level == null) return null;
-
-  const rule = getLevelRule(inputLevel);
-  if (!rule) return null;
-
-  let attack = averageStat(card1.attack, card2.attack);
-  let defense = averageStat(card1.defense, card2.defense);
-  let hp = averageStat(card1.hp, card2.hp);
-  let timer = averageStat(getCardTimer(card1), getCardTimer(card2));
-
-  const bonus = applyStatBonus({ attack, defense, hp }, seed, deterministic);
-  attack = bonus.stats.attack;
-  defense = bonus.stats.defense;
-  hp = bonus.stats.hp;
-
-  const abilities = pickAbilitiesForRule(rule, card1, card2, seed, deterministic);
-  const name = generateCardName({ attack, defense, hp, timer }, seed);
-
-  return {
-    attack,
-    defense,
-    hp,
-    timer,
-    level,
-    statBonus: bonus.statBonus,
-    abilities,
-    name,
-    parents: [card1.id, card2.id],
-  };
-}
-
-export function previewCombine(card1, card2) {
+export function previewCombine(card1, card2, options = {}) {
   if (!canCombineCards(card1, card2)) return null;
-  return buildCombinedCard(card1, card2, { deterministic: true });
+  const abilityChoice = options.abilityChoice
+    ?? (needsAbilityChoice(card1, card2) ? 'new' : undefined);
+  return buildCombinedCard(card1, card2, { deterministic: true, abilityChoice });
 }
 
-export function createCombinedCard(card1, card2) {
-  const preview = buildCombinedCard(card1, card2);
+export function createCombinedCard(card1, card2, options = {}) {
+  const { abilityChoice, deterministic = false } = options;
+  const preview = buildCombinedCard(card1, card2, { deterministic, abilityChoice });
   if (!preview) return null;
-  const suffix = Math.random().toString(36).slice(2, 8);
+  const suffix = deterministic
+    ? hashSeed([card1.id, card2.id, abilityChoice || 'auto'].sort().join('|')).toString(36)
+    : Math.random().toString(36).slice(2, 8);
   return {
     id: `evo_${Date.now()}_${suffix}`,
     name: preview.name,
@@ -218,6 +268,10 @@ export function getLevelLabel(level) {
 
 export function getLevelDigit(card) {
   return String(getCardLevel(card));
+}
+
+export function getAbilityStrength(ability) {
+  return ability?.strength || 1;
 }
 
 // Backward-compatible aliases

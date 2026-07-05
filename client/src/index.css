@@ -1357,6 +1357,55 @@ input:focus {
   font-size: 13px;
 }
 
+.ability-choice-dialog {
+  max-width: 360px;
+  text-align: left;
+}
+
+.ability-choice-options {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.ability-choice-btn {
+  width: 100%;
+  padding: 12px 14px;
+  border: 2px solid var(--accent-purple);
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text-primary);
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.ability-choice-btn:hover:not(:disabled) {
+  border-color: var(--accent-gold);
+  background: rgba(255, 215, 0, 0.06);
+}
+
+.ability-choice-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.ability-choice-title {
+  display: block;
+  font-family: var(--font-display);
+  color: var(--accent-gold);
+  font-size: 14px;
+  margin-bottom: 4px;
+}
+
+.ability-choice-detail {
+  display: block;
+  font-size: 12px;
+  color: var(--text-secondary);
+  line-height: 1.4;
+}
+
 .ability-text {
   font-size: 11px;
   color: var(--accent-purple);
