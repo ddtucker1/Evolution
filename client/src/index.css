@@ -713,6 +713,103 @@ input:focus {
   margin-bottom: 4px;
 }
 
+.battle-layout {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  align-items: stretch;
+}
+
+.battle-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.battle-log-panel {
+  --log-line-height: 18px;
+  flex: 0 0 auto;
+  background: var(--bg-dark);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.battle-log-title {
+  font-family: var(--font-display);
+  color: var(--accent-gold);
+  font-size: 0.85rem;
+  margin: 0;
+}
+
+.battle-log-lines {
+  height: calc(var(--log-line-height) * 20);
+  overflow-y: auto;
+  font-size: 12px;
+  line-height: var(--log-line-height);
+  color: var(--text-secondary);
+  scrollbar-width: thin;
+  scrollbar-color: var(--accent-purple) var(--bg-elevated);
+}
+
+.battle-log-lines::-webkit-scrollbar {
+  width: 8px;
+}
+
+.battle-log-lines::-webkit-scrollbar-track {
+  background: var(--bg-elevated);
+  border-radius: 4px;
+}
+
+.battle-log-lines::-webkit-scrollbar-thumb {
+  background: var(--accent-purple);
+  border-radius: 4px;
+}
+
+.battle-log-lines p {
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.battle-log-empty {
+  color: var(--text-secondary);
+  font-style: italic;
+}
+
+.battle-top-bar-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.battle-pause-btn-active {
+  border-color: var(--accent-gold);
+  color: var(--accent-gold);
+}
+
+@media (min-width: 900px) {
+  .battle-layout {
+    flex-direction: row;
+    align-items: flex-start;
+  }
+
+  .battle-log-panel {
+    flex: 0 0 240px;
+    order: -1;
+    max-height: none;
+  }
+
+  .battle-log-lines p {
+    white-space: normal;
+    overflow: visible;
+    text-overflow: unset;
+  }
+}
+
 .nav-tabs {
   display: flex;
   gap: 4px;

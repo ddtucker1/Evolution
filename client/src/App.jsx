@@ -29,6 +29,7 @@ import {
   getOfflineState,
   stopTicks,
   clearBattleAnimations,
+  toggleOfflinePause,
 } from './offlineEngine';
 
 export default function App() {
@@ -46,7 +47,7 @@ export default function App() {
   useBattleMusic(screen, gameState);
 
   const resumeMusicOnInteraction = () => {
-    if (screen === 'battle') resumeBattleMusicIfPaused();
+    if (screen === 'battle' && !gameState?.gamePaused) resumeBattleMusicIfPaused();
   };
 
   const handleStartBattle = () => {
@@ -122,6 +123,11 @@ export default function App() {
     offlineBossPoisonAll(offlineGameRef.current);
   };
 
+  const handleTogglePause = () => {
+    if (!offlineGameRef.current) return;
+    toggleOfflinePause(offlineGameRef.current);
+  };
+
   const handleLeaveBattle = () => {
     if (offlineGameRef.current) clearBattleAnimations(offlineGameRef.current);
     stopTicks();
@@ -187,6 +193,7 @@ export default function App() {
           onBossDefenseHalved={handleBossDefenseHalved}
           onBossPoisonAll={handleBossPoisonAll}
           onMainMenu={handleLeaveBattle}
+          onTogglePause={handleTogglePause}
         />
       )}
     </div>

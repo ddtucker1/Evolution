@@ -130,6 +130,18 @@ export function playBossMusic() {
   return playMode('boss');
 }
 
+export function pauseBattleMusic() {
+  if (audioElement && !audioElement.paused) {
+    audioElement.pause();
+  }
+}
+
+export function unpauseBattleMusic() {
+  if (audioElement?.src && audioElement.paused && currentMode) {
+    audioElement.play().catch(() => {});
+  }
+}
+
 export function stopBattleMusic() {
   currentMode = null;
   currentTrack = null;
