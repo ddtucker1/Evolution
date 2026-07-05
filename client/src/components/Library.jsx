@@ -202,10 +202,9 @@ export default function Library({ profile, onProfileChange, onMainMenu }) {
               key={key}
               className={[
                 'library-card-wrap',
-                selected ? (mode === 'deck' ? 'in-deck' : 'evolve-selected') : '',
+                selected ? 'selected' : '',
                 mode === 'deck' && !canAdd && !selected ? 'full' : '',
                 mode === 'evolve' && !canSelectEvolve && !selected ? 'full' : '',
-                isEvolved ? 'evolved-card' : '',
               ].filter(Boolean).join(' ')}
               onClick={() => {
                 if (mode === 'deck' && (selected || canAdd)) handleToggle(card_id);
@@ -227,7 +226,6 @@ export default function Library({ profile, onProfileChange, onMainMenu }) {
                   alive: true,
                   isBase: !isEvolved,
                 }}
-                selected={selected}
                 showCooldown={false}
                 cooldownPreview={timerPreview}
                 levelDigit={levelDigit}
