@@ -52,6 +52,7 @@ export default function BattleView({
     opponentBossCanAttack,
     bossAbilitiesUsed,
     bossMagicPhase,
+    bossPhase,
   } = gameState;
 
   const me = players?.find((p) => p.id === 'player') || players?.[0];
@@ -237,6 +238,7 @@ export default function BattleView({
   const myAliveFighters = countAliveFighters(myPlayer.field);
   const oppAliveFighters = countAliveFighters(oppPlayer?.field);
   const oppBossTargetable = !oppAliveFighters && oppPlayer?.boss?.alive;
+  const showDeckAndHand = !bossPhase;
 
   const getAttackableTargets = () => {
     const fighters = (oppPlayer?.field || []).filter((c) => c && c.alive);
@@ -382,19 +384,83 @@ export default function BattleView({
     );
   };
 
+  const renderDeckPile = (isPlayer) => {
+    const remaining = isPlayer ? deckRemaining : (oppPlayer?.deckRemaining ?? 0);
+    const timer = isPlayer ? drawTimer : (oppPlayer?.drawTimer ?? 0);
+    const timerMax = isPlayer ? drawTimerMax : (oppPlayer?.drawTimerMax ?? 0);
+    const ready = isPlayer && drawReady && !battleEnded;
+    const progress = timerMax > 0 ? (timer / timerMax) * 100 : 0;
+
+    return (
+      <div className="deck-draw-zone">
+        <div
+          className={`deck-pile${ready ? ' draw-ready' : ''}${isPlayer && drawQueued ? ' selected' : ''}${!isPlayer ? ' deck-pile-opponent' : ''}`}
+          onClick={() => ready && onDraw()}
+        >
+          <div className="deck-pile-label">Play Deck</div>
+          <div className="deck-pile-count">{remaining} cards</div>
+          <div className="draw-timer-bar">
+            <div className="draw-timer-fill" style={{ width: `${progress}%` }} />
+          </div>
+          <div className="draw-timer-text">
+            {ready ? 'Click to draw!' : `${timerMax - timer}s until draw`}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const renderHandZone = () => {
+    if (!myBattleHand?.length) {
+      return <div className="zone-hand-row zone-hand-empty" aria-hidden="true" />;
+    }
+
+    return (
+      <div className="zone-hand-row">
+        <h4 className="zone-hand-label">Your Hand — deploy to empty slots</h4>
+        {(replaceMode || selectedSlot != null) && (
+          <p className="replace-hint">
+            {replaceMode
+              ? 'Select an empty field slot to deploy your fighter'
+              : `Slot ${selectedSlot + 1} selected — tap a hand card to deploy`}
+          </p>
+        )}
+        <div className="hand-cards">
+          {myBattleHand.map((card) => (
+            <div key={card.instanceId} className="hand-card-wrap">
+              <GameCard
+                card={card}
+                selected={replaceMode?.handCardId === card.instanceId || selectedSlot != null}
+                showCooldown
+                hideStatusEffects
+                disabled={battleEnded}
+                onClick={() => handleHandCardClick(card)}
+              />
+              {replacementsUsed < maxReplacements && (
+                <span className="hand-card-label">Deploy</span>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  };
+
   const renderBattlefield = (player, isPlayer) => {
     const aliveFighters = countAliveFighters(player.field);
     const boss = player.boss;
     const field = player.field || [];
 
     const bossSlot = boss && (
-      <div className="boss-side">
-        {renderFieldSlot(boss, 'boss', isPlayer, {
-          bossLocked: isPlayer ? !bossCanAttack : !opponentBossCanAttack,
-          bossProtected: aliveFighters > 0,
-        })}
-        {isPlayer && boss.alive && !winnerId && renderBossMagicActions(bossAbilitiesUsed, true)}
-        {!isPlayer && boss.alive && renderBossMagicActions(player.bossAbilitiesUsed, false)}
+      <div className="boss-slot">
+        <div className="boss-side">
+          {renderFieldSlot(boss, 'boss', isPlayer, {
+            bossLocked: isPlayer ? !bossCanAttack : !opponentBossCanAttack,
+            bossProtected: aliveFighters > 0,
+          })}
+          {isPlayer && boss.alive && !winnerId && renderBossMagicActions(bossAbilitiesUsed, true)}
+          {!isPlayer && boss.alive && renderBossMagicActions(player.bossAbilitiesUsed, false)}
+        </div>
       </div>
     );
 
@@ -440,17 +506,21 @@ export default function BattleView({
       ? getReadyChainAttackers().filter((c) => c.instanceId !== targetMode.attacker.instanceId)
       : [];
 
+    const isBoss = slotIndex === 'boss';
+    const slotWrapperClass = isBoss ? 'boss-card-slot' : 'fighter-slot';
+
     if (!card) {
       const canReplace = isPlayer && !battleEnded && replacementsUsed < maxReplacements
         && myBattleHand?.length > 0
         && (replaceMode || selectedSlot === slotIndex || pendingReplacement?.slotIndex === slotIndex);
       return (
-        <div
-          key={`empty-${slotIndex}`}
-          className={`field-slot empty${canReplace ? ' replace-ready' : ''}`}
-          onClick={() => canReplace && handleReplaceSlotClick(slotIndex)}
-        >
-          <span>{canReplace ? 'Deploy here' : 'Empty slot'}</span>
+        <div key={`empty-${slotIndex}`} className={slotWrapperClass}>
+          <div
+            className={`field-slot empty${canReplace ? ' replace-ready' : ''}`}
+            onClick={() => canReplace && handleReplaceSlotClick(slotIndex)}
+          >
+            <span>{canReplace ? 'Deploy here' : 'Empty slot'}</span>
+          </div>
         </div>
       );
     }
@@ -497,42 +567,41 @@ export default function BattleView({
     const cardClickable = canSelectForAttack || isEnemyTargetable || isChainPartnerCandidate || isMagicTargetable;
 
     return (
-      <div
-        key={card.instanceId}
-        className={`field-card-row${isPlayer ? ' player-side' : ' opponent-side'}`}
-      >
-        {!isPlayer && renderStatusEffects(card)}
+      <div key={card.instanceId} className={slotWrapperClass}>
         <div
-          className={`field-card-anchor${isTargetHighlighted ? ' target-highlight' : ''}`}
-          ref={(el) => {
-            if (el) cardRefs.current[card.instanceId] = el;
-            else delete cardRefs.current[card.instanceId];
-          }}
+          className={`field-card-row${isPlayer ? ' player-side' : ' opponent-side'}`}
         >
-          <GameCard
-            card={{ ...card, bossLocked, bossProtected }}
-            showCooldown
-            hideRole
-            hideStatusEffects
-            disabled={bossLocked || (isPlayer && !cardClickable && !isLeadAttacker)}
-            selected={isQueuedAttacker || isTargetHighlighted}
-            {...cardAnimProps(card)}
-            onClick={cardClickable || isLeadAttacker ? handleFieldCardClick : undefined}
-          />
+          {!isPlayer && renderStatusEffects(card)}
+          <div
+            className={`field-card-anchor${isTargetHighlighted ? ' target-highlight' : ''}`}
+            ref={(el) => {
+              if (el) cardRefs.current[card.instanceId] = el;
+              else delete cardRefs.current[card.instanceId];
+            }}
+          >
+            <GameCard
+              card={{ ...card, bossLocked, bossProtected }}
+              showCooldown
+              hideRole
+              hideStatusEffects
+              disabled={bossLocked || (isPlayer && !cardClickable && !isLeadAttacker)}
+              selected={isQueuedAttacker || isTargetHighlighted}
+              {...cardAnimProps(card)}
+              onClick={cardClickable || isLeadAttacker ? handleFieldCardClick : undefined}
+            />
+          </div>
+          {isPlayer && renderStatusEffects(card)}
         </div>
-        {isPlayer && renderStatusEffects(card)}
       </div>
     );
   };
-
-  const drawProgress = drawTimerMax > 0 ? (drawTimer / drawTimerMax) * 100 : 0;
 
   return (
     <div className="battle-screen">
       <div className="battle-top-bar">
         <button className="btn-secondary" onClick={onMainMenu}>Main Menu</button>
         <span className="replacement-counter">
-          Replacements: {replacementsUsed}/{maxReplacements}
+          {showDeckAndHand ? `Replacements: ${replacementsUsed}/${maxReplacements}` : 'Boss Phase'}
         </span>
       </div>
 
@@ -560,37 +629,29 @@ export default function BattleView({
             />
           </>
         )}
-        <div className={`player-zone${winnerId && winnerId !== me?.id && winnerId !== 'player' ? ' blood-splattered' : ''}`}>
+        <div className={`player-zone zone-player${winnerId && winnerId !== me?.id && winnerId !== 'player' ? ' blood-splattered' : ''}${bossPhase ? ' boss-phase' : ''}`}>
           {winnerId && winnerId !== me?.id && winnerId !== 'player' && <BloodSplatter />}
-          <div className="player-zone-header">
-            <h3>Your Battlefield</h3>
-            <div className="deck-draw-zone">
-              <div
-                className={`deck-pile${drawReady ? ' draw-ready' : ''}${drawQueued ? ' selected' : ''}`}
-                onClick={() => !battleEnded && drawReady && onDraw()}
-              >
-                <div className="deck-pile-label">Play Deck</div>
-                <div className="deck-pile-count">{deckRemaining} cards</div>
-                <div className="draw-timer-bar">
-                  <div className="draw-timer-fill" style={{ width: `${drawProgress}%` }} />
-                </div>
-                <div className="draw-timer-text">
-                  {drawReady ? 'Click to draw!' : `${drawTimerMax - drawTimer}s until draw`}
-                </div>
-              </div>
-            </div>
-          </div>
+          {showDeckAndHand && renderDeckPile(true)}
+          <h3>Your Battlefield</h3>
           {renderBattlefield(myPlayer, true)}
-          {!bossCanAttack && myPlayer.boss?.alive && (
+          {showDeckAndHand && renderHandZone()}
+          {!bossCanAttack && myPlayer.boss?.alive && !bossPhase && (
             <p className="boss-hint">Boss locked until all 3 fighters are defeated</p>
           )}
         </div>
 
-        <div className={`player-zone${winnerId && (winnerId === me?.id || winnerId === 'player') ? ' blood-splattered' : ''}`}>
+        <div className={`player-zone zone-opponent${winnerId && (winnerId === me?.id || winnerId === 'player') ? ' blood-splattered' : ''}${bossPhase ? ' boss-phase' : ''}`}>
           {winnerId && (winnerId === me?.id || winnerId === 'player') && <BloodSplatter />}
+          {showDeckAndHand && renderDeckPile(false)}
           <h3>{oppPlayer?.username || 'CPU Opponent'}</h3>
           {renderBattlefield(oppPlayer || { boss: null, field: [null, null, null] }, false)}
-          {oppAliveFighters > 0 && oppPlayer?.boss?.alive && (
+          {showDeckAndHand && (
+            <div
+              className={`zone-hand-row zone-hand-empty${myBattleHand?.length ? ' zone-hand-spacer' : ''}`}
+              aria-hidden="true"
+            />
+          )}
+          {oppAliveFighters > 0 && oppPlayer?.boss?.alive && !bossPhase && (
             <p className="boss-hint">Boss protected behind fighters</p>
           )}
         </div>
@@ -642,36 +703,6 @@ export default function BattleView({
           </div>
         )}
       </div>
-
-      {myBattleHand?.length > 0 && phase === 'battle' && (
-        <div className="hand-area">
-          <h4>Your Hand — deploy to empty slots</h4>
-          {(replaceMode || selectedSlot != null) && (
-            <p className="replace-hint">
-              {replaceMode
-                ? 'Select an empty field slot to deploy your fighter'
-                : `Slot ${selectedSlot + 1} selected — tap a hand card to deploy`}
-            </p>
-          )}
-          <div className="hand-cards">
-            {myBattleHand.map((card) => (
-              <div key={card.instanceId} className="hand-card-wrap">
-                <GameCard
-                  card={card}
-                  selected={replaceMode?.handCardId === card.instanceId || selectedSlot != null}
-                  showCooldown
-                  hideStatusEffects
-                  disabled={battleEnded}
-                  onClick={() => handleHandCardClick(card)}
-                />
-                {replacementsUsed < maxReplacements && (
-                  <span className="hand-card-label">Deploy</span>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
     </div>
   );
 }
