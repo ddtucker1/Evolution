@@ -6,7 +6,10 @@ import {
   getLevelRule,
   getAbilityPoolForTier,
   buildAbilityEntry,
+  getAbilityDisplayName,
 } from '../../shared/combineRules.js';
+
+export { getAbilityDisplayName };
 
 function hashSeed(seed) {
   let hash = 0;
@@ -197,7 +200,7 @@ export function createCombinedCard(card1, card2) {
 }
 
 export function getAbilityLabels(card) {
-  return getCardAbilities(card).map((a) => a.label).filter(Boolean);
+  return getCardAbilities(card).map((a) => getAbilityDisplayName(a)).filter(Boolean);
 }
 
 export function getPrimaryAbilityLabel(card) {

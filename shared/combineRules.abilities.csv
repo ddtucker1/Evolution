@@ -1,8 +1,8 @@
-id,tier,label,effect,pool_tier_0,pool_tier_1,pool_tier_2
-poison,0,Poison — lowers health by 1 every 6 seconds,health_drain_enemy,y,,
-rust,0,Rust — lowers defense by 1 every 6 seconds,defense_drain_enemy,y,,
-fire,1,Fire — adjacent enemies lose 1 HP every 6 seconds,fire_adjacent_enemies,,y,
-sick,1,Sick — adds 1 second to an enemy timer every 6 seconds,timer_increase_enemy,,y,
-vamp,2,Vamp — steals 1 HP from an enemy every 6 seconds and heals a needy ally,vamp_steal,,,y
-stumble,2,Stumble — adds 1 second to an enemy timer every 6 seconds,timer_increase_enemy,,,y
-dazed,2,Dazed — 20% chance a solo attack hits an ally instead,dazed_solo_attack,,,y
+id,tier,name,description,label,effect,pool_tier_0,pool_tier_1,pool_tier_2
+poison,0,Poison,Lowers health by 1 every 8 seconds,Poison — lowers health by 1 every 8 seconds,health_drain_enemy,y,,
+rust,0,Rust,Lowers defense by 1 every 8 seconds,Rust — lowers defense by 1 every 8 seconds,defense_drain_enemy,y,,
+fire,1,Fire,Adjacent enemies lose 1 HP every 8 seconds,Fire — adjacent enemies lose 1 HP every 8 seconds,fire_adjacent_enemies,,y,
+sick,1,Sick,Adds 1 second to an enemy timer every 8 seconds,Sick — adds 1 second to an enemy timer every 8 seconds,timer_increase_enemy,,y,
+vamp,2,Vamp,Steals 1 HP from an enemy every 8 seconds and heals a needy ally,Vamp — steals 1 HP from an enemy every 8 seconds and heals a needy ally,vamp_steal,,,y
+stumble,2,Stumble,Adds 1 second to an enemy timer every 8 seconds,Stumble — adds 1 second to an enemy timer every 8 seconds,timer_increase_enemy,,,y
+dazed,2,Dazed,20% chance a solo attack hits an ally instead,Dazed — 20% chance a solo attack hits an ally instead,dazed_solo_attack,,,y

@@ -31,9 +31,27 @@ export function buildAbilityEntry(abilityId) {
   return {
     id: def.id,
     tier: def.tier,
+    name: def.name,
+    description: def.description,
     label: def.label,
     effect: def.effect,
   };
+}
+
+export function getAbilityDisplayName(ability) {
+  if (!ability) return '';
+  if (ability.name) return ability.name;
+  const def = ability.id ? getAbilityDefinition(ability.id) : null;
+  if (def?.name) return def.name;
+  if (ability.label) return ability.label.split(' — ')[0];
+  return ability.id || '';
+}
+
+export function getAbilityHelpEntries() {
+  return rules.abilities.map((def) => ({
+    name: def.name,
+    description: def.description,
+  }));
 }
 
 export function getCombineHelpLines() {

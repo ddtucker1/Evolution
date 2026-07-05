@@ -9,7 +9,7 @@ import {
 } from '../../shared/baseCardStats.js';
 import { generateCardName } from '../../shared/cardNaming.js';
 import { previewCombine, getCardAbilities } from './combineEngine.js';
-import { COMBINE_TICK_INTERVAL } from '../../shared/combineRules.js';
+import { COMBINE_TICK_INTERVAL, getAbilityDisplayName } from '../../shared/combineRules.js';
 
 const CATALOG_VERSION = 3;
 const CATALOG_STORAGE_KEY = 'cfb_card_catalog';
@@ -170,6 +170,7 @@ function makeBattleCard(templateId, instanceId) {
     alive: true, role: null,
     abilities: getCardAbilities(t),
     periodicElapsed: 0,
+    carriedEffects: [],
     isBase: isBaseCardId(templateId),
     level: t.level ?? (isEvolved ? 1 : 0),
   };
@@ -524,6 +525,7 @@ function sanitize(card, revealed) {
     poisoned: !!card.poisoned,
     attackDoubled: !!card.attackDoubled,
     defenseHalved: !!card.defenseHalved,
+    carriedEffects: card.carriedEffects || [],
     level: card.level ?? 0,
     isBase: !!card.isBase,
     bossLocked: false,
@@ -639,6 +641,21 @@ function pickRandomAlive(cards) {
   return alive[Math.floor(Math.random() * alive.length)];
 }
 
+function inflictCarriedEffects(target, abilities) {
+  if (!target?.alive || !abilities?.length) return;
+  if (!target.carriedEffects) target.carriedEffects = [];
+  const existing = new Set(target.carriedEffects.map((e) => e.id));
+  for (const ability of abilities) {
+    if (ability.effect === 'dazed_solo_attack') continue;
+    if (!ability.id || existing.has(ability.id)) continue;
+    target.carriedEffects.push({
+      id: ability.id,
+      name: getAbilityDisplayName(ability),
+    });
+    existing.add(ability.id);
+  }
+}
+
 function applyHealthDrain(card, amount = 1) {
   if (!card?.alive || amount <= 0) return false;
   card.hp -= amount;
@@ -655,6 +672,7 @@ function applyPeriodicAbility(game, owner, opponent, sourceCard, ability) {
     case 'health_drain_enemy': {
       const target = pickRandomAlive(getAliveFieldFighters(opponent));
       if (!target) return false;
+      inflictCarriedEffects(target, [ability]);
       const killed = applyHealthDrain(target, 1);
       if (killed) game.log.push(`${sourceCard.name}'s ${ability.id} defeated ${target.name}`);
       return killed ? target : false;
@@ -662,6 +680,7 @@ function applyPeriodicAbility(game, owner, opponent, sourceCard, ability) {
     case 'defense_drain_enemy': {
       const target = pickRandomAlive(getAliveFieldFighters(opponent));
       if (!target) return false;
+      inflictCarriedEffects(target, [ability]);
       target.defense = Math.max(0, target.defense - 1);
       return false;
     }
@@ -671,7 +690,10 @@ function applyPeriodicAbility(game, owner, opponent, sourceCard, ability) {
       let killedCard = null;
       for (const adj of getAdjacentFieldSlotIndices(slot)) {
         const target = opponent.field?.[adj];
-        if (target?.alive && applyHealthDrain(target, 1)) killedCard = target;
+        if (target?.alive) {
+          inflictCarriedEffects(target, [ability]);
+          if (applyHealthDrain(target, 1)) killedCard = target;
+        }
       }
       if (killedCard) {
         game.log.push(`${sourceCard.name}'s Fire defeated ${killedCard.name}`);
@@ -682,12 +704,14 @@ function applyPeriodicAbility(game, owner, opponent, sourceCard, ability) {
     case 'timer_increase_enemy': {
       const target = pickRandomAlive(getFieldCards(opponent));
       if (!target) return false;
+      inflictCarriedEffects(target, [ability]);
       target.cooldown = (target.cooldown || 0) + 1;
       return false;
     }
     case 'vamp_steal': {
       const victim = pickRandomAlive(getAliveFieldFighters(opponent));
       if (!victim) return false;
+      inflictCarriedEffects(victim, [ability]);
       const killed = applyHealthDrain(victim, 1);
       const needy = getAliveFieldFighters(owner).filter((c) => c.hp < c.maxHp);
       const healTarget = pickRandomAlive(needy);
@@ -757,6 +781,7 @@ function completeAttackAnimation(game) {
     }
     for (const attackerRef of attackerRefs) {
       attackerRef.card.cooldownElapsed = 0;
+      inflictCarriedEffects(defenderRef.card, getCardAbilities(attackerRef.card));
     }
 
     if (killed) {

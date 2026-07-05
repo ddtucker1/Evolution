@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import MainMenu from './components/MainMenu';
 import Library from './components/Library';
 import BattleView from './components/BattleView';
+import AbilityHelp from './components/AbilityHelp';
 import useBattleMusic from './hooks/useBattleMusic';
 import { resumeBattleMusicIfPaused } from './audio/gameAudio';
 import {
@@ -34,6 +35,7 @@ export default function App() {
   const [profile, setProfile] = useState(() => getOrCreateOfflineProfile());
   const [screen, setScreen] = useState('menu');
   const [gameState, setGameState] = useState(null);
+  const [showHelp, setShowHelp] = useState(false);
   const offlineGameRef = useRef(null);
 
   const playDeckCount = profile.playDeck?.length || 0;
@@ -142,8 +144,15 @@ export default function App() {
       )}
       <div className="header-bar">
         <h1>Card Fusion Battle</h1>
-        <span className="user-info">{profile.username}</span>
+        <div className="header-actions">
+          <button type="button" className="btn-secondary" onClick={() => setShowHelp(true)}>
+            Help
+          </button>
+          <span className="user-info">{profile.username}</span>
+        </div>
       </div>
+
+      <AbilityHelp open={showHelp} onClose={() => setShowHelp(false)} />
 
       {screen === 'menu' && (
         <MainMenu
