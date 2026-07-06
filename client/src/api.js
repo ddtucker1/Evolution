@@ -5,6 +5,7 @@ import {
   getCardLevel,
   canCombineCards,
 } from './combineEngine';
+import { canCombineWithLibrarySize } from '../../shared/combineRules.js';
 
 export { PLAY_DECK_SIZE };
 
@@ -195,6 +196,9 @@ export function getLibraryCardCount(profile) {
 }
 
 export function combineCards(profile, cardId1, cardId2, options = {}) {
+  if (!canCombineWithLibrarySize(collectionCardCount(profile?.collection))) {
+    return { profile, error: 'Less than 10 cards not allowed' };
+  }
   if (!cardId1 || !cardId2) {
     return { profile, error: 'Select two cards to combine.' };
   }
