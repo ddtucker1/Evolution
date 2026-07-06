@@ -67,6 +67,12 @@ export default function BattleView({
     setBossDefeatPhase('blood');
   }, [gameState?.winnerId, me?.id]);
 
+  useEffect(() => {
+    if (!gameState?.bossCanAttack) return;
+    setReplaceMode(null);
+    setSelectedSlot(null);
+  }, [gameState?.bossCanAttack]);
+
   if (!gameState) return null;
 
   const {
@@ -100,6 +106,7 @@ export default function BattleView({
   } = gameState;
 
   const battleEnded = !!winnerId;
+  const canDeployFromHand = replacementsUsed < maxReplacements && (myBattleHand?.length ?? 0) > 0;
   const queuedActions = pendingPlayerActions || [];
   const drawQueued = queuedActions.some((action) => action.type === 'draw');
   const queuedAttackerIds = queuedActions.flatMap((action) => {
@@ -477,7 +484,7 @@ export default function BattleView({
   };
 
   const renderHandCardSlot = (row, hand, isPlayer) => {
-    const interactive = isPlayer && !isBossOnlySide(isPlayer);
+    const interactive = isPlayer && !isBossOnlySide(isPlayer) && canDeployFromHand;
     const fadingAway = isBossOnlySide(isPlayer);
     const card = hand?.[row];
     const showFaceDown = !isPlayer && !!card;
@@ -510,6 +517,7 @@ export default function BattleView({
     const boss = player.boss;
     const field = player.field || [];
     const hand = isPlayer ? myBattleHand : oppBattleHand;
+    const bossOnlyBoard = isBossOnlySide(isPlayer);
 
     const magicActions = boss?.alive && (
       isPlayer
@@ -518,11 +526,13 @@ export default function BattleView({
     );
 
     return (
-      <div className={`formation-grid${isPlayer ? ' player-formation' : ' opponent-formation'}`}>
-        {[0, 1, 2].map((row) => renderHandCardSlot(row, hand, isPlayer))}
-        <div className="grid-cell grid-cell-deck">
-          {renderDeckPile(isPlayer)}
-        </div>
+      <div className={`formation-grid${isPlayer ? ' player-formation' : ' opponent-formation'}${bossOnlyBoard ? ' boss-only-board' : ''}`}>
+        {!bossOnlyBoard && [0, 1, 2].map((row) => renderHandCardSlot(row, hand, isPlayer))}
+        {!bossOnlyBoard && (
+          <div className="grid-cell grid-cell-deck">
+            {renderDeckPile(isPlayer)}
+          </div>
+        )}
         {boss && (
           <div className="grid-cell grid-cell-boss">
             {renderFieldSlot(boss, 'boss', isPlayer, {
@@ -536,7 +546,7 @@ export default function BattleView({
             {magicActions}
           </div>
         )}
-        {field.map((card, i) => (
+        {!bossOnlyBoard && field.map((card, i) => (
           <div key={`fighter-cell-${i}`} className={`grid-cell grid-cell-fighter grid-cell-fighter-${i}`}>
             {renderFieldSlot(card, i, isPlayer)}
           </div>
@@ -564,17 +574,23 @@ export default function BattleView({
       ? getReadyChainAttackers().filter((c) => c.instanceId !== targetMode.attacker.instanceId)
       : [];
 
-    if (!card) {
-      const canReplace = isPlayer && !battleEnded && !bossCanAttack && replacementsUsed < maxReplacements
-        && myBattleHand?.length > 0
-        && (replaceMode || selectedSlot === slotIndex || pendingReplacement?.slotIndex === slotIndex);
+    const isDying = deathAnimation?.instanceId === card?.instanceId;
+    const showAsEmptyDeploySlot = isPlayer && card && !card.alive && !isDying;
+
+    if (!card || showAsEmptyDeploySlot) {
+      const canDeployToSlot = isPlayer && !battleEnded && !bossCanAttack && canDeployFromHand;
+      const emptySlotLabel = canDeployToSlot
+        ? 'Deploy here'
+        : isPlayer && !bossCanAttack && (myBattleHand?.length ?? 0) > 0 && replacementsUsed >= maxReplacements
+          ? 'No replacements left'
+          : 'Empty slot';
       return (
         <div
           key={`empty-${slotIndex}`}
-          className={`field-slot empty${canReplace ? ' replace-ready' : ''}`}
-          onClick={() => canReplace && handleReplaceSlotClick(slotIndex)}
+          className={`field-slot empty${canDeployToSlot ? ' replace-ready' : ''}`}
+          onClick={() => canDeployToSlot && handleReplaceSlotClick(slotIndex)}
         >
-          <span>{canReplace ? 'Deploy here' : 'Empty slot'}</span>
+          <span>{emptySlotLabel}</span>
         </div>
       );
     }
@@ -655,7 +671,9 @@ export default function BattleView({
     ? 'Paused'
     : bossPhase
       ? 'Boss Phase'
-      : `Replacements: ${replacementsUsed}/${maxReplacements}`;
+      : replacementsUsed >= maxReplacements && (myBattleHand?.length ?? 0) > 0
+        ? 'Replacements used — hand locked'
+        : `Replacements: ${replacementsUsed}/${maxReplacements}`;
 
   return (
     <div className="battle-screen">
@@ -718,7 +736,7 @@ export default function BattleView({
           {showVictoryLabels && loserIsPlayer && (
             <div className="zone-result-label zone-result-loser">Loser</div>
           )}
-          {(replaceMode || selectedSlot != null) && (
+          {(replaceMode || selectedSlot != null) && !bossCanAttack && (
             <p className="replace-hint">
               {replaceMode
                 ? 'Select an empty field slot to deploy'

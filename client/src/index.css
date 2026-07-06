@@ -688,6 +688,24 @@ input:focus {
   align-items: center;
 }
 
+.formation-grid.boss-only-board {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto auto;
+  justify-items: center;
+  max-width: calc(var(--card-width) + 16px);
+  margin-inline: auto;
+}
+
+.formation-grid.boss-only-board .grid-cell-boss {
+  grid-column: 1;
+  grid-row: 1;
+}
+
+.formation-grid.boss-only-board .grid-cell-abilities {
+  grid-column: 1;
+  grid-row: 2;
+}
+
 /* Player: hand left, deck/boss/abilities center, fighters right */
 .player-formation .grid-cell-hand-0 { grid-column: 1; grid-row: 1; }
 .player-formation .grid-cell-hand-1 { grid-column: 1; grid-row: 2; }

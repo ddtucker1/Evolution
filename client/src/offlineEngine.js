@@ -245,6 +245,19 @@ function applyPoisonToAllActiveCards(game) {
   }
 }
 
+function maybeSetPendingReplacement(game, player, clearedSlotIndex) {
+  if (
+    clearedSlotIndex !== null
+    && player?.id === 'player'
+    && !canBossAttack(player)
+    && player.battleHand.length > 0
+    && player.replacementsUsed < player.maxReplacements
+    && !game.pendingReplacement
+  ) {
+    game.pendingReplacement = { slotIndex: clearedSlotIndex };
+  }
+}
+
 function applyPoisonTick(game) {
   let anyKilled = false;
   for (const { card, player } of getAllActiveFieldCards(game)) {
@@ -257,7 +270,10 @@ function applyPoisonTick(game) {
       pushBattleLog(game, formatKillLog(card));
       if (card.role === 'field') {
         const idx = (player.field || []).findIndex((c) => c?.instanceId === card.instanceId);
-        if (idx >= 0) player.field[idx] = null;
+        if (idx >= 0) {
+          player.field[idx] = null;
+          maybeSetPendingReplacement(game, player, idx);
+        }
       }
       anyKilled = true;
     }
@@ -613,6 +629,9 @@ function processPendingActions(game) {
 
 function executePlayerReplace(game, handCardId, slotIndex) {
   const player = game.players[0];
+  if (canBossAttack(player)) {
+    return { success: false, message: 'Boss is fighting alone' };
+  }
   if (player.replacementsUsed >= player.maxReplacements) {
     return { success: false, message: 'No replacements left' };
   }
@@ -724,9 +743,42 @@ function resumeAnimationTimeouts(game) {
   }
 }
 
+function clearOrphanedDeadFieldSlots(player) {
+  for (let i = 0; i < (player?.field || []).length; i++) {
+    const card = player.field[i];
+    if (card && !card.alive) player.field[i] = null;
+  }
+}
+
+function enqueueDeathAnimation(game, instanceId, role) {
+  if (!game.deathQueue) game.deathQueue = [];
+  if (game.deathQueue.some((entry) => entry.instanceId === instanceId)) return;
+  if (game.deathAnimation?.instanceId === instanceId) return;
+  game.deathQueue.push({ instanceId, role });
+  if (!game.deathAnimation) startNextDeathAnimation(game);
+}
+
+function startNextDeathAnimation(game) {
+  if (!game.deathQueue?.length) return;
+
+  const next = game.deathQueue.shift();
+  game.deathAnimation = {
+    instanceId: next.instanceId,
+    role: next.role,
+    durationMs: DEATH_ANIMATION_MS,
+    shakeMs: DEATH_SHAKE_MS,
+    startedAt: Date.now(),
+  };
+  if (game.deathTimeout) clearTimeout(game.deathTimeout);
+  game.deathTimeout = setTimeout(() => completeDeathAnimation(game), DEATH_ANIMATION_MS);
+}
+
 function completeDeathAnimation(game) {
   const anim = game.deathAnimation;
-  if (!anim) return;
+  if (!anim) {
+    if (game.deathQueue?.length) startNextDeathAnimation(game);
+    return;
+  }
 
   const ref = findFieldCard(game, anim.instanceId);
   let clearedSlotIndex = null;
@@ -744,19 +796,28 @@ function completeDeathAnimation(game) {
     game.deathTimeout = null;
   }
 
+  for (const player of game.players) {
+    clearOrphanedDeadFieldSlots(player);
+  }
+
   if (
     clearedSlotIndex !== null
     && ref?.player?.id === 'player'
+    && !canBossAttack(ref.player)
     && ref.player.battleHand.length > 0
     && ref.player.replacementsUsed < ref.player.maxReplacements
   ) {
-    game.pendingReplacement = { slotIndex: clearedSlotIndex };
+    maybeSetPendingReplacement(game, ref.player, clearedSlotIndex);
   }
 
   const w = checkWinner(game.players[0], game.players[1]);
   if (w) finishOffline(game, w);
   else {
     if (game.onUpdate) game.onUpdate(toPrivateState(game, 'player'));
+    if (game.deathQueue?.length) {
+      startNextDeathAnimation(game);
+      return;
+    }
     processPendingActions(game);
   }
 }
@@ -816,13 +877,7 @@ function completeAttackAnimation(game) {
     }
 
     if (killed) {
-      game.deathAnimation = {
-        instanceId: defenderRef.card.instanceId,
-        role: defenderRef.card.role,
-        durationMs: DEATH_ANIMATION_MS,
-        shakeMs: DEATH_SHAKE_MS,
-        startedAt: Date.now(),
-      };
+      enqueueDeathAnimation(game, defenderRef.card.instanceId, defenderRef.card.role);
     }
   }
 
@@ -834,7 +889,6 @@ function completeAttackAnimation(game) {
 
   if (game.deathAnimation) {
     if (game.onUpdate) game.onUpdate(toPrivateState(game, 'player'));
-    game.deathTimeout = setTimeout(() => completeDeathAnimation(game), DEATH_ANIMATION_MS);
     return;
   }
 
@@ -911,6 +965,7 @@ function checkWinner(p1, p2) {
 }
 
 function drawCardForPlayer(game, player, logPrefix) {
+  if (canBossAttack(player)) return false;
   if (player.drawTimer < player.drawTimerMax || !player.deck.length) return false;
   if (player.battleHand.length >= MAX_BATTLE_HAND_SIZE) return false;
   const nextIdx = player.deck.findIndex((entry) => getTemplate(entry.templateId));
@@ -926,6 +981,7 @@ function drawCardForPlayer(game, player, logPrefix) {
 }
 
 function tryReplaceFromHand(game, player) {
+  if (canBossAttack(player)) return null;
   if (player.replacementsUsed >= player.maxReplacements) return null;
   const emptySlot = (player.field || []).findIndex((c) => !c || !c.alive);
   if (emptySlot < 0) return null;
@@ -951,6 +1007,8 @@ function toPrivateState(game, playerId) {
   const bossCanAttack = canBossAttack(me);
   const opponentBossCanAttack = canBossAttack(opp);
 
+  if (bossCanAttack) game.pendingReplacement = null;
+
   return {
     id: game.id,
     mode: 'npc',
@@ -967,7 +1025,7 @@ function toPrivateState(game, playerId) {
       maxReplacements: p.maxReplacements,
       drawTimer: p.drawTimer,
       drawTimerMax: p.drawTimerMax,
-      drawReady: p.drawTimer >= p.drawTimerMax && p.deck.length > 0 && p.battleHand.length < MAX_BATTLE_HAND_SIZE,
+      drawReady: p.drawTimer >= p.drawTimerMax && p.deck.length > 0 && p.battleHand.length < MAX_BATTLE_HAND_SIZE && !canBossAttack(p),
       bossAbilitiesUsed: { ...(p.bossAbilitiesUsed || defaultBossAbilitiesUsed()) },
     })),
     log: [...game.log],
@@ -990,7 +1048,7 @@ function toPrivateState(game, playerId) {
     maxReplacements: me.maxReplacements,
     drawTimer: me.drawTimer,
     drawTimerMax: me.drawTimerMax,
-    drawReady: me.drawTimer >= me.drawTimerMax && me.deck.length > 0 && me.battleHand.length < MAX_BATTLE_HAND_SIZE,
+    drawReady: me.drawTimer >= me.drawTimerMax && me.deck.length > 0 && me.battleHand.length < MAX_BATTLE_HAND_SIZE && !bossCanAttack,
     deckRemaining: me.deck.length,
     bossCanAttack,
     opponentBossCanAttack,
@@ -1030,6 +1088,7 @@ export function createOfflineGame(deckIds) {
     attackTimeout: null,
     deathAnimation: null,
     deathTimeout: null,
+    deathQueue: [],
     pendingReplacement: null,
     pendingPlayerActions: [],
     battleElapsed: 0,
@@ -1278,7 +1337,10 @@ function clearDeathAnimation(game) {
     clearTimeout(game.deathTimeout);
     game.deathTimeout = null;
   }
-  if (game) game.deathAnimation = null;
+  if (game) {
+    game.deathAnimation = null;
+    game.deathQueue = [];
+  }
 }
 
 export function clearBattleAnimations(game) {
@@ -1289,6 +1351,9 @@ export function clearBattleAnimations(game) {
 
 export function offlineDrawCard(game) {
   const player = game.players[0];
+  if (canBossAttack(player)) {
+    return { success: false, message: 'Boss is fighting alone' };
+  }
   if (player.drawTimer < player.drawTimerMax || !player.deck.length) {
     return { success: false, message: 'Cannot draw yet' };
   }
@@ -1307,6 +1372,9 @@ export function offlineDrawCard(game) {
 export function offlineReplace(game, handCardId, slotIndex) {
   if (isBattlePaused(game)) {
     const player = game.players[0];
+    if (canBossAttack(player)) {
+      return { success: false, message: 'Boss is fighting alone' };
+    }
     if (player.replacementsUsed >= player.maxReplacements) {
       return { success: false, message: 'No replacements left' };
     }
