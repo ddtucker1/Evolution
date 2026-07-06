@@ -96,6 +96,7 @@ const DEATH_ANIMATION_MS = 6000;
 const DEATH_SHAKE_MS = 3000;
 const PLAY_DECK_SIZE = 10;
 const MAX_REPLACEMENTS = 3;
+const MAX_BATTLE_HAND_SIZE = 3;
 const ATTACK_ANIM_MS = 4000;
 const EFFECT_DURATION_MS = 2 * 60 * 1000;
 const BOSS_PHASE2_TIME = 4 * 60;
@@ -933,6 +934,7 @@ function checkWinner(p1, p2) {
 
 function drawCardForPlayer(game, player, logPrefix) {
   if (player.drawTimer < player.drawTimerMax || !player.deck.length) return false;
+  if (player.battleHand.length >= MAX_BATTLE_HAND_SIZE) return false;
   const nextIdx = player.deck.findIndex((entry) => getTemplate(entry.templateId));
   if (nextIdx < 0) return false;
   const [next] = player.deck.splice(nextIdx, 1);
@@ -982,7 +984,7 @@ function toPrivateState(game, playerId) {
       maxReplacements: p.maxReplacements,
       drawTimer: p.drawTimer,
       drawTimerMax: p.drawTimerMax,
-      drawReady: p.drawTimer >= p.drawTimerMax && p.deck.length > 0,
+      drawReady: p.drawTimer >= p.drawTimerMax && p.deck.length > 0 && p.battleHand.length < MAX_BATTLE_HAND_SIZE,
       bossAbilitiesUsed: { ...(p.bossAbilitiesUsed || defaultBossAbilitiesUsed()) },
     })),
     log: [...game.log],
@@ -1004,7 +1006,7 @@ function toPrivateState(game, playerId) {
     maxReplacements: me.maxReplacements,
     drawTimer: me.drawTimer,
     drawTimerMax: me.drawTimerMax,
-    drawReady: me.drawTimer >= me.drawTimerMax && me.deck.length > 0,
+    drawReady: me.drawTimer >= me.drawTimerMax && me.deck.length > 0 && me.battleHand.length < MAX_BATTLE_HAND_SIZE,
     deckRemaining: me.deck.length,
     bossCanAttack,
     opponentBossCanAttack,
@@ -1354,6 +1356,9 @@ export function offlineDrawCard(game) {
   const player = game.players[0];
   if (player.drawTimer < player.drawTimerMax || !player.deck.length) {
     return { success: false, message: 'Cannot draw yet' };
+  }
+  if (player.battleHand.length >= MAX_BATTLE_HAND_SIZE) {
+    return { success: false, message: 'Hand is full' };
   }
   if (isBattlePaused(game)) {
     return queuePlayerAction(game, { type: 'draw' });

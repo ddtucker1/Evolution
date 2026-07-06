@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 193" width="160" height="193">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#2a1f3d"/>
+      <stop offset="50%" stop-color="#1a1228"/>
+      <stop offset="100%" stop-color="#0f0a18"/>
+    </linearGradient>
+    <linearGradient id="gold" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#e8c56a"/>
+      <stop offset="50%" stop-color="#c9a24e"/>
+      <stop offset="100%" stop-color="#8b6b2e"/>
+    </linearGradient>
+    <pattern id="crosshatch" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+      <line x1="0" y1="0" x2="0" y2="8" stroke="#3d2f55" stroke-width="1"/>
+    </pattern>
+  </defs>
+  <rect width="160" height="193" rx="10" fill="url(#bg)"/>
+  <rect x="6" y="6" width="148" height="181" rx="8" fill="none" stroke="url(#gold)" stroke-width="2"/>
+  <rect x="12" y="12" width="136" height="169" rx="6" fill="url(#crosshatch)" opacity="0.35"/>
+  <rect x="18" y="18" width="124" height="157" rx="5" fill="none" stroke="#6b4f8a" stroke-width="1"/>
+  <path d="M80 42 L92 68 L118 72 L98 90 L104 116 L80 102 L56 116 L62 90 L42 72 L68 68 Z" fill="none" stroke="url(#gold)" stroke-width="1.5"/>
+  <circle cx="80" cy="84" r="18" fill="none" stroke="url(#gold)" stroke-width="1.2"/>
+  <path d="M80 58 C72 70 72 98 80 110 C88 98 88 70 80 58Z" fill="#4a3568" stroke="url(#gold)" stroke-width="1"/>
+  <path d="M80 130 L80 155 M68 142 L92 142" stroke="url(#gold)" stroke-width="1.2" stroke-linecap="round"/>
+  <circle cx="32" cy="32" r="3" fill="#c9a24e" opacity="0.7"/>
+  <circle cx="128" cy="32" r="3" fill="#c9a24e" opacity="0.7"/>
+  <circle cx="32" cy="161" r="3" fill="#c9a24e" opacity="0.7"/>
+  <circle cx="128" cy="161" r="3" fill="#c9a24e" opacity="0.7"/>
+</svg>

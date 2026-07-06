@@ -1,5 +1,6 @@
 import { useState, useRef } from 'react';
 import GameCard from './GameCard';
+import CardBack from './CardBack';
 import AttackArrow from './AttackArrow';
 import ChainFireAnimation from './ChainFireAnimation';
 import BloodSplatter from './BloodSplatter';
@@ -404,23 +405,48 @@ export default function BattleView({
     const remaining = isPlayer ? deckRemaining : (oppPlayer?.deckRemaining ?? 0);
     const timer = isPlayer ? drawTimer : (oppPlayer?.drawTimer ?? 0);
     const timerMax = isPlayer ? drawTimerMax : (oppPlayer?.drawTimerMax ?? 0);
+    const handCount = isPlayer ? (myBattleHand?.length ?? 0) : (oppBattleHand?.length ?? 0);
+    const handFull = handCount >= 3;
     const fadingAway = isBossOnlySide(isPlayer);
-    const ready = isPlayer && drawReady && !battleEnded && !fadingAway;
-    const progress = timerMax > 0 ? (timer / timerMax) * 100 : 0;
+    const timerComplete = timerMax > 0 && timer >= timerMax;
+    const canDraw = isPlayer && drawReady && !battleEnded && !fadingAway && !handFull;
+    const blocked = timerComplete && remaining > 0 && handFull && !fadingAway;
+    const ready = canDraw;
+    const progress = timerMax > 0 ? Math.min(100, (timer / timerMax) * 100) : 0;
+
+    const timerText = fadingAway
+      ? ''
+      : ready
+        ? 'Click to draw!'
+        : blocked
+          ? 'Hand full'
+          : remaining > 0
+            ? `${Math.max(0, timerMax - timer)}s until draw`
+            : 'Deck empty';
 
     return (
       <div className={`deck-draw-zone${fadingAway ? ' fade-away' : ''}`}>
         <div
-          className={`deck-pile${ready ? ' draw-ready' : ''}${isPlayer && drawQueued ? ' selected' : ''}${!isPlayer ? ' deck-pile-opponent' : ''}${fadingAway ? ' fade-away' : ''}`}
+          className={[
+            'deck-pile',
+            ready ? 'draw-ready' : '',
+            blocked ? 'draw-blocked' : '',
+            isPlayer && drawQueued ? 'selected' : '',
+            !isPlayer ? 'deck-pile-opponent' : '',
+            fadingAway ? 'fade-away' : '',
+          ].filter(Boolean).join(' ')}
           onClick={() => ready && onDraw()}
+          aria-disabled={!ready}
         >
-          <div className="deck-pile-label">Play Deck</div>
-          <div className="deck-pile-count">{remaining} cards</div>
-          <div className="draw-timer-bar">
-            <div className="draw-timer-fill" style={{ width: `${progress}%` }} />
-          </div>
-          <div className="draw-timer-text">
-            {ready ? 'Click to draw!' : `${timerMax - timer}s until draw`}
+          <CardBack />
+          <div className="deck-pile-overlay">
+            {remaining > 0 && (
+              <span className="deck-pile-count-badge">{remaining}</span>
+            )}
+            <div className="draw-timer-bar">
+              <div className="draw-timer-fill" style={{ width: `${progress}%` }} />
+            </div>
+            <div className="draw-timer-text">{timerText}</div>
           </div>
         </div>
       </div>
@@ -431,7 +457,7 @@ export default function BattleView({
     const interactive = isPlayer && !isBossOnlySide(isPlayer);
     const fadingAway = isBossOnlySide(isPlayer);
     const card = hand?.[row];
-    const overflowCards = row === 2 ? (hand?.slice(3) || []) : [];
+    const showFaceDown = !isPlayer && !!card;
 
     return (
       <div
@@ -442,8 +468,9 @@ export default function BattleView({
           <div className="hand-card-wrap">
             <GameCard
               card={card}
+              faceDown={showFaceDown}
               selected={interactive && (replaceMode?.handCardId === card.instanceId || selectedSlot != null)}
-              showCooldown
+              showCooldown={!showFaceDown}
               hideStatusEffects
               disabled={interactive ? battleEnded : true}
               isFadingAway={fadingAway}
@@ -454,22 +481,6 @@ export default function BattleView({
             )}
           </div>
         )}
-        {overflowCards.map((overflowCard) => (
-          <div key={overflowCard.instanceId} className="hand-card-wrap drawn-card-overflow">
-            <GameCard
-              card={overflowCard}
-              selected={interactive && (replaceMode?.handCardId === overflowCard.instanceId || selectedSlot != null)}
-              showCooldown
-              hideStatusEffects
-              disabled={interactive ? battleEnded : true}
-              isFadingAway={fadingAway}
-              onClick={interactive ? () => handleHandCardClick(overflowCard) : undefined}
-            />
-            {interactive && replacementsUsed < maxReplacements && (
-              <span className="hand-card-label">Deploy</span>
-            )}
-          </div>
-        ))}
       </div>
     );
   };

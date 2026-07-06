@@ -1,4 +1,6 @@
 import { getLevelDigit, getAbilityDisplayName } from '../combineEngine';
+import CardBack from './CardBack';
+import { truncateCardName } from '../utils/truncateCardName';
 
 export default function GameCard({
   card,
@@ -16,12 +18,13 @@ export default function GameCard({
   levelDigit = null,
   hideRole = false,
   hideStatusEffects = false,
+  faceDown = false,
 }) {
   if (card?.hidden) {
     return (
       <div className="game-card disabled" style={{ opacity: 0.3 }}>
         <div className="card-name-row">
-          <div className="card-name">???</div>
+          <div className="card-name" title="???">???</div>
         </div>
         <div className="card-stats">
           <div>DEF: —</div>
@@ -44,6 +47,22 @@ export default function GameCard({
   }
 
   if (!card) return null;
+
+  if (faceDown) {
+    const classes = [
+      'game-card',
+      'game-card-face-down',
+      selected ? 'selected' : '',
+      disabled ? 'disabled' : '',
+      isFadingAway ? 'fade-away' : '',
+    ].filter(Boolean).join(' ');
+
+    return (
+      <div className={classes} onClick={disabled ? undefined : onClick}>
+        <CardBack />
+      </div>
+    );
+  }
 
   const bossLocked = card.bossLocked;
   const bossProtected = card.bossProtected;
@@ -80,12 +99,13 @@ export default function GameCard({
   ].filter(Boolean).join(' ');
 
   const displayLevel = levelDigit ?? (levelLabel ? levelLabel.replace(/\D/g, '') || null : getLevelDigit(card));
+  const displayName = truncateCardName(card.name);
 
   return (
     <div className={classes} onClick={disabled ? undefined : onClick}>
       {card.role && !hideRole && <span className="card-role">{card.role}</span>}
       <div className="card-name-row">
-        <div className="card-name">{card.name}</div>
+        <div className="card-name" title={card.name}>{displayName}</div>
         {displayLevel != null && <span className="card-level-digit">{displayLevel}</span>}
       </div>
       <div className="card-stats">

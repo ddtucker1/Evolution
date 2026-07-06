@@ -15,9 +15,12 @@
   --font-display: 'Cinzel', serif;
   --font-body: 'Inter', sans-serif;
   --card-width: 160px;
-  --card-height: 183px;
+  --card-height: 193px;
+  --card-name-line-height: 1.2;
+  --card-name-font-size: 12px;
+  --card-name-area-height: calc(2 * var(--card-name-font-size) * var(--card-name-line-height));
   --player-zone-width: calc(4.5 * var(--card-width));
-  --player-zone-height: calc(4.5 * var(--card-height));
+  --player-zone-height: calc(4 * var(--card-height));
 }
 
 * {
@@ -199,12 +202,40 @@ input:focus {
   width: var(--card-width);
   min-width: var(--card-width);
   max-width: var(--card-width);
+  height: var(--card-height);
   min-height: var(--card-height);
+  max-height: var(--card-height);
   display: flex;
   flex-direction: column;
   cursor: pointer;
   transition: all 0.2s;
   position: relative;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+.game-card.game-card-face-down {
+  padding: 0;
+  background: transparent;
+  border: none;
+}
+
+.card-back {
+  width: 100%;
+  height: 100%;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 2px solid var(--border);
+  box-sizing: border-box;
+}
+
+.card-back-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  pointer-events: none;
+  user-select: none;
 }
 
 .game-card:hover:not(.disabled) {
@@ -241,16 +272,26 @@ input:focus {
   justify-content: space-between;
   gap: 6px;
   margin-bottom: 4px;
+  height: var(--card-name-area-height);
+  min-height: var(--card-name-area-height);
+  max-height: var(--card-name-area-height);
+  flex-shrink: 0;
 }
 
 .game-card .card-name {
   font-family: var(--font-display);
-  font-size: 12px;
+  font-size: var(--card-name-font-size);
   color: var(--accent-gold);
   margin-bottom: 0;
   flex: 1;
   min-width: 0;
-  line-height: 1.2;
+  line-height: var(--card-name-line-height);
+  height: var(--card-name-area-height);
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  word-break: break-word;
 }
 
 .game-card .card-level-digit {
@@ -264,26 +305,34 @@ input:focus {
 }
 
 .game-card .card-stats {
-  flex: 1;
+  flex: 1 1 auto;
   display: flex;
   flex-direction: column;
   font-size: 10px;
   color: var(--text-secondary);
   line-height: 1.45;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .game-card .card-ability-slot {
+  height: 20px;
   min-height: 20px;
+  max-height: 20px;
   margin: 4px 0;
   display: flex;
   flex-direction: column;
   gap: 2px;
+  overflow: hidden;
 }
 
 .game-card .card-footer-slot {
+  height: 18px;
   min-height: 18px;
+  max-height: 18px;
   margin-top: auto;
   flex-shrink: 0;
+  overflow: hidden;
 }
 
 .game-card .card-footer-slot .timer-countdown {
@@ -701,6 +750,9 @@ input:focus {
   width: 100%;
   max-width: var(--card-width);
   min-width: 0;
+  height: var(--card-height);
+  min-height: var(--card-height);
+  max-height: var(--card-height);
 }
 
 .formation-grid .game-card {
@@ -1732,50 +1784,102 @@ input:focus {
 .deck-pile {
   width: 100%;
   max-width: var(--card-width);
-  padding: 7px 8px;
-  background: var(--bg-elevated);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
+  height: var(--card-height);
+  min-height: var(--card-height);
+  max-height: var(--card-height);
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: 10px;
   text-align: center;
   cursor: default;
   transition: border-color 0.2s, box-shadow 0.2s;
+  position: relative;
+  overflow: hidden;
+  transform: rotate(180deg);
+  box-sizing: border-box;
+}
+
+.deck-pile .card-back {
+  width: 100%;
+  height: 100%;
+}
+
+.deck-pile-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: stretch;
+  padding: 8px;
+  transform: rotate(180deg);
+  pointer-events: none;
+}
+
+.deck-pile-count-badge {
+  align-self: center;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--accent-gold);
+  background: rgba(15, 15, 26, 0.72);
+  border: 1px solid rgba(212, 168, 83, 0.45);
+  border-radius: 999px;
+  padding: 2px 8px;
+  margin-bottom: 4px;
 }
 
 .deck-pile.draw-ready {
   cursor: pointer;
+  box-shadow: 0 0 10px rgba(212, 168, 83, 0.35);
+}
+
+.deck-pile.draw-ready .card-back {
   border-color: var(--accent-gold);
-  box-shadow: 0 0 8px rgba(212, 168, 83, 0.25);
 }
 
 .deck-pile.draw-ready:hover {
-  transform: translateY(-1px);
+  transform: rotate(180deg) translateY(-1px);
+}
+
+.deck-pile.draw-blocked {
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.deck-pile.draw-blocked .card-back {
+  border-color: var(--accent-red);
+  opacity: 0.92;
+}
+
+.deck-pile.draw-blocked .draw-timer-fill {
+  background: linear-gradient(90deg, #c0392b, var(--accent-red));
 }
 
 .deck-pile-opponent {
   cursor: default;
   pointer-events: none;
-  opacity: 0.85;
+}
+
+.deck-pile-opponent.draw-ready {
+  box-shadow: none;
 }
 
 .deck-pile-label {
-  font-family: var(--font-display);
-  color: var(--accent-gold);
-  font-size: 11px;
-  margin-bottom: 2px;
+  display: none;
 }
 
 .deck-pile-count {
-  font-size: 10px;
-  color: var(--text-secondary);
-  margin-bottom: 5px;
+  display: none;
 }
 
 .draw-timer-bar {
   height: 4px;
-  background: var(--bg-dark);
+  background: rgba(15, 15, 26, 0.65);
   border-radius: 2px;
   overflow: hidden;
   margin-bottom: 3px;
+  width: 100%;
 }
 
 .draw-timer-fill {
@@ -1789,8 +1893,10 @@ input:focus {
 }
 
 .draw-timer-text {
-  font-size: 9px;
-  color: var(--text-secondary);
+  font-size: 8px;
+  color: var(--text-primary);
+  line-height: 1.2;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.85);
 }
 
 .deck-pile.draw-ready .draw-timer-text {
@@ -1802,7 +1908,9 @@ input:focus {
   width: var(--card-width);
   min-width: var(--card-width);
   max-width: var(--card-width);
+  height: var(--card-height);
   min-height: var(--card-height);
+  max-height: var(--card-height);
   border: 2px dashed var(--border);
   border-radius: var(--radius);
   display: flex;
@@ -1812,6 +1920,21 @@ input:focus {
   font-size: 11px;
   color: var(--text-secondary);
   text-align: center;
+  box-sizing: border-box;
+}
+
+.hand-card-wrap {
+  width: 100%;
+  max-width: var(--card-width);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  text-align: center;
+}
+
+.opponent-formation .hand-card-wrap .game-card-face-down {
+  transform: rotate(180deg);
 }
 
 .field-slot.replace-ready {
@@ -1906,10 +2029,6 @@ input:focus {
   background: rgba(52, 152, 219, 0.12);
   border-color: rgba(52, 152, 219, 0.35);
   color: var(--accent-blue);
-}
-
-.hand-card-wrap {
-  text-align: center;
 }
 
 .hand-card-label {
