@@ -4,10 +4,7 @@ import {
   createCombinedCard,
   getCardLevel,
   canCombineCards,
-  needsAbilityChoice,
 } from './combineEngine';
-
-export { needsAbilityChoice };
 
 export { PLAY_DECK_SIZE };
 
@@ -93,7 +90,8 @@ function migrateCombinedCard(card) {
   if (!card) return card;
   const level = getCardLevel(card);
   const timer = card.timer != null ? Math.round(card.timer) : getTimerPreview(card.attack);
-  return { ...card, level, timer, combined: true };
+  const { abilities, ability, ...rest } = card;
+  return { ...rest, level, timer, combined: true };
 }
 
 function migrateProfile(profile) {
@@ -216,8 +214,7 @@ export function combineCards(profile, cardId1, cardId2, options = {}) {
     return { profile, error: 'Only two cards of the same level can be combined.' };
   }
 
-  const { abilityChoice } = options;
-  const combined = createCombinedCard(catalog1, catalog2, { abilityChoice });
+  const combined = createCombinedCard(catalog1, catalog2);
   if (!combined) {
     return { profile, error: 'These cards cannot be combined.' };
   }

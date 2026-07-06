@@ -403,13 +403,6 @@ export default function BattleView({
     if (card.slowed) effects.push({ key: 'slow', label: 'Slow', className: 'status-slow' });
     if (card.attackDoubled) effects.push({ key: 'attack2x', label: '2x ATK', className: 'status-attack2x' });
     if (card.defenseHalved) effects.push({ key: 'defenseHalved', label: '½ DEF', className: 'status-defense-halved' });
-    for (const carried of card.carriedEffects || []) {
-      effects.push({
-        key: `carried-${carried.id}`,
-        label: carried.name,
-        className: `status-carried status-carried-${carried.id}`,
-      });
-    }
     if (!effects.length) return null;
     return (
       <div className="card-status-effects">

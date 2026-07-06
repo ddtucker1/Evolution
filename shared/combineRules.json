@@ -1,104 +1,11 @@
 {
-  "version": 2,
-  "tickIntervalSeconds": 8,
+  "version": 3,
   "statFormula": "average",
   "statBonus": {
     "amount": 2,
     "stats": ["attack", "defense", "hp"]
   },
   "requireSameLevel": true,
-  "maxLevel": 3,
-  "levelRules": [
-    {
-      "inputLevel": 0,
-      "outputLevel": 1,
-      "description": "Two basic cards combine into Level 1 with one random special ability.",
-      "requiresAbilityChoice": false
-    },
-    {
-      "inputLevel": 1,
-      "outputLevel": 2,
-      "description": "Two Level 1 cards combine into Level 2. Upgrade your current ability (double strength, add \"2\" to the name) or gain a new Level 2 ability.",
-      "requiresAbilityChoice": true,
-      "newAbilityTier": 1
-    },
-    {
-      "inputLevel": 2,
-      "outputLevel": 3,
-      "description": "Two Level 2 cards combine into Level 3. Upgrade your current ability or gain a new top-tier ability.",
-      "requiresAbilityChoice": true,
-      "newAbilityTier": 2
-    },
-    {
-      "inputLevel": 3,
-      "outputLevel": 3,
-      "description": "Two Level 3 cards combine into a refined Level 3 card. Upgrade your current ability or gain a new top-tier ability.",
-      "requiresAbilityChoice": true,
-      "newAbilityTier": 2
-    }
-  ],
-  "abilities": [
-    {
-      "id": "poison",
-      "tier": 0,
-      "name": "Poison",
-      "description": "Lowers health by 1 every 9 seconds",
-      "label": "Poison — lowers health by 1 every 9 seconds",
-      "effect": "health_drain_enemy",
-      "tickIntervalSeconds": 9
-    },
-    {
-      "id": "rust",
-      "tier": 0,
-      "name": "Rust",
-      "description": "Lowers defense by 1 every 8 seconds",
-      "label": "Rust — lowers defense by 1 every 8 seconds",
-      "effect": "defense_drain_enemy"
-    },
-    {
-      "id": "fire",
-      "tier": 1,
-      "name": "Fire",
-      "description": "Adjacent enemies lose 1 HP every 8 seconds",
-      "label": "Fire — adjacent enemies lose 1 HP every 8 seconds",
-      "effect": "fire_adjacent_enemies"
-    },
-    {
-      "id": "sick",
-      "tier": 1,
-      "name": "Sick",
-      "description": "Adds 1 second to an enemy timer every 8 seconds",
-      "label": "Sick — adds 1 second to an enemy timer every 8 seconds",
-      "effect": "timer_increase_enemy"
-    },
-    {
-      "id": "vamp",
-      "tier": 2,
-      "name": "Vamp",
-      "description": "Steals 1 HP from an enemy every 8 seconds and heals a needy ally",
-      "label": "Vamp — steals 1 HP from an enemy every 8 seconds and heals a needy ally",
-      "effect": "vamp_steal"
-    },
-    {
-      "id": "stumble",
-      "tier": 2,
-      "name": "Stumble",
-      "description": "Adds 1 second to an enemy timer every 8 seconds",
-      "label": "Stumble — adds 1 second to an enemy timer every 8 seconds",
-      "effect": "timer_increase_enemy"
-    },
-    {
-      "id": "dazed",
-      "tier": 2,
-      "name": "Dazed",
-      "description": "20% chance a solo attack hits an ally instead",
-      "label": "Dazed — 20% chance a solo attack hits an ally instead",
-      "effect": "dazed_solo_attack"
-    }
-  ],
-  "abilityPools": {
-    "0": ["poison", "rust"],
-    "1": ["fire", "sick"],
-    "2": ["vamp", "stumble", "dazed"]
-  }
+  "maxLevel": 9,
+  "combineDescription": "Two cards of the same level combine into a new card one level higher."
 }
