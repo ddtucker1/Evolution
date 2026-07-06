@@ -35,7 +35,17 @@ export function buildAbilityEntry(abilityId) {
     description: def.description,
     label: def.label,
     effect: def.effect,
+    tickIntervalSeconds: def.tickIntervalSeconds ?? rules.tickIntervalSeconds,
   };
+}
+
+export function getCarriedEffectTickInterval(carried) {
+  if (carried?.tickInterval != null) return carried.tickInterval;
+  if (carried?.effect === 'health_drain_enemy') {
+    const def = getAbilityDefinition('poison');
+    return def?.tickIntervalSeconds ?? rules.tickIntervalSeconds;
+  }
+  return rules.tickIntervalSeconds;
 }
 
 export function getAbilityDisplayName(ability) {

@@ -9,7 +9,7 @@ import {
 } from '../../shared/baseCardStats.js';
 import { generateCardName } from '../../shared/cardNaming.js';
 import { getCardAbilities, createCombinedCard, getCardLevel } from './combineEngine.js';
-import { COMBINE_TICK_INTERVAL, getAbilityDisplayName } from '../../shared/combineRules.js';
+import { COMBINE_TICK_INTERVAL, getAbilityDisplayName, getCarriedEffectTickInterval } from '../../shared/combineRules.js';
 import { getAbilityStrength } from './combineEngine.js';
 
 const CATALOG_VERSION = 3;
@@ -98,9 +98,7 @@ const PLAY_DECK_SIZE = 10;
 const MAX_REPLACEMENTS = 3;
 const MAX_BATTLE_HAND_SIZE = 3;
 const ATTACK_ANIM_MS = 4000;
-const EFFECT_DURATION_MS = 2 * 60 * 1000;
 const BOSS_PHASE2_TIME = 4 * 60;
-const BOSS_POISON_DURATION_MS = 60 * 1000;
 
 const LOOKUP = new Map();
 for (const c of CARD_DATA.unique) LOOKUP.set(c.id, c);
@@ -207,7 +205,7 @@ function createPlayer(id, username, deckIds) {
     maxReplacements: MAX_REPLACEMENTS,
     bossAbilitiesUsed: {
       slow: false, heal: false, haste: false,
-      attack2x: false, defenseHalved: false, poisonAll: false,
+      attack2x: false, defenseHalved: false,
     },
   };
 }
@@ -308,7 +306,7 @@ function canBossReceiveEffects(player) {
 function defaultBossAbilitiesUsed() {
   return {
     slow: false, heal: false, haste: false,
-    attack2x: false, defenseHalved: false, poisonAll: false,
+    attack2x: false, defenseHalved: false,
   };
 }
 
@@ -323,7 +321,7 @@ function hasUsedBossAbilityPhase1(player) {
 
 function hasUsedBossAbilityPhase2(player) {
   const used = player.bossAbilitiesUsed;
-  return !!(used?.attack2x || used?.defenseHalved || used?.poisonAll);
+  return !!(used?.attack2x || used?.defenseHalved);
 }
 
 function hasUsedBossAbility(player, game) {
@@ -358,7 +356,6 @@ function markBossAbilityUsedPhase2(player) {
   }
   player.bossAbilitiesUsed.attack2x = true;
   player.bossAbilitiesUsed.defenseHalved = true;
-  player.bossAbilitiesUsed.poisonAll = true;
 }
 
 function getAttackableTargets(opponent) {
@@ -377,6 +374,8 @@ function canCardAttack(attacker, player) {
 function promoteToBoss(card) {
   card.role = 'boss';
   card.attack = Math.floor(card.attack * 2);
+  card.maxHp = Math.floor(card.maxHp * 2);
+  card.hp = card.maxHp;
 }
 
 function getReadyFieldFighters(player) {
@@ -442,8 +441,6 @@ function executeQueuedAction(game, action) {
       return resolveBossAbilityPhase2(game, game.players[0], 'attack2x', action.targetInstanceId);
     case 'bossDefenseHalved':
       return resolveBossAbilityPhase2(game, game.players[0], 'defenseHalved', action.targetInstanceId);
-    case 'bossPoisonAll':
-      return resolveBossAbilityPhase2(game, game.players[0], 'poisonAll');
     default:
       return { success: false };
   }
@@ -519,7 +516,6 @@ function sanitize(card, revealed) {
     abilities: card.abilities || getCardAbilities(card),
     slowed: !!card.slowed,
     hasted: !!card.hasted,
-    poisoned: !!card.poisoned,
     attackDoubled: !!card.attackDoubled,
     defenseHalved: !!card.defenseHalved,
     carriedEffects: card.carriedEffects || [],
@@ -623,35 +619,6 @@ function applyFlatDamage(card, amount) {
   return false;
 }
 
-function applyPoison(target) {
-  if (!target?.alive) return;
-  target.poisoned = true;
-  target.poisonTicks = 0;
-  target.poisonExpiresAt = Date.now() + EFFECT_DURATION_MS;
-}
-
-function clearPoisonEffect(card) {
-  if (!card) return;
-  card.poisoned = false;
-  card.poisonTicks = 0;
-  card.poisonExpiresAt = null;
-}
-
-function processEffectExpiry(game) {
-  if (isBattlePaused(game)) return;
-
-  const now = Date.now();
-  for (const p of game.players) {
-    for (const c of getFieldCards(p)) {
-      if (!c?.alive || !c.poisoned || !c.poisonExpiresAt) continue;
-      if (now >= c.poisonExpiresAt) {
-        clearPoisonEffect(c);
-        game.log.push(`${c.name}'s poison wore off`);
-      }
-    }
-  }
-}
-
 function getFieldSlotIndex(player, card) {
   if (!player?.field || !card || card.role === 'boss') return -1;
   return player.field.findIndex((c) => c?.instanceId === card.instanceId);
@@ -682,9 +649,10 @@ function inflictCarriedEffects(target, abilities) {
       name: getAbilityDisplayName(ability),
       effect: ability.effect,
       strength: getAbilityStrength(ability),
+      tickInterval: ability.tickIntervalSeconds ?? COMBINE_TICK_INTERVAL,
+      elapsed: 0,
     });
     existing.add(ability.id);
-    target.periodicElapsed = 0;
   }
 }
 
@@ -766,11 +734,12 @@ function processCarriedEffectTicks(game) {
       const effects = card.carriedEffects || [];
       if (!effects.length) continue;
 
-      card.periodicElapsed = (card.periodicElapsed || 0) + 1;
-      if (card.periodicElapsed < COMBINE_TICK_INTERVAL) continue;
-      card.periodicElapsed = 0;
-
       for (const carried of effects) {
+        carried.elapsed = (carried.elapsed || 0) + 1;
+        const interval = getCarriedEffectTickInterval(carried);
+        if (carried.elapsed < interval) continue;
+        carried.elapsed = 0;
+
         const killedCard = applyCarriedEffectTick(game, card, carried);
         if (killedCard) return triggerPoisonDeath(game, killedCard);
       }
@@ -1119,40 +1088,12 @@ function triggerPoisonDeath(game, card) {
   return true;
 }
 
-function processPoisonTicks(game) {
-  if (isBattlePaused(game)) return false;
-
-  for (const p of game.players) {
-    for (const c of getFieldCards(p)) {
-      if (!c?.alive || !c.poisoned) continue;
-      c.poisonTicks = (c.poisonTicks || 0) + 1;
-      if (c.poisonTicks < 5) continue;
-
-      c.poisonTicks = 0;
-      c.hp -= 1;
-      if (c.hp <= 0) {
-        game.log.push(`${c.name} succumbed to poison`);
-        return triggerPoisonDeath(game, c);
-      }
-    }
-  }
-  return false;
-}
-
 function startTicks(game) {
   stopTicks();
   tickTimer = setInterval(() => {
     if (game.phase !== 'battle' || isBattlePaused(game)) return;
 
-    processEffectExpiry(game);
-
     if (processCarriedEffectTicks(game)) {
-      const w = checkWinner(game.players[0], game.players[1]);
-      if (w) finishOffline(game, w);
-      return;
-    }
-
-    if (processPoisonTicks(game)) {
       const w = checkWinner(game.players[0], game.players[1]);
       if (w) finishOffline(game, w);
       return;
@@ -1237,13 +1178,6 @@ function runNpcBossMagic(game) {
 function runNpcBossMagicPhase2(game, npc, human) {
   if (!canUseBossAbility(npc, game)) return;
 
-  const enemyFighters = getAliveFieldFighters(human);
-  if (enemyFighters.length >= 2) {
-    applyBossPoisonAll(game, npc, human);
-    game.log.push('CPU boss poisoned all enemy fighters');
-    return;
-  }
-
   const enemyCards = getFieldCards(human).filter((c) => c.alive);
   const defenseTarget = enemyCards.length
     ? enemyCards.reduce((a, b) => (b.defense > a.defense ? b : a))
@@ -1263,12 +1197,6 @@ function runNpcBossMagicPhase2(game, npc, human) {
   if (attackTarget) {
     applyBossAttack2x(game, npc, attackTarget);
     game.log.push(`CPU boss doubled ${attackTarget.name}'s attack`);
-    return;
-  }
-
-  if (enemyFighters.length) {
-    applyBossPoisonAll(game, npc, human);
-    game.log.push('CPU boss poisoned all enemy fighters');
   }
 }
 
@@ -1511,17 +1439,6 @@ function applyBossDefenseHalved(game, owner, target) {
   markBossAbilityUsedPhase2(owner);
 }
 
-function applyBossPoisonAll(game, owner, opponent) {
-  const fighters = getAliveFieldFighters(opponent);
-  const expiresAt = Date.now() + BOSS_POISON_DURATION_MS;
-  for (const fighter of fighters) {
-    fighter.poisoned = true;
-    fighter.poisonTicks = 0;
-    fighter.poisonExpiresAt = expiresAt;
-  }
-  markBossAbilityUsedPhase2(owner);
-}
-
 function resolveBossAbility(game, owner, ability, targetInstanceId) {
   if (game.phase !== 'battle' || game.winnerId) {
     return { success: false };
@@ -1596,12 +1513,6 @@ function resolveBossAbilityPhase2(game, owner, ability, targetInstanceId) {
     if (target.defenseHalved) return { success: false, message: 'Defense already halved' };
     applyBossDefenseHalved(game, owner, target);
     game.log.push(`${owner.username} boss halved ${target.name}'s defense`);
-  } else if (ability === 'poisonAll') {
-    const opp = game.players.find((p) => p.id !== owner.id);
-    const fighters = getAliveFieldFighters(opp);
-    if (!fighters.length) return { success: false, message: 'No enemy fighters to poison' };
-    applyBossPoisonAll(game, owner, opp);
-    game.log.push(`${owner.username} boss poisoned all enemy fighters`);
   } else {
     return { success: false };
   }
@@ -1643,13 +1554,6 @@ export function offlineBossDefenseHalved(game, targetInstanceId) {
     return queuePlayerAction(game, { type: 'bossDefenseHalved', targetInstanceId });
   }
   return resolveBossAbilityPhase2(game, game.players[0], 'defenseHalved', targetInstanceId);
-}
-
-export function offlineBossPoisonAll(game) {
-  if (isBattlePaused(game)) {
-    return queuePlayerAction(game, { type: 'bossPoisonAll' });
-  }
-  return resolveBossAbilityPhase2(game, game.players[0], 'poisonAll');
 }
 
 export function stopTicks() {

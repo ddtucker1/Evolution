@@ -25,7 +25,6 @@ import {
   offlineBossHaste,
   offlineBossAttack2x,
   offlineBossDefenseHalved,
-  offlineBossPoisonAll,
   getOfflineState,
   stopTicks,
   clearBattleAnimations,
@@ -119,11 +118,6 @@ export default function App() {
     offlineBossDefenseHalved(offlineGameRef.current, targetId);
   };
 
-  const handleBossPoisonAll = () => {
-    if (!offlineGameRef.current) return;
-    offlineBossPoisonAll(offlineGameRef.current);
-  };
-
   const handleTogglePause = () => {
     if (!offlineGameRef.current) return;
     toggleOfflinePause(offlineGameRef.current);
@@ -192,7 +186,6 @@ export default function App() {
           onBossHaste={handleBossHaste}
           onBossAttack2x={handleBossAttack2x}
           onBossDefenseHalved={handleBossDefenseHalved}
-          onBossPoisonAll={handleBossPoisonAll}
           onMainMenu={handleLeaveBattle}
           onTogglePause={handleTogglePause}
         />

@@ -18,7 +18,6 @@ export default function BattleView({
   onBossHaste,
   onBossAttack2x,
   onBossDefenseHalved,
-  onBossPoisonAll,
   onMainMenu,
   onTogglePause,
 }) {
@@ -178,7 +177,7 @@ export default function BattleView({
   };
 
   const bossMagicExhausted = bossMagicPhase === 2
-    ? (bossAbilitiesUsed?.attack2x || bossAbilitiesUsed?.defenseHalved || bossAbilitiesUsed?.poisonAll)
+    ? (bossAbilitiesUsed?.attack2x || bossAbilitiesUsed?.defenseHalved)
     : (bossAbilitiesUsed?.slow || bossAbilitiesUsed?.heal || bossAbilitiesUsed?.haste);
 
   const startBossMagic = (mode) => {
@@ -326,8 +325,6 @@ export default function BattleView({
     return [];
   };
 
-  const canUseBossPoisonAll = () => getAliveFieldFighters(oppPlayer?.field).length > 0;
-
   const renderBossMagicActionsPhase1 = (abilitiesUsed, isPlayerSide) => {
     const exhausted = abilitiesUsed?.slow || abilitiesUsed?.heal || abilitiesUsed?.haste;
     const healAvailable = isPlayerSide && canUseBossHeal();
@@ -365,8 +362,7 @@ export default function BattleView({
   };
 
   const renderBossMagicActionsPhase2 = (abilitiesUsed, isPlayerSide) => {
-    const exhausted = abilitiesUsed?.attack2x || abilitiesUsed?.defenseHalved || abilitiesUsed?.poisonAll;
-    const poisonAvailable = isPlayerSide && canUseBossPoisonAll();
+    const exhausted = abilitiesUsed?.attack2x || abilitiesUsed?.defenseHalved;
     const attack2xAvailable = isPlayerSide && getAttack2xTargets().length > 0;
     const defenseHalvedAvailable = isPlayerSide && getDefenseHalvedTargets().length > 0;
     return (
@@ -387,17 +383,6 @@ export default function BattleView({
       >
         Defense Halved
       </button>
-      <button
-        type="button"
-        className={`boss-magic-btn poison-all-btn${exhausted ? ' ability-used' : ''}`}
-        disabled={!isPlayerSide || exhausted || !!winnerId || !poisonAvailable}
-        onClick={() => {
-          if (!isPlayerSide || exhausted || winnerId || !poisonAvailable) return;
-          onBossPoisonAll();
-        }}
-      >
-        Poison All
-      </button>
     </div>
     );
   };
@@ -416,7 +401,6 @@ export default function BattleView({
     const effects = [];
     if (card.hasted) effects.push({ key: 'haste', label: 'Haste', className: 'status-haste' });
     if (card.slowed) effects.push({ key: 'slow', label: 'Slow', className: 'status-slow' });
-    if (card.poisoned) effects.push({ key: 'poison', label: 'Poison', className: 'status-poison' });
     if (card.attackDoubled) effects.push({ key: 'attack2x', label: '2x ATK', className: 'status-attack2x' });
     if (card.defenseHalved) effects.push({ key: 'defenseHalved', label: '½ DEF', className: 'status-defense-halved' });
     for (const carried of card.carriedEffects || []) {
