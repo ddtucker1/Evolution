@@ -249,6 +249,7 @@ function maybeSetPendingReplacement(game, player, clearedSlotIndex) {
   if (
     clearedSlotIndex !== null
     && player?.id === 'player'
+    && !canBossAttack(player)
     && player.battleHand.length > 0
     && player.replacementsUsed < player.maxReplacements
     && !game.pendingReplacement
@@ -628,6 +629,9 @@ function processPendingActions(game) {
 
 function executePlayerReplace(game, handCardId, slotIndex) {
   const player = game.players[0];
+  if (canBossAttack(player)) {
+    return { success: false, message: 'Boss is fighting alone' };
+  }
   if (player.replacementsUsed >= player.maxReplacements) {
     return { success: false, message: 'No replacements left' };
   }
@@ -762,10 +766,11 @@ function completeDeathAnimation(game) {
   if (
     clearedSlotIndex !== null
     && ref?.player?.id === 'player'
+    && !canBossAttack(ref.player)
     && ref.player.battleHand.length > 0
     && ref.player.replacementsUsed < ref.player.maxReplacements
   ) {
-    game.pendingReplacement = { slotIndex: clearedSlotIndex };
+    maybeSetPendingReplacement(game, ref.player, clearedSlotIndex);
   }
 
   const w = checkWinner(game.players[0], game.players[1]);
@@ -926,6 +931,7 @@ function checkWinner(p1, p2) {
 }
 
 function drawCardForPlayer(game, player, logPrefix) {
+  if (canBossAttack(player)) return false;
   if (player.drawTimer < player.drawTimerMax || !player.deck.length) return false;
   if (player.battleHand.length >= MAX_BATTLE_HAND_SIZE) return false;
   const nextIdx = player.deck.findIndex((entry) => getTemplate(entry.templateId));
@@ -941,6 +947,7 @@ function drawCardForPlayer(game, player, logPrefix) {
 }
 
 function tryReplaceFromHand(game, player) {
+  if (canBossAttack(player)) return null;
   if (player.replacementsUsed >= player.maxReplacements) return null;
   const emptySlot = (player.field || []).findIndex((c) => !c || !c.alive);
   if (emptySlot < 0) return null;
@@ -966,6 +973,8 @@ function toPrivateState(game, playerId) {
   const bossCanAttack = canBossAttack(me);
   const opponentBossCanAttack = canBossAttack(opp);
 
+  if (bossCanAttack) game.pendingReplacement = null;
+
   return {
     id: game.id,
     mode: 'npc',
@@ -982,7 +991,7 @@ function toPrivateState(game, playerId) {
       maxReplacements: p.maxReplacements,
       drawTimer: p.drawTimer,
       drawTimerMax: p.drawTimerMax,
-      drawReady: p.drawTimer >= p.drawTimerMax && p.deck.length > 0 && p.battleHand.length < MAX_BATTLE_HAND_SIZE,
+      drawReady: p.drawTimer >= p.drawTimerMax && p.deck.length > 0 && p.battleHand.length < MAX_BATTLE_HAND_SIZE && !canBossAttack(p),
       bossAbilitiesUsed: { ...(p.bossAbilitiesUsed || defaultBossAbilitiesUsed()) },
     })),
     log: [...game.log],
@@ -1005,7 +1014,7 @@ function toPrivateState(game, playerId) {
     maxReplacements: me.maxReplacements,
     drawTimer: me.drawTimer,
     drawTimerMax: me.drawTimerMax,
-    drawReady: me.drawTimer >= me.drawTimerMax && me.deck.length > 0 && me.battleHand.length < MAX_BATTLE_HAND_SIZE,
+    drawReady: me.drawTimer >= me.drawTimerMax && me.deck.length > 0 && me.battleHand.length < MAX_BATTLE_HAND_SIZE && !bossCanAttack,
     deckRemaining: me.deck.length,
     bossCanAttack,
     opponentBossCanAttack,
@@ -1304,6 +1313,9 @@ export function clearBattleAnimations(game) {
 
 export function offlineDrawCard(game) {
   const player = game.players[0];
+  if (canBossAttack(player)) {
+    return { success: false, message: 'Boss is fighting alone' };
+  }
   if (player.drawTimer < player.drawTimerMax || !player.deck.length) {
     return { success: false, message: 'Cannot draw yet' };
   }
@@ -1322,6 +1334,9 @@ export function offlineDrawCard(game) {
 export function offlineReplace(game, handCardId, slotIndex) {
   if (isBattlePaused(game)) {
     const player = game.players[0];
+    if (canBossAttack(player)) {
+      return { success: false, message: 'Boss is fighting alone' };
+    }
     if (player.replacementsUsed >= player.maxReplacements) {
       return { success: false, message: 'No replacements left' };
     }
