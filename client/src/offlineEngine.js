@@ -98,8 +98,11 @@ const MAX_BATTLE_HAND_SIZE = 3;
 const ATTACK_ANIM_MS = 4000;
 const BOSS_PHASE2_TIME = 4 * 60;
 const POISON_TRIGGER_TIME = 8 * 60;
+const POISON2_TRIGGER_TIME = 10 * 60;
 const POISON_ANIM_MS = 5000;
 const POISON_TICK_INTERVAL = 6;
+const POISON_DAMAGE = 1;
+const POISON2_DAMAGE = 2;
 const BATTLE_LOG_MAX_LINES = 20;
 
 const LOOKUP = new Map();
@@ -225,8 +228,12 @@ function formatKillLog(victim) {
   return `${victim.name} defeated (HP reached 0)`;
 }
 
-function formatPoisonTickLog(card, hpBefore, hpAfter) {
-  return `Poison → ${card.name} | HP ${hpBefore} − 1 = ${hpAfter}`;
+function getPoisonDamage(game) {
+  return game.poisonDamage || POISON_DAMAGE;
+}
+
+function formatPoisonTickLog(card, hpBefore, hpAfter, damage) {
+  return `Poison → ${card.name} | HP ${hpBefore} − ${damage} = ${hpAfter}`;
 }
 
 function getActiveFieldCards(player) {
@@ -285,13 +292,14 @@ function maybeSetPendingReplacement(game, player, clearedSlotIndex) {
 }
 
 function applyPoisonTick(game) {
+  const damage = getPoisonDamage(game);
   let anyKilled = false;
   for (const { card, player } of getAllActiveFieldCards(game)) {
     if (!card.poisoned) continue;
     const hpBefore = card.hp;
-    const killed = applyFlatDamage(card, 1);
+    const killed = applyFlatDamage(card, damage);
     const hpAfter = card.hp;
-    pushBattleLog(game, formatPoisonTickLog(card, hpBefore, hpAfter));
+    pushBattleLog(game, formatPoisonTickLog(card, hpBefore, hpAfter, damage));
     if (killed) {
       pushBattleLog(game, formatKillLog(card));
       if (card.role === 'field') {
@@ -308,17 +316,21 @@ function applyPoisonTick(game) {
   return anyKilled;
 }
 
-function startPoisonAnimation(game) {
+function startPoisonAnimation(game, { tier = 1 } = {}) {
   game.poisonPhase = 'animating';
   game.poisonAnimStartedAt = Date.now();
-  pushBattleLog(game, 'Toxic clouds roll across the battlefield…');
+  if (tier >= 2) {
+    pushBattleLog(game, 'The toxic clouds thicken and grow more deadly…');
+  } else {
+    pushBattleLog(game, 'Toxic clouds roll across the battlefield…');
+  }
   if (game.onUpdate) game.onUpdate(toPrivateState(game, 'player'));
 
   if (game.poisonAnimTimeout) clearTimeout(game.poisonAnimTimeout);
-  game.poisonAnimTimeout = setTimeout(() => completePoisonAnimation(game), POISON_ANIM_MS);
+  game.poisonAnimTimeout = setTimeout(() => completePoisonAnimation(game, tier), POISON_ANIM_MS);
 }
 
-function completePoisonAnimation(game) {
+function completePoisonAnimation(game, tier = 1) {
   if (game.poisonPhase !== 'animating') return;
   game.poisonPhase = 'active';
   game.poisonTickCounter = 0;
@@ -327,15 +339,35 @@ function completePoisonAnimation(game) {
     clearTimeout(game.poisonAnimTimeout);
     game.poisonAnimTimeout = null;
   }
+  if (tier >= 2) {
+    game.poisonDamage = POISON2_DAMAGE;
+    game.poisonTier2Triggered = true;
+  } else {
+    game.poisonDamage = POISON_DAMAGE;
+  }
   applyPoisonToAllActiveCards(game);
   const count = getAllActiveFieldCards(game).length;
-  pushBattleLog(game, `Poison spreads to ${count} active card${count === 1 ? '' : 's'} (−1 HP every ${POISON_TICK_INTERVAL}s)`);
+  const damage = getPoisonDamage(game);
+  if (tier >= 2) {
+    pushBattleLog(game, `Poison intensifies on ${count} active card${count === 1 ? '' : 's'} (−${damage} HP every ${POISON_TICK_INTERVAL}s)`);
+  } else {
+    pushBattleLog(game, `Poison spreads to ${count} active card${count === 1 ? '' : 's'} (−${damage} HP every ${POISON_TICK_INTERVAL}s)`);
+  }
   if (game.onUpdate) game.onUpdate(toPrivateState(game, 'player'));
 }
 
 function tickPoison(game) {
   if (game.poisonPhase === null && (game.battleElapsed || 0) >= POISON_TRIGGER_TIME) {
     startPoisonAnimation(game);
+    return;
+  }
+
+  if (
+    game.poisonPhase === 'active'
+    && !game.poisonTier2Triggered
+    && (game.battleElapsed || 0) >= POISON2_TRIGGER_TIME
+  ) {
+    startPoisonAnimation(game, { tier: 2 });
     return;
   }
 
@@ -1064,6 +1096,7 @@ function toPrivateState(game, playerId) {
     winnerId: game.winnerId,
     battleElapsed: game.battleElapsed || 0,
     poisonPhase: game.poisonPhase || null,
+    poisonDamage: getPoisonDamage(game),
     poisonAnimation: game.poisonPhase === 'animating',
     attackAnimation: game.attackAnimation ? { ...game.attackAnimation } : null,
     deathAnimation: game.deathAnimation ? { ...game.deathAnimation } : null,
@@ -1124,6 +1157,8 @@ export function createOfflineGame(deckIds) {
     pendingPlayerActions: [],
     battleElapsed: 0,
     poisonPhase: null,
+    poisonDamage: POISON_DAMAGE,
+    poisonTier2Triggered: false,
     poisonTickCounter: 0,
     poisonAnimTimeout: null,
   };

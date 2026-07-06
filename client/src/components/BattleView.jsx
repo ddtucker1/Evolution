@@ -6,6 +6,12 @@ import ChainFireAnimation from './ChainFireAnimation';
 import BloodSplatter from './BloodSplatter';
 import PoisonCloudAnimation from './PoisonCloudAnimation';
 
+function formatBattleElapsed(seconds) {
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  return `${m}:${s.toString().padStart(2, '0')}`;
+}
+
 export default function BattleView({
   gameState,
   onSetup,
@@ -103,6 +109,9 @@ export default function BattleView({
     log,
     gamePaused,
     poisonAnimation,
+    battleElapsed,
+    timersPaused,
+    poisonDamage,
   } = gameState;
 
   const battleEnded = !!winnerId;
@@ -418,7 +427,10 @@ export default function BattleView({
     if (card.slowed) effects.push({ key: 'slow', label: 'Slow', className: 'status-slow' });
     if (card.attackDoubled) effects.push({ key: 'attack2x', label: '2x ATK', className: 'status-attack2x' });
     if (card.defenseHalved) effects.push({ key: 'defenseHalved', label: '½ DEF', className: 'status-defense-halved' });
-    if (card.poisoned) effects.push({ key: 'poison', label: 'Poison', className: 'status-poison' });
+    if (card.poisoned) {
+      const poisonLabel = (poisonDamage ?? 1) >= 2 ? 'Lethal Poison' : 'Poison';
+      effects.push({ key: 'poison', label: poisonLabel, className: 'status-poison' });
+    }
     if (!effects.length) return null;
     return (
       <div className={`card-status-effects${enlarged ? ' card-status-effects-enlarged' : ''}`}>
@@ -668,6 +680,9 @@ export default function BattleView({
 
   const battleLogEntries = log || [];
 
+  const elapsedSeconds = battleElapsed ?? 0;
+  const timerPaused = gamePaused || timersPaused;
+
   const statusLabel = gamePaused
     ? 'Paused'
     : bossPhase
@@ -693,6 +708,11 @@ export default function BattleView({
               >
                 {gamePaused ? 'Resume' : 'Pause'}
               </button>
+            </div>
+            <div className={`battle-elapsed-timer${timerPaused ? ' battle-elapsed-timer-paused' : ''}`}>
+              <span className="battle-elapsed-label">Battle Time</span>
+              <span className="battle-elapsed-value">{formatBattleElapsed(elapsedSeconds)}</span>
+              {timerPaused && <span className="battle-elapsed-paused">Paused</span>}
             </div>
             <span className="battle-status-label">{statusLabel}</span>
             <div className="battle-log-panel">
