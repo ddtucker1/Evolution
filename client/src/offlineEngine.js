@@ -97,6 +97,10 @@ const MAX_REPLACEMENTS = 3;
 const MAX_BATTLE_HAND_SIZE = 3;
 const ATTACK_ANIM_MS = 4000;
 const BOSS_PHASE2_TIME = 4 * 60;
+const POISON_TRIGGER_TIME = 8 * 60;
+const POISON_ANIM_MS = 5000;
+const POISON_TICK_INTERVAL = 6;
+const BATTLE_LOG_MAX_LINES = 20;
 
 const LOOKUP = new Map();
 for (const c of CARD_DATA.unique) LOOKUP.set(c.id, c);
@@ -148,6 +152,165 @@ export function getLibraryCooldownSeconds(card) {
 
 export function calculateAttackDamage(attacker, defender) {
   return Math.max(0, Math.round(attacker.attack) - Math.round(defender.defense));
+}
+
+function pushBattleLog(game, message) {
+  game.log.push(message);
+  if (game.log.length > BATTLE_LOG_MAX_LINES * 4) {
+    game.log = game.log.slice(-BATTLE_LOG_MAX_LINES * 4);
+  }
+}
+
+function formatSingleAttackLog(logPrefix, attacker, defender, damage) {
+  const atk = Math.round(attacker.attack);
+  const def = Math.round(defender.defense);
+  const hpBefore = defender.hp;
+  if (damage <= 0) {
+    return `${logPrefix}: ${attacker.name} → ${defender.name} | ATK ${atk} − DEF ${def} = 0 (blocked)`;
+  }
+  const hpAfter = Math.max(0, hpBefore - damage);
+  return `${logPrefix}: ${attacker.name} → ${defender.name} | ATK ${atk} − DEF ${def} = ${damage} dmg | HP ${hpBefore} → ${hpAfter}`;
+}
+
+function formatChainAttackLog(logPrefix, attackers, defender, damage) {
+  const atkValues = attackers.map((a) => Math.round(a.attack));
+  const totalAttack = atkValues.reduce((sum, v) => sum + v, 0);
+  const bonus = attackers.length >= 3 ? 1.2 : 1.1;
+  const bonusPct = attackers.length >= 3 ? 20 : 10;
+  const effectiveAttack = Math.round(totalAttack * bonus);
+  const def = Math.round(defender.defense);
+  const atkBreakdown = attackers.map((a, i) => `${a.name}(${atkValues[i]})`).join(' + ');
+  const hpBefore = defender.hp;
+  if (damage <= 0) {
+    return `${logPrefix}: chain (${attackers.length}) [${atkBreakdown}] = ${totalAttack} × ${bonus} (+${bonusPct}%) = ${effectiveAttack} − DEF ${def} = 0 (blocked)`;
+  }
+  const hpAfter = Math.max(0, hpBefore - damage);
+  return `${logPrefix}: chain (${attackers.length}) [${atkBreakdown}] = ${totalAttack} × ${bonus} (+${bonusPct}%) = ${effectiveAttack} − DEF ${def} = ${damage} dmg | HP ${hpBefore} → ${hpAfter}`;
+}
+
+function formatBossSlowLog(ownerName, target, beforeRemaining, afterRemaining, beforeCooldown, afterCooldown) {
+  return `${ownerName} boss Slow → ${target.name} | timer ${beforeRemaining}s→${afterRemaining}s, max ${beforeCooldown}s→${afterCooldown}s (×2)`;
+}
+
+function formatBossHasteLog(ownerName, target, beforeRemaining, afterRemaining, beforeCooldown, afterCooldown) {
+  return `${ownerName} boss Haste → ${target.name} | timer ${beforeRemaining}s→${afterRemaining}s, max ${beforeCooldown}s→${afterCooldown}s (÷2)`;
+}
+
+function formatBossHealLog(ownerName, targets) {
+  if (targets.length === 1) {
+    const t = targets[0];
+    return `${ownerName} boss Heal → ${t.name} | HP ${t.hp} → ${t.maxHp}`;
+  }
+  const names = targets.map((t) => `${t.name}(${t.hp}→${t.maxHp})`).join(', ');
+  return `${ownerName} boss Heal All | ${names}`;
+}
+
+function formatBossAttack2xLog(ownerName, target, beforeAtk, afterAtk) {
+  return `${ownerName} boss Attack 2× → ${target.name} | ATK ${beforeAtk} × 2 = ${afterAtk}`;
+}
+
+function formatBossDefenseHalvedLog(ownerName, target, beforeDef, afterDef) {
+  return `${ownerName} boss Defense Halved → ${target.name} | DEF ${beforeDef} ÷ 2 = ${afterDef}`;
+}
+
+function formatDeployLog(logPrefix, card, slotIndex, used, max) {
+  return `${logPrefix}: deployed ${card.name} to slot ${slotIndex + 1} | ATK ${card.attack} DEF ${card.defense} HP ${card.hp} (${used}/${max})`;
+}
+
+function formatDrawLog(logPrefix, card) {
+  return `${logPrefix}: drew ${card.name} | ATK ${card.attack} DEF ${card.defense} HP ${card.hp}`;
+}
+
+function formatKillLog(victim) {
+  return `${victim.name} defeated (HP reached 0)`;
+}
+
+function formatPoisonTickLog(card, hpBefore, hpAfter) {
+  return `Poison → ${card.name} | HP ${hpBefore} − 1 = ${hpAfter}`;
+}
+
+function getAllActiveFieldCards(game) {
+  const cards = [];
+  for (const player of game.players) {
+    for (const card of getFieldCards(player)) {
+      if (card?.alive) cards.push({ card, player });
+    }
+  }
+  return cards;
+}
+
+function applyPoisonToAllActiveCards(game) {
+  for (const { card } of getAllActiveFieldCards(game)) {
+    card.poisoned = true;
+  }
+}
+
+function applyPoisonTick(game) {
+  let anyKilled = false;
+  for (const { card, player } of getAllActiveFieldCards(game)) {
+    if (!card.poisoned) continue;
+    const hpBefore = card.hp;
+    const killed = applyFlatDamage(card, 1);
+    const hpAfter = card.hp;
+    pushBattleLog(game, formatPoisonTickLog(card, hpBefore, hpAfter));
+    if (killed) {
+      pushBattleLog(game, formatKillLog(card));
+      if (card.role === 'field') {
+        const idx = (player.field || []).findIndex((c) => c?.instanceId === card.instanceId);
+        if (idx >= 0) player.field[idx] = null;
+      }
+      anyKilled = true;
+    }
+  }
+  return anyKilled;
+}
+
+function startPoisonAnimation(game) {
+  game.poisonPhase = 'animating';
+  game.poisonAnimStartedAt = Date.now();
+  pushBattleLog(game, 'Toxic clouds roll across the battlefield…');
+  if (game.onUpdate) game.onUpdate(toPrivateState(game, 'player'));
+
+  if (game.poisonAnimTimeout) clearTimeout(game.poisonAnimTimeout);
+  game.poisonAnimTimeout = setTimeout(() => completePoisonAnimation(game), POISON_ANIM_MS);
+}
+
+function completePoisonAnimation(game) {
+  if (game.poisonPhase !== 'animating') return;
+  game.poisonPhase = 'active';
+  game.poisonTickCounter = 0;
+  game.poisonAnimStartedAt = null;
+  if (game.poisonAnimTimeout) {
+    clearTimeout(game.poisonAnimTimeout);
+    game.poisonAnimTimeout = null;
+  }
+  applyPoisonToAllActiveCards(game);
+  const count = getAllActiveFieldCards(game).length;
+  pushBattleLog(game, `Poison spreads to ${count} active card${count === 1 ? '' : 's'} (−1 HP every ${POISON_TICK_INTERVAL}s)`);
+  if (game.onUpdate) game.onUpdate(toPrivateState(game, 'player'));
+}
+
+function tickPoison(game) {
+  if (game.poisonPhase === null && (game.battleElapsed || 0) >= POISON_TRIGGER_TIME) {
+    startPoisonAnimation(game);
+    return;
+  }
+
+  if (game.poisonPhase === 'active') {
+    game.poisonTickCounter = (game.poisonTickCounter || 0) + 1;
+    if (game.poisonTickCounter >= POISON_TICK_INTERVAL) {
+      game.poisonTickCounter = 0;
+      const anyKilled = applyPoisonTick(game);
+      if (anyKilled) {
+        const w = checkWinner(game.players[0], game.players[1]);
+        if (w) {
+          finishOffline(game, w);
+          return true;
+        }
+      }
+    }
+  }
+  return false;
 }
 
 function makeBattleCard(templateId, instanceId) {
@@ -466,8 +629,9 @@ function executePlayerReplace(game, handCardId, slotIndex) {
   player.field[slotIndex] = card;
   player.battleHand.splice(handIdx, 1);
   player.replacementsUsed += 1;
+  markPoisonedIfActive(game, card);
   game.pendingReplacement = null;
-  game.log.push(`You deployed ${card.name} as a replacement (${player.replacementsUsed}/${player.maxReplacements})`);
+  pushBattleLog(game, formatDeployLog('You', card, slotIndex, player.replacementsUsed, player.maxReplacements));
   if (game.onUpdate) game.onUpdate(toPrivateState(game, 'player'));
   return { success: true };
 }
@@ -505,6 +669,7 @@ function sanitize(card, revealed) {
     type: card.type,
     slowed: !!card.slowed,
     hasted: !!card.hasted,
+    poisoned: !!card.poisoned,
     attackDoubled: !!card.attackDoubled,
     defenseHalved: !!card.defenseHalved,
     level: card.level ?? 0,
@@ -644,6 +809,7 @@ function completeAttackAnimation(game) {
     if (killed) {
       defenderRef.card.hp = 0;
       defenderRef.card.alive = false;
+      pushBattleLog(game, formatKillLog(defenderRef.card));
     }
     for (const attackerRef of attackerRefs) {
       attackerRef.card.cooldownElapsed = 0;
@@ -687,6 +853,7 @@ function beginAttackAnimation(game, attacker, defender, logPrefix) {
 
   const damage = calculateAttackDamage(attacker, defender);
   const durationMs = getAttackAnimationMs();
+  pushBattleLog(game, formatSingleAttackLog(logPrefix, attacker, defender, damage));
   game.attackAnimation = {
     attackerInstanceId: attacker.instanceId,
     defenderInstanceId: defender.instanceId,
@@ -729,10 +896,7 @@ function beginChainAttackAnimation(game, attackers, defender, logPrefix, ownerPl
     startedAt: Date.now(),
   };
 
-  const bonusPct = attackers.length >= 3 ? 20 : 10;
-  game.log.push(
-    `${logPrefix} chain attack (${attackers.length} cards, +${bonusPct}%) → ${defender.name} for ${damage} damage`,
-  );
+  pushBattleLog(game, formatChainAttackLog(logPrefix, attackers, defender, damage));
 
   if (game.onUpdate) game.onUpdate(toPrivateState(game, 'player'));
 
@@ -757,22 +921,27 @@ function drawCardForPlayer(game, player, logPrefix) {
 
   player.battleHand.push(card);
   player.drawTimer = 0;
-  game.log.push(`${logPrefix} drew ${card.name}`);
+  pushBattleLog(game, formatDrawLog(logPrefix, card));
   return true;
 }
 
-function tryReplaceFromHand(player) {
-  if (player.replacementsUsed >= player.maxReplacements) return false;
+function tryReplaceFromHand(game, player) {
+  if (player.replacementsUsed >= player.maxReplacements) return null;
   const emptySlot = (player.field || []).findIndex((c) => !c || !c.alive);
-  if (emptySlot < 0) return false;
+  if (emptySlot < 0) return null;
   const fighter = player.battleHand[0];
-  if (!fighter) return false;
+  if (!fighter) return null;
 
   fighter.role = 'field';
   player.field[emptySlot] = fighter;
   player.battleHand = player.battleHand.filter((c) => c.instanceId !== fighter.instanceId);
   player.replacementsUsed += 1;
-  return true;
+  markPoisonedIfActive(game, fighter);
+  return { card: fighter, slotIndex: emptySlot };
+}
+
+function markPoisonedIfActive(game, card) {
+  if (game.poisonPhase === 'active') card.poisoned = true;
 }
 
 function toPrivateState(game, playerId) {
@@ -805,7 +974,8 @@ function toPrivateState(game, playerId) {
     gamePaused: !!game.userPaused,
     winnerId: game.winnerId,
     battleElapsed: game.battleElapsed || 0,
-    bossMagicPhase: getBossMagicPhase(game),
+    poisonPhase: game.poisonPhase || null,
+    poisonAnimation: game.poisonPhase === 'animating',
     attackAnimation: game.attackAnimation ? { ...game.attackAnimation } : null,
     deathAnimation: game.deathAnimation ? { ...game.deathAnimation } : null,
     pendingPlayerActions: (game.pendingPlayerActions || []).map((action) => ({ ...action })),
@@ -863,6 +1033,9 @@ export function createOfflineGame(deckIds) {
     pendingReplacement: null,
     pendingPlayerActions: [],
     battleElapsed: 0,
+    poisonPhase: null,
+    poisonTickCounter: 0,
+    poisonAnimTimeout: null,
   };
   return game;
 }
@@ -890,7 +1063,7 @@ export function offlineSetup(game, bossId, fieldIds) {
   autoNpcSetup(game);
   if (game.players.every((p) => p.setupComplete)) {
     game.phase = 'battle';
-    game.log.push('Battle begins! Draw timer started.');
+    pushBattleLog(game, 'Battle begins! Draw timer started (70s).');
     startTicks(game);
   }
   return { success: true };
@@ -933,6 +1106,8 @@ function startTicks(game) {
     runNpcBossMagic(game);
     runNpcAI(game);
 
+    if (tickPoison(game)) return;
+
     const w = checkWinner(game.players[0], game.players[1]);
     if (w) finishOffline(game, w);
     else if (game.onUpdate) game.onUpdate(toPrivateState(game, 'player'));
@@ -942,7 +1117,10 @@ function startTicks(game) {
 function runNpcDrawAndReplace(game) {
   const npc = game.players[1];
   if (npc.drawTimer >= npc.drawTimerMax) drawCardForPlayer(game, npc, 'CPU');
-  if (tryReplaceFromHand(npc)) game.log.push('CPU deployed a replacement fighter');
+  const replaced = tryReplaceFromHand(game, npc);
+  if (replaced) {
+    pushBattleLog(game, formatDeployLog('CPU', replaced.card, replaced.slotIndex, npc.replacementsUsed, npc.maxReplacements));
+  }
 }
 
 function runNpcBossMagic(game) {
@@ -959,8 +1137,8 @@ function runNpcBossMagic(game) {
   const needsHeal = fighters.some((c) => c.hp < c.maxHp)
     || (isBossOnlyPhase(npc) && npc.boss.hp < npc.boss.maxHp);
   if (canUseBossAbility(npc, game) && needsHeal) {
-    applyBossHeal(game, npc);
-    game.log.push(`CPU boss healed ${fighters.length ? 'all fighters' : npc.boss.name}`);
+    const msg = applyBossHeal(game, npc);
+    if (msg) pushBattleLog(game, msg);
     return;
   }
 
@@ -973,8 +1151,8 @@ function runNpcBossMagic(game) {
     && slowTarget
     && getCooldownRemaining(slowTarget) <= slowTarget.cooldown * 0.6
   ) {
-    applyBossSlow(game, npc, slowTarget);
-    game.log.push(`CPU boss slowed ${slowTarget.name}`);
+    const msg = applyBossSlow(game, npc, slowTarget);
+    if (msg) pushBattleLog(game, msg);
     return;
   }
 
@@ -985,14 +1163,14 @@ function runNpcBossMagic(game) {
     const target = hasteCandidates.reduce((a, b) => (
       getCooldownRemaining(a) > getCooldownRemaining(b) ? a : b
     ));
-    applyBossHaste(game, npc, target);
-    game.log.push(`CPU boss hastened ${target.name}`);
+    const msg = applyBossHaste(game, npc, target);
+    if (msg) pushBattleLog(game, msg);
     return;
   }
 
   if (canUseBossAbility(npc, game) && slowTarget) {
-    applyBossSlow(game, npc, slowTarget);
-    game.log.push(`CPU boss slowed ${slowTarget.name}`);
+    const msg = applyBossSlow(game, npc, slowTarget);
+    if (msg) pushBattleLog(game, msg);
   }
 }
 
@@ -1004,8 +1182,8 @@ function runNpcBossMagicPhase2(game, npc, human) {
     ? enemyCards.reduce((a, b) => (b.defense > a.defense ? b : a))
     : null;
   if (defenseTarget && defenseTarget.defense > 0) {
-    applyBossDefenseHalved(game, npc, defenseTarget);
-    game.log.push(`CPU boss halved ${defenseTarget.name}'s defense`);
+    const msg = applyBossDefenseHalved(game, npc, defenseTarget);
+    if (msg) pushBattleLog(game, msg);
     return;
   }
 
@@ -1016,8 +1194,8 @@ function runNpcBossMagicPhase2(game, npc, human) {
     ? allyCards.reduce((a, b) => (b.attack > a.attack ? b : a))
     : null;
   if (attackTarget) {
-    applyBossAttack2x(game, npc, attackTarget);
-    game.log.push(`CPU boss doubled ${attackTarget.name}'s attack`);
+    const msg = applyBossAttack2x(game, npc, attackTarget);
+    if (msg) pushBattleLog(game, msg);
   }
 }
 
@@ -1085,7 +1263,11 @@ function finishOffline(game, winnerId) {
   game.winnerId = winnerId;
   const w = game.players.find((p) => p.id === winnerId);
   if (w) w.isWinner = true;
-  game.log.push(`${w?.username} wins!`);
+  pushBattleLog(game, `${w?.username} wins!`);
+  if (game.poisonAnimTimeout) {
+    clearTimeout(game.poisonAnimTimeout);
+    game.poisonAnimTimeout = null;
+  }
   clearBattleAnimations(game);
   stopTicks();
   if (game.onUpdate) game.onUpdate(toPrivateState(game, 'player'));
@@ -1197,8 +1379,9 @@ export function offlineChainAttack(game, attackerIds, defenderId) {
 function applyBossSlow(game, owner, target) {
   if (target.role === 'boss' && !canBossReceiveEffects(
     game.players.find((p) => p.boss?.instanceId === target.instanceId || (p.field || []).some((c) => c?.instanceId === target.instanceId)),
-  )) return;
-  const remaining = getCooldownRemaining(target);
+  )) return null;
+  const beforeRemaining = getCooldownRemaining(target);
+  const beforeCooldown = target.cooldown;
   if (!target.slowed) {
     target.slowed = true;
     target.bossSlowed = true;
@@ -1206,58 +1389,69 @@ function applyBossSlow(game, owner, target) {
   }
   const newRemaining = Math.min(
     target.cooldown,
-    Math.max(remaining, 1) * 2,
+    Math.max(beforeRemaining, 1) * 2,
   );
   target.cooldownElapsed = target.cooldown - newRemaining;
   markBossAbilityUsed(game, owner, 'slow', target.name);
+  return formatBossSlowLog(owner.username, target, beforeRemaining, newRemaining, beforeCooldown, target.cooldown);
 }
 
 function applyBossHeal(game, owner) {
   const fighters = getAliveFieldFighters(owner);
   if (fighters.length) {
+    const before = fighters.map((f) => ({ ...f, prevHp: f.hp }));
     for (const fighter of fighters) {
       fighter.hp = fighter.maxHp;
     }
     markBossAbilityUsed(game, owner, 'heal', 'all fighters');
-    return;
+    return formatBossHealLog(owner.username, before.map((f) => ({ name: f.name, hp: f.prevHp, maxHp: f.maxHp })));
   }
   if (owner.boss?.alive) {
+    const beforeHp = owner.boss.hp;
     owner.boss.hp = owner.boss.maxHp;
     markBossAbilityUsed(game, owner, 'heal', owner.boss.name);
+    return formatBossHealLog(owner.username, [{ name: owner.boss.name, hp: beforeHp, maxHp: owner.boss.maxHp }]);
   }
+  return null;
 }
 
 function applyBossHaste(game, owner, target) {
-  if (target.role === 'boss' && !canBossReceiveEffects(owner)) return;
-  const remaining = getCooldownRemaining(target);
+  if (target.role === 'boss' && !canBossReceiveEffects(owner)) return null;
+  const beforeRemaining = getCooldownRemaining(target);
+  const beforeCooldown = target.cooldown;
   if (!target.hasted) {
     target.hasted = true;
     target.bossHasted = true;
     target.cooldown = Math.max(1, Math.floor(target.cooldown / 2));
   }
-  const newRemaining = Math.max(0, Math.floor(remaining / 2));
+  const newRemaining = Math.max(0, Math.floor(beforeRemaining / 2));
   target.cooldownElapsed = target.cooldown - newRemaining;
   markBossAbilityUsed(game, owner, 'haste', target.name);
+  return formatBossHasteLog(owner.username, target, beforeRemaining, newRemaining, beforeCooldown, target.cooldown);
 }
 
 function applyBossAttack2x(game, owner, target) {
-  if (target.role === 'boss' && !canBossReceiveEffects(owner)) return;
+  if (target.role === 'boss' && !canBossReceiveEffects(owner)) return null;
+  const beforeAtk = target.attack;
   if (!target.attackDoubled) {
     target.attackDoubled = true;
     target.attack = Math.floor(target.attack * 2);
   }
   markBossAbilityUsedPhase2(owner);
+  return formatBossAttack2xLog(owner.username, target, beforeAtk, target.attack);
 }
 
 function applyBossDefenseHalved(game, owner, target) {
   if (target.role === 'boss' && !canBossReceiveEffects(
     game.players.find((p) => p.boss?.instanceId === target.instanceId || (p.field || []).some((c) => c?.instanceId === target.instanceId)),
-  )) return;
+  )) return null;
+  const beforeDef = target.defense;
   if (!target.defenseHalved) {
     target.defenseHalved = true;
     target.defense = Math.max(0, Math.floor(target.defense / 2));
   }
   markBossAbilityUsedPhase2(owner);
+  return formatBossDefenseHalvedLog(owner.username, target, beforeDef, target.defense);
 }
 
 function resolveBossAbility(game, owner, ability, targetInstanceId) {
@@ -1278,24 +1472,24 @@ function resolveBossAbility(game, owner, ability, targetInstanceId) {
     if (target.role === 'boss' && !canBossBeTargeted(opp)) {
       return { success: false, message: 'Boss is protected until all fighters are defeated' };
     }
-    applyBossSlow(game, owner, target);
-    game.log.push(`${owner.username} boss slowed ${target.name}`);
+    const msg = applyBossSlow(game, owner, target);
+    if (msg) pushBattleLog(game, msg);
   } else if (ability === 'heal') {
     const fighters = getAliveFieldFighters(owner);
     const canHealBoss = isBossOnlyPhase(owner) && owner.boss?.alive;
     if (!fighters.length && !canHealBoss) {
       return { success: false, message: 'Nothing to heal' };
     }
-    applyBossHeal(game, owner);
-    game.log.push(`${owner.username} boss healed ${fighters.length ? 'all fighters' : owner.boss.name}`);
+    const msg = applyBossHeal(game, owner);
+    if (msg) pushBattleLog(game, msg);
   } else if (ability === 'haste') {
     const target = getFieldCards(owner).find((c) => c.instanceId === targetInstanceId);
     if (!target?.alive) return { success: false, message: 'Invalid target' };
     if (target.role === 'boss' && !canBossReceiveEffects(owner)) {
       return { success: false, message: 'Boss cannot receive effects until fighting' };
     }
-    applyBossHaste(game, owner, target);
-    game.log.push(`${owner.username} boss hastened ${target.name}`);
+    const msg = applyBossHaste(game, owner, target);
+    if (msg) pushBattleLog(game, msg);
   } else {
     return { success: false };
   }
@@ -1322,8 +1516,8 @@ function resolveBossAbilityPhase2(game, owner, ability, targetInstanceId) {
       return { success: false, message: 'Boss cannot receive effects until fighting' };
     }
     if (target.attackDoubled) return { success: false, message: 'Attack already doubled' };
-    applyBossAttack2x(game, owner, target);
-    game.log.push(`${owner.username} boss doubled ${target.name}'s attack`);
+    const msg = applyBossAttack2x(game, owner, target);
+    if (msg) pushBattleLog(game, msg);
   } else if (ability === 'defenseHalved') {
     const opp = game.players.find((p) => p.id !== owner.id);
     const target = getFieldCards(opp).find((c) => c.instanceId === targetInstanceId);
@@ -1332,8 +1526,8 @@ function resolveBossAbilityPhase2(game, owner, ability, targetInstanceId) {
       return { success: false, message: 'Boss is protected until all fighters are defeated' };
     }
     if (target.defenseHalved) return { success: false, message: 'Defense already halved' };
-    applyBossDefenseHalved(game, owner, target);
-    game.log.push(`${owner.username} boss halved ${target.name}'s defense`);
+    const msg = applyBossDefenseHalved(game, owner, target);
+    if (msg) pushBattleLog(game, msg);
   } else {
     return { success: false };
   }
