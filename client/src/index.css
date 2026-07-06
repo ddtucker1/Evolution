@@ -2405,11 +2405,96 @@ input:focus {
   filter: drop-shadow(0 0 6px rgba(80, 0, 0, 0.35));
 }
 
-.player-zone.blood-splattered > *:not(.blood-splatter-overlay) {
+.blood-drop-appear {
+  transform-origin: center;
+  animation: blood-drop-splat 0.35s cubic-bezier(0.2, 0.9, 0.3, 1) both;
+}
+
+@keyframes blood-drop-splat {
+  0% {
+    transform: scale(0);
+    opacity: 0;
+  }
+  60% {
+    transform: scale(1.15);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.blood-coverage-wash {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at center, rgba(120, 8, 8, 0.55) 0%, rgba(90, 5, 5, 0.82) 100%);
+  opacity: 0;
+  transition: opacity 1.2s ease-in;
+  z-index: 1;
+}
+
+.blood-coverage-wash.visible {
+  opacity: 0.92;
+}
+
+.blood-splatter-full .blood-splatter-svg {
+  opacity: 0.95;
+}
+
+.player-zone.blood-splattered > *:not(.blood-splatter-overlay):not(.zone-result-label) {
   position: relative;
   z-index: 1;
 }
 
 .player-zone.blood-splattered .game-card {
   filter: saturate(0.75) brightness(0.88);
+}
+
+.zone-result-label {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 10;
+  padding: 14px 28px;
+  border-radius: var(--radius);
+  font-family: var(--font-display);
+  font-size: 1.4rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  text-align: center;
+  pointer-events: none;
+  animation: zone-result-in 0.55s cubic-bezier(0.2, 0.9, 0.3, 1) both;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.55);
+}
+
+.zone-result-victorious {
+  background: rgba(18, 36, 18, 0.94);
+  border: 2px solid var(--accent-gold);
+  color: var(--accent-gold);
+}
+
+.zone-result-loser {
+  background: rgba(42, 8, 8, 0.94);
+  border: 2px solid rgba(180, 30, 30, 0.85);
+  color: #e07070;
+}
+
+@keyframes zone-result-in {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.7);
+  }
+  100% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+
+.battle-end-actions {
+  display: flex;
+  justify-content: center;
+  margin-top: 16px;
 }
