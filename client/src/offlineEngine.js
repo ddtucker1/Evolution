@@ -8,9 +8,7 @@ import {
   MAX_LIBRARY_SIZE,
 } from '../../shared/baseCardStats.js';
 import { generateCardName } from '../../shared/cardNaming.js';
-import { getCardAbilities, createCombinedCard, getCardLevel } from './combineEngine.js';
-import { COMBINE_TICK_INTERVAL, getAbilityDisplayName, getCarriedEffectTickInterval } from '../../shared/combineRules.js';
-import { getAbilityStrength } from './combineEngine.js';
+import { createCombinedCard, getCardLevel } from './combineEngine.js';
 
 const CATALOG_VERSION = 3;
 const CATALOG_STORAGE_KEY = 'cfb_card_catalog';
@@ -168,9 +166,6 @@ function makeBattleCard(templateId, instanceId) {
     maxHp, hp: maxHp,
     cooldown, cooldownElapsed: 0,
     alive: true, role: null,
-    abilities: getCardAbilities(t),
-    periodicElapsed: 0,
-    carriedEffects: [],
     isBase: isBaseCardId(templateId),
     level: t.level ?? (isEvolved ? 1 : 0),
   };
@@ -213,11 +208,7 @@ function createPlayer(id, username, deckIds) {
 let npcEvolvedPool = null;
 
 function createNpcCombinedCard(card1, card2, id) {
-  const inputLevel = getCardLevel(card1);
-  const abilityChoice = inputLevel >= 1
-    ? (Math.random() < 0.5 ? 'upgrade' : 'new')
-    : undefined;
-  const combined = createCombinedCard(card1, card2, { abilityChoice, deterministic: true });
+  const combined = createCombinedCard(card1, card2, { deterministic: true });
   if (!combined) return null;
   const card = { ...combined, id };
   LOOKUP.set(id, card);
@@ -512,13 +503,10 @@ function sanitize(card, revealed) {
     role: card.role,
     alive: card.alive,
     type: card.type,
-    ability: card.ability || null,
-    abilities: card.abilities || getCardAbilities(card),
     slowed: !!card.slowed,
     hasted: !!card.hasted,
     attackDoubled: !!card.attackDoubled,
     defenseHalved: !!card.defenseHalved,
-    carriedEffects: card.carriedEffects || [],
     level: card.level ?? 0,
     isBase: !!card.isBase,
     bossLocked: false,
@@ -637,130 +625,6 @@ function pickRandomAlive(cards) {
   return alive[Math.floor(Math.random() * alive.length)];
 }
 
-function inflictCarriedEffects(target, abilities) {
-  if (!target?.alive || !abilities?.length) return;
-  if (!target.carriedEffects) target.carriedEffects = [];
-  const existing = new Set(target.carriedEffects.map((e) => e.id));
-  for (const ability of abilities) {
-    if (ability.effect === 'dazed_solo_attack' || ability.effect === 'vamp_steal') continue;
-    if (!ability.id || existing.has(ability.id)) continue;
-    target.carriedEffects.push({
-      id: ability.id,
-      name: getAbilityDisplayName(ability),
-      effect: ability.effect,
-      strength: getAbilityStrength(ability),
-      tickInterval: ability.tickIntervalSeconds ?? COMBINE_TICK_INTERVAL,
-      elapsed: 0,
-    });
-    existing.add(ability.id);
-  }
-}
-
-function applyHealthDrain(card, amount = 1) {
-  if (!card?.alive || amount <= 0) return false;
-  card.hp -= amount;
-  if (card.hp <= 0) {
-    card.hp = 0;
-    card.alive = false;
-    return true;
-  }
-  return false;
-}
-
-function getAdjacentOpponentCards(game, card) {
-  const ref = findFieldCard(game, card.instanceId);
-  if (!ref) return [];
-  const slot = getFieldSlotIndex(ref.player, card);
-  if (slot < 0) return [];
-  const opponent = game.players.find((p) => p.id !== ref.player.id);
-  return getAdjacentFieldSlotIndices(slot)
-    .map((adj) => opponent.field?.[adj])
-    .filter((c) => c?.alive);
-}
-
-function applyVampSteal(game, owner, sourceCard, ability) {
-  const opponent = game.players.find((p) => p.id !== owner.id);
-  const strength = getAbilityStrength(ability);
-  const victim = pickRandomAlive(getAliveFieldFighters(opponent));
-  if (!victim) return false;
-  const killed = applyHealthDrain(victim, strength);
-  const needy = getAliveFieldFighters(owner).filter((c) => c.hp < c.maxHp);
-  const healTarget = pickRandomAlive(needy);
-  if (healTarget) {
-    healTarget.hp = Math.min(healTarget.maxHp, healTarget.hp + strength);
-  }
-  if (killed) game.log.push(`${sourceCard.name}'s Vamp defeated ${victim.name}`);
-  return killed ? victim : false;
-}
-
-function applyCarriedEffectTick(game, card, carried) {
-  const strength = carried.strength || 1;
-  switch (carried.effect) {
-    case 'health_drain_enemy': {
-      const killed = applyHealthDrain(card, strength);
-      if (killed) game.log.push(`${card.name} succumbed to ${carried.name}`);
-      return killed ? card : false;
-    }
-    case 'defense_drain_enemy': {
-      card.defense = Math.max(0, card.defense - strength);
-      return false;
-    }
-    case 'fire_adjacent_enemies': {
-      let killedCard = null;
-      for (const target of getAdjacentOpponentCards(game, card)) {
-        if (applyHealthDrain(target, strength)) killedCard = target;
-      }
-      if (killedCard) {
-        game.log.push(`${card.name}'s Fire defeated ${killedCard.name}`);
-        return killedCard;
-      }
-      return false;
-    }
-    case 'timer_increase_enemy': {
-      card.cooldown = (card.cooldown || 0) + strength;
-      return false;
-    }
-    default:
-      return false;
-  }
-}
-
-function processCarriedEffectTicks(game) {
-  if (isBattlePaused(game)) return false;
-
-  for (const owner of game.players) {
-    for (const card of getFieldCards(owner)) {
-      if (!card?.alive) continue;
-      const effects = card.carriedEffects || [];
-      if (!effects.length) continue;
-
-      for (const carried of effects) {
-        carried.elapsed = (carried.elapsed || 0) + 1;
-        const interval = getCarriedEffectTickInterval(carried);
-        if (carried.elapsed < interval) continue;
-        carried.elapsed = 0;
-
-        const killedCard = applyCarriedEffectTick(game, card, carried);
-        if (killedCard) return triggerPoisonDeath(game, killedCard);
-      }
-    }
-  }
-  return false;
-}
-
-function resolveDazedTarget(game, attacker, owner, defender, defenderOwner) {
-  const dazedAbility = getCardAbilities(attacker).find((a) => a.effect === 'dazed_solo_attack');
-  const dazedChance = 0.2 * getAbilityStrength(dazedAbility);
-  if (!dazedAbility || Math.random() >= dazedChance) {
-    return { defender, defenderOwner };
-  }
-  const allies = getAliveFieldFighters(owner).filter((c) => c.instanceId !== attacker.instanceId);
-  if (!allies.length) return { defender, defenderOwner };
-  const ally = allies[Math.floor(Math.random() * allies.length)];
-  game.log.push(`${attacker.name} is dazed and strikes ${ally.name}!`);
-  return { defender: ally, defenderOwner: owner };
-}
-
 function completeAttackAnimation(game) {
   const anim = game.attackAnimation;
   if (!anim) return;
@@ -781,31 +645,14 @@ function completeAttackAnimation(game) {
       defenderRef.card.hp = 0;
       defenderRef.card.alive = false;
     }
-    let vampKill = null;
     for (const attackerRef of attackerRefs) {
       attackerRef.card.cooldownElapsed = 0;
-      if (anim.isChainAttack) continue;
-      const abilities = getCardAbilities(attackerRef.card);
-      inflictCarriedEffects(defenderRef.card, abilities);
-      for (const ability of abilities) {
-        if (ability.effect !== 'vamp_steal') continue;
-        const vampVictim = applyVampSteal(game, attackerRef.player, attackerRef.card, ability);
-        if (vampVictim) vampKill = vampVictim;
-      }
     }
 
     if (killed) {
       game.deathAnimation = {
         instanceId: defenderRef.card.instanceId,
         role: defenderRef.card.role,
-        durationMs: DEATH_ANIMATION_MS,
-        shakeMs: DEATH_SHAKE_MS,
-        startedAt: Date.now(),
-      };
-    } else if (vampKill) {
-      game.deathAnimation = {
-        instanceId: vampKill.instanceId,
-        role: vampKill.role,
         durationMs: DEATH_ANIMATION_MS,
         shakeMs: DEATH_SHAKE_MS,
         startedAt: Date.now(),
@@ -837,10 +684,6 @@ function beginAttackAnimation(game, attacker, defender, logPrefix) {
   if (isBattlePaused(game)) return { success: false, message: 'Attack in progress' };
   const owner = game.players.find((p) => p.boss?.instanceId === attacker.instanceId || (p.field || []).some((c) => c?.instanceId === attacker.instanceId));
   if (!owner || !canCardAttack(attacker, owner)) return { success: false, message: 'Cannot attack yet' };
-
-  const defenderOwner = game.players.find((p) => p.boss?.instanceId === defender.instanceId || (p.field || []).some((c) => c?.instanceId === defender.instanceId));
-  const resolved = resolveDazedTarget(game, attacker, owner, defender, defenderOwner);
-  defender = resolved.defender;
 
   const damage = calculateAttackDamage(attacker, defender);
   const durationMs = getAttackAnimationMs();
@@ -1072,32 +915,10 @@ function autoNpcSetup(game) {
   npc.setupComplete = true;
 }
 
-function triggerPoisonDeath(game, card) {
-  if (!card || game.deathAnimation || game.attackAnimation) return false;
-  card.hp = 0;
-  card.alive = false;
-  game.deathAnimation = {
-    instanceId: card.instanceId,
-    role: card.role,
-    durationMs: DEATH_ANIMATION_MS,
-    shakeMs: DEATH_SHAKE_MS,
-    startedAt: Date.now(),
-  };
-  if (game.onUpdate) game.onUpdate(toPrivateState(game, 'player'));
-  game.deathTimeout = setTimeout(() => completeDeathAnimation(game), DEATH_ANIMATION_MS);
-  return true;
-}
-
 function startTicks(game) {
   stopTicks();
   tickTimer = setInterval(() => {
     if (game.phase !== 'battle' || isBattlePaused(game)) return;
-
-    if (processCarriedEffectTicks(game)) {
-      const w = checkWinner(game.players[0], game.players[1]);
-      if (w) finishOffline(game, w);
-      return;
-    }
 
     game.battleElapsed = (game.battleElapsed || 0) + 1;
 

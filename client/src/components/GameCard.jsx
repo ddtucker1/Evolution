@@ -1,4 +1,4 @@
-import { getLevelDigit, getAbilityDisplayName } from '../combineEngine';
+import { getLevelDigit } from '../combineEngine';
 import CardBack from './CardBack';
 import { truncateCardName } from '../utils/truncateCardName';
 
@@ -33,7 +33,6 @@ export default function GameCard({
             <div className="hp-bar hp-bar-inline stat-bar-placeholder" />
           </div>
           <div>ATK: —</div>
-          <div className="card-ability-slot" />
           <div className="stat-row">
             <span className="timer-stat">Timer: —</span>
             <div className="timer-bar timer-bar-inline stat-bar-placeholder" />
@@ -117,18 +116,6 @@ export default function GameCard({
           </div>
         </div>
         <div>ATK: {Math.round(card.attack ?? 0)}</div>
-        <div className="card-ability-slot">
-          {(card.abilities?.length
-            ? card.abilities
-            : card.ability?.label
-              ? [card.ability]
-              : []
-          ).map((ability) => (
-            <span key={ability.id || ability.label} className="card-ability">
-              {getAbilityDisplayName(ability)}
-            </span>
-          ))}
-        </div>
         <div className="stat-row">
           <span className="timer-stat">Timer: {timerLabel}</span>
           <div className={`timer-bar timer-bar-inline${showTimerBar ? '' : ' stat-bar-placeholder'}${isReady ? ' timer-ready' : ''}`}>
