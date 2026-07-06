@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import GameCard from './GameCard';
 import CardBack from './CardBack';
 import AttackArrow from './AttackArrow';
@@ -28,6 +28,38 @@ export default function BattleView({
   const [magicMode, setMagicMode] = useState(null);
   const battlefieldRef = useRef(null);
   const cardRefs = useRef({});
+  const [bossDefeatPhase, setBossDefeatPhase] = useState(null);
+  const [loserIsPlayer, setLoserIsPlayer] = useState(false);
+  const bossDefeatStartedRef = useRef(false);
+
+  const handleBloodSplatterComplete = useCallback(() => {
+    setBossDefeatPhase('labels');
+  }, []);
+
+  const me = gameState?.players?.find((p) => p.id === 'player') || gameState?.players?.[0];
+  const myBossInstanceId = gameState?.myBoss?.instanceId || me?.boss?.instanceId;
+  const oppBossInstanceId = gameState?.opponent?.boss?.instanceId
+    || gameState?.players?.find((p) => p.id !== me?.id)?.boss?.instanceId;
+
+  useEffect(() => {
+    const deathAnim = gameState?.deathAnimation;
+    if (!deathAnim) return;
+    const isBossDeath = deathAnim.role === 'boss'
+      || deathAnim.instanceId === myBossInstanceId
+      || deathAnim.instanceId === oppBossInstanceId;
+    if (!isBossDeath || bossDefeatStartedRef.current) return;
+    bossDefeatStartedRef.current = true;
+    setLoserIsPlayer(deathAnim.instanceId === myBossInstanceId);
+    setBossDefeatPhase('blood');
+  }, [gameState?.deathAnimation, myBossInstanceId, oppBossInstanceId]);
+
+  useEffect(() => {
+    const winner = gameState?.winnerId;
+    if (!winner || bossDefeatStartedRef.current) return;
+    bossDefeatStartedRef.current = true;
+    setLoserIsPlayer(winner !== me?.id && winner !== 'player');
+    setBossDefeatPhase('blood');
+  }, [gameState?.winnerId, me?.id]);
 
   if (!gameState) return null;
 
@@ -60,7 +92,6 @@ export default function BattleView({
     gamePaused,
   } = gameState;
 
-  const me = players?.find((p) => p.id === 'player') || players?.[0];
   const battleEnded = !!winnerId;
   const queuedActions = pendingPlayerActions || [];
   const drawQueued = queuedActions.some((action) => action.type === 'draw');
@@ -235,6 +266,12 @@ export default function BattleView({
     field: myField?.length ? myField : (me?.field || [null, null, null]),
   };
   const oppPlayer = opponent || players?.find((p) => p.id !== me?.id);
+
+  const showBloodOnPlayer = bossDefeatPhase && loserIsPlayer;
+  const showBloodOnOpponent = bossDefeatPhase && !loserIsPlayer;
+  const showVictoryLabels = bossDefeatPhase === 'labels';
+  const playerWon = showVictoryLabels && !loserIsPlayer;
+  const opponentWon = showVictoryLabels && loserIsPlayer;
 
   const getReadyChainAttackers = () => (
     getAliveFieldFighters(myPlayer.field).filter((c) => (c.cooldownElapsed ?? 0) >= (c.cooldown ?? 0))
@@ -672,15 +709,6 @@ export default function BattleView({
         )}
 
         <div className="battle-main">
-      {winnerId && (
-        <div className="card" style={{ textAlign: 'center', marginBottom: 16, borderColor: 'var(--accent-gold)' }}>
-          <h2 style={{ fontFamily: 'var(--font-display)', color: 'var(--accent-gold)' }}>
-            {winnerId === me?.id || winnerId === 'player' ? 'Victory!' : 'Defeat'}
-          </h2>
-          <button className="btn-secondary" onClick={onMainMenu} style={{ marginTop: 12 }}>Main Menu</button>
-        </div>
-      )}
-
       <div className="battlefield" ref={battlefieldRef}>
         {attackAnimation && (
           <>
@@ -696,8 +724,16 @@ export default function BattleView({
             />
           </>
         )}
-        <div className={`player-zone zone-player${winnerId && winnerId !== me?.id && winnerId !== 'player' ? ' blood-splattered' : ''}`}>
-          {winnerId && winnerId !== me?.id && winnerId !== 'player' && <BloodSplatter />}
+        <div className={`player-zone zone-player${showBloodOnPlayer ? ' blood-splattered' : ''}`}>
+          {showBloodOnPlayer && (
+            <BloodSplatter active onComplete={handleBloodSplatterComplete} />
+          )}
+          {playerWon && (
+            <div className="zone-result-label zone-result-victorious">Victorious</div>
+          )}
+          {showVictoryLabels && loserIsPlayer && (
+            <div className="zone-result-label zone-result-loser">Loser</div>
+          )}
           {(replaceMode || selectedSlot != null) && (
             <p className="replace-hint">
               {replaceMode
@@ -711,8 +747,16 @@ export default function BattleView({
           )}
         </div>
 
-        <div className={`player-zone zone-opponent${winnerId && (winnerId === me?.id || winnerId === 'player') ? ' blood-splattered' : ''}`}>
-          {winnerId && (winnerId === me?.id || winnerId === 'player') && <BloodSplatter />}
+        <div className={`player-zone zone-opponent${showBloodOnOpponent ? ' blood-splattered' : ''}`}>
+          {showBloodOnOpponent && (
+            <BloodSplatter active onComplete={handleBloodSplatterComplete} />
+          )}
+          {opponentWon && (
+            <div className="zone-result-label zone-result-victorious">Victorious</div>
+          )}
+          {showVictoryLabels && !loserIsPlayer && (
+            <div className="zone-result-label zone-result-loser">Loser</div>
+          )}
           {renderBattlefield(oppPlayer || { boss: null, field: [null, null, null] }, false)}
           {oppAliveFighters > 0 && oppPlayer?.boss?.alive && (
             <p className="boss-hint">Boss protected behind fighters</p>
@@ -766,6 +810,12 @@ export default function BattleView({
           </div>
         )}
       </div>
+
+      {showVictoryLabels && (
+        <div className="battle-end-actions">
+          <button type="button" className="btn-secondary" onClick={onMainMenu}>Main Menu</button>
+        </div>
+      )}
         </div>
       </div>
     </div>

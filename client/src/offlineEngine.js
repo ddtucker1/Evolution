@@ -828,6 +828,7 @@ function completeAttackAnimation(game) {
     if (killed) {
       game.deathAnimation = {
         instanceId: defenderRef.card.instanceId,
+        role: defenderRef.card.role,
         durationMs: DEATH_ANIMATION_MS,
         shakeMs: DEATH_SHAKE_MS,
         startedAt: Date.now(),
@@ -835,6 +836,7 @@ function completeAttackAnimation(game) {
     } else if (vampKill) {
       game.deathAnimation = {
         instanceId: vampKill.instanceId,
+        role: vampKill.role,
         durationMs: DEATH_ANIMATION_MS,
         shakeMs: DEATH_SHAKE_MS,
         startedAt: Date.now(),
@@ -1107,6 +1109,7 @@ function triggerPoisonDeath(game, card) {
   card.alive = false;
   game.deathAnimation = {
     instanceId: card.instanceId,
+    role: card.role,
     durationMs: DEATH_ANIMATION_MS,
     shakeMs: DEATH_SHAKE_MS,
     startedAt: Date.now(),
@@ -1336,6 +1339,7 @@ function finishOffline(game, winnerId) {
   game.log.push(`${w?.username} wins!`);
   clearBattleAnimations(game);
   stopTicks();
+  if (game.onUpdate) game.onUpdate(toPrivateState(game, 'player'));
 }
 
 function clearDeathAnimation(game) {
