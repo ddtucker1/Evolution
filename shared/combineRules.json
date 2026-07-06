@@ -42,9 +42,10 @@
       "id": "poison",
       "tier": 0,
       "name": "Poison",
-      "description": "Lowers health by 1 every 8 seconds",
-      "label": "Poison — lowers health by 1 every 8 seconds",
-      "effect": "health_drain_enemy"
+      "description": "Lowers health by 1 every 9 seconds",
+      "label": "Poison — lowers health by 1 every 9 seconds",
+      "effect": "health_drain_enemy",
+      "tickIntervalSeconds": 9
     },
     {
       "id": "rust",

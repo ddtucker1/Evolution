@@ -2002,11 +2002,6 @@ input:focus {
   color: var(--accent-purple);
 }
 
-.boss-magic-btn.poison-all-btn {
-  border-color: rgba(46, 204, 113, 0.5);
-  color: var(--accent-green);
-}
-
 .boss-magic-btn:disabled {
   opacity: 0.45;
   cursor: not-allowed;

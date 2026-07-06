@@ -1,5 +1,5 @@
 id,tier,name,description,label,effect,pool_tier_0,pool_tier_1,pool_tier_2
-poison,0,Poison,Lowers health by 1 every 8 seconds,Poison — lowers health by 1 every 8 seconds,health_drain_enemy,y,,
+poison,0,Poison,Lowers health by 1 every 9 seconds,Poison — lowers health by 1 every 9 seconds,health_drain_enemy,y,,
 rust,0,Rust,Lowers defense by 1 every 8 seconds,Rust — lowers defense by 1 every 8 seconds,defense_drain_enemy,y,,
 fire,1,Fire,Adjacent enemies lose 1 HP every 8 seconds,Fire — adjacent enemies lose 1 HP every 8 seconds,fire_adjacent_enemies,,y,
 sick,1,Sick,Adds 1 second to an enemy timer every 8 seconds,Sick — adds 1 second to an enemy timer every 8 seconds,timer_increase_enemy,,y,
