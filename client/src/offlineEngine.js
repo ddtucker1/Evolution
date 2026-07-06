@@ -229,19 +229,45 @@ function formatPoisonTickLog(card, hpBefore, hpAfter) {
   return `Poison → ${card.name} | HP ${hpBefore} − 1 = ${hpAfter}`;
 }
 
+function getActiveFieldCards(player) {
+  const fighters = getAliveFieldFighters(player);
+  if (fighters.length > 0) return fighters;
+  if (player.boss?.alive) return [player.boss];
+  return [];
+}
+
 function getAllActiveFieldCards(game) {
   const cards = [];
   for (const player of game.players) {
-    for (const card of getFieldCards(player)) {
+    for (const card of getActiveFieldCards(player)) {
       if (card?.alive) cards.push({ card, player });
     }
   }
   return cards;
 }
 
-function applyPoisonToAllActiveCards(game) {
-  for (const { card } of getAllActiveFieldCards(game)) {
+function syncPoisonForPlayer(game, player) {
+  const activeIds = new Set(getActiveFieldCards(player).map((c) => c.instanceId));
+
+  if (player.boss && !activeIds.has(player.boss.instanceId)) {
+    player.boss.poisoned = false;
+  }
+  for (const fighter of player.field || []) {
+    if (fighter && !activeIds.has(fighter.instanceId)) {
+      fighter.poisoned = false;
+    }
+  }
+
+  if (game.poisonPhase !== 'active') return;
+
+  for (const card of getActiveFieldCards(player)) {
     card.poisoned = true;
+  }
+}
+
+function applyPoisonToAllActiveCards(game) {
+  for (const player of game.players) {
+    syncPoisonForPlayer(game, player);
   }
 }
 
@@ -275,6 +301,7 @@ function applyPoisonTick(game) {
           maybeSetPendingReplacement(game, player, idx);
         }
       }
+      syncPoisonForPlayer(game, player);
       anyKilled = true;
     }
   }
@@ -648,7 +675,7 @@ function executePlayerReplace(game, handCardId, slotIndex) {
   player.field[slotIndex] = card;
   player.battleHand.splice(handIdx, 1);
   player.replacementsUsed += 1;
-  markPoisonedIfActive(game, card);
+  markPoisonedIfActive(game, card, player);
   game.pendingReplacement = null;
   pushBattleLog(game, formatDeployLog('You', card, slotIndex, player.replacementsUsed, player.maxReplacements));
   if (game.onUpdate) game.onUpdate(toPrivateState(game, 'player'));
@@ -798,6 +825,7 @@ function completeDeathAnimation(game) {
 
   for (const player of game.players) {
     clearOrphanedDeadFieldSlots(player);
+    syncPoisonForPlayer(game, player);
   }
 
   if (
@@ -992,12 +1020,15 @@ function tryReplaceFromHand(game, player) {
   player.field[emptySlot] = fighter;
   player.battleHand = player.battleHand.filter((c) => c.instanceId !== fighter.instanceId);
   player.replacementsUsed += 1;
-  markPoisonedIfActive(game, fighter);
+  markPoisonedIfActive(game, fighter, player);
   return { card: fighter, slotIndex: emptySlot };
 }
 
-function markPoisonedIfActive(game, card) {
-  if (game.poisonPhase === 'active') card.poisoned = true;
+function markPoisonedIfActive(game, card, player) {
+  if (game.poisonPhase !== 'active') return;
+  if (getActiveFieldCards(player).some((c) => c.instanceId === card.instanceId)) {
+    card.poisoned = true;
+  }
 }
 
 function toPrivateState(game, playerId) {
