@@ -4,6 +4,7 @@ import CardBack from './CardBack';
 import AttackArrow from './AttackArrow';
 import ChainFireAnimation from './ChainFireAnimation';
 import BloodSplatter from './BloodSplatter';
+import PoisonCloudAnimation from './PoisonCloudAnimation';
 
 export default function BattleView({
   gameState,
@@ -27,6 +28,7 @@ export default function BattleView({
   const [magicMode, setMagicMode] = useState(null);
   const battlefieldRef = useRef(null);
   const cardRefs = useRef({});
+  const battleLogRef = useRef(null);
   const [bossDefeatPhase, setBossDefeatPhase] = useState(null);
   const [loserIsPlayer, setLoserIsPlayer] = useState(false);
   const bossDefeatStartedRef = useRef(false);
@@ -51,6 +53,11 @@ export default function BattleView({
     setLoserIsPlayer(deathAnim.instanceId === myBossInstanceId);
     setBossDefeatPhase('blood');
   }, [gameState?.deathAnimation, myBossInstanceId, oppBossInstanceId]);
+
+  useEffect(() => {
+    const el = battleLogRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [gameState?.log?.length]);
 
   useEffect(() => {
     const winner = gameState?.winnerId;
@@ -89,6 +96,7 @@ export default function BattleView({
     bossPhase,
     log,
     gamePaused,
+    poisonAnimation,
   } = gameState;
 
   const battleEnded = !!winnerId;
@@ -403,6 +411,7 @@ export default function BattleView({
     if (card.slowed) effects.push({ key: 'slow', label: 'Slow', className: 'status-slow' });
     if (card.attackDoubled) effects.push({ key: 'attack2x', label: '2x ATK', className: 'status-attack2x' });
     if (card.defenseHalved) effects.push({ key: 'defenseHalved', label: '½ DEF', className: 'status-defense-halved' });
+    if (card.poisoned) effects.push({ key: 'poison', label: 'Poison', className: 'status-poison' });
     if (!effects.length) return null;
     return (
       <div className="card-status-effects">
@@ -490,9 +499,6 @@ export default function BattleView({
               isFadingAway={fadingAway}
               onClick={interactive ? () => handleHandCardClick(card) : undefined}
             />
-            {interactive && replacementsUsed < maxReplacements && (
-              <span className="hand-card-label">Deploy</span>
-            )}
           </div>
         )}
       </div>
@@ -672,7 +678,7 @@ export default function BattleView({
             <span className="battle-status-label">{statusLabel}</span>
             <div className="battle-log-panel">
               <h4 className="battle-log-title">Battle Log</h4>
-              <div className="battle-log-lines">
+              <div className="battle-log-lines" ref={battleLogRef}>
                 {battleLogEntries.length === 0 ? (
                   <p className="battle-log-empty">No events yet.</p>
                 ) : (
@@ -687,6 +693,7 @@ export default function BattleView({
 
         <div className="battle-main">
       <div className="battlefield" ref={battlefieldRef}>
+        {poisonAnimation && <PoisonCloudAnimation />}
         {attackAnimation && (
           <>
             {attackAnimation.isChainAttack && (
@@ -719,9 +726,6 @@ export default function BattleView({
             </p>
           )}
           {renderBattlefield(myPlayer, true)}
-          {!bossCanAttack && myPlayer.boss?.alive && (
-            <p className="boss-hint">Boss locked until all 3 fighters are defeated</p>
-          )}
         </div>
 
         <div className={`player-zone zone-opponent${showBloodOnOpponent ? ' blood-splattered' : ''}`}>
@@ -735,9 +739,6 @@ export default function BattleView({
             <div className="zone-result-label zone-result-loser">Loser</div>
           )}
           {renderBattlefield(oppPlayer || { boss: null, field: [null, null, null] }, false)}
-          {oppAliveFighters > 0 && oppPlayer?.boss?.alive && (
-            <p className="boss-hint">Boss protected behind fighters</p>
-          )}
         </div>
 
         {targetMode?.step === 'attack-choice' && (

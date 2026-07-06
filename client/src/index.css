@@ -902,6 +902,7 @@ input:focus {
 .battle-log-lines {
   flex: 1;
   min-height: 0;
+  max-height: calc(var(--log-line-height) * 20);
   overflow-y: auto;
   font-size: 12px;
   line-height: var(--log-line-height);
@@ -2492,4 +2493,85 @@ input:focus {
   display: flex;
   justify-content: center;
   margin-top: 16px;
+}
+
+.poison-cloud-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 50;
+  overflow: hidden;
+}
+
+.poison-cloud {
+  position: absolute;
+  border-radius: 50%;
+  background: radial-gradient(ellipse at center, rgba(120, 220, 120, 0.55) 0%, rgba(60, 180, 80, 0.35) 40%, rgba(40, 140, 60, 0.15) 70%, transparent 85%);
+  filter: blur(8px);
+  animation: poison-cloud-drift 5s linear forwards;
+}
+
+.poison-cloud-1 {
+  width: 180px;
+  height: 90px;
+  top: 8%;
+  left: -20%;
+  animation-delay: 0s;
+}
+
+.poison-cloud-2 {
+  width: 220px;
+  height: 110px;
+  top: 22%;
+  left: -25%;
+  animation-delay: 0.4s;
+}
+
+.poison-cloud-3 {
+  width: 160px;
+  height: 80px;
+  top: 38%;
+  left: -18%;
+  animation-delay: 0.8s;
+}
+
+.poison-cloud-4 {
+  width: 200px;
+  height: 100px;
+  top: 52%;
+  left: -22%;
+  animation-delay: 1.2s;
+}
+
+.poison-cloud-5 {
+  width: 190px;
+  height: 95px;
+  top: 66%;
+  left: -20%;
+  animation-delay: 1.6s;
+}
+
+.poison-cloud-6 {
+  width: 240px;
+  height: 120px;
+  top: 80%;
+  left: -28%;
+  animation-delay: 2s;
+}
+
+@keyframes poison-cloud-drift {
+  0% {
+    transform: translateX(0);
+    opacity: 0;
+  }
+  8% {
+    opacity: 0.85;
+  }
+  85% {
+    opacity: 0.7;
+  }
+  100% {
+    transform: translateX(calc(100vw + 40%));
+    opacity: 0;
+  }
 }
