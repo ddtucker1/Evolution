@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import GameCard from './GameCard';
 import { getTimerPreview } from '../offlineEngine';
 import { getCardLevel, getLevelDigit } from '../combineEngine';
-import { getCombineHelpLines } from '../../../shared/combineRules.js';
+import { canCombineWithLibrarySize } from '../../../shared/combineRules.js';
 import {
   PLAY_DECK_SIZE,
   getCatalogCard,
@@ -11,6 +11,7 @@ import {
   togglePlayDeckCard,
   clearPlayDeck,
   combineCards,
+  getLibraryCardCount,
 } from '../api';
 
 export default function Library({ profile, onProfileChange, onMainMenu }) {
@@ -18,8 +19,10 @@ export default function Library({ profile, onProfileChange, onMainMenu }) {
   const [sortBy, setSortBy] = useState('level');
   const [combineSelection, setCombineSelection] = useState([]);
   const [combineMessage, setCombineMessage] = useState('');
+  const [showCombineBlockedPopup, setShowCombineBlockedPopup] = useState(false);
 
-  const combineHelpLines = getCombineHelpLines();
+  const libraryCardCount = getLibraryCardCount(profile);
+  const combineBlocked = !canCombineWithLibrarySize(libraryCardCount);
   const playDeck = profile.playDeck || [];
   const deckComplete = playDeck.length === PLAY_DECK_SIZE;
 
@@ -98,7 +101,11 @@ export default function Library({ profile, onProfileChange, onMainMenu }) {
     const [first, second] = combineSelection;
     const result = combineCards(profile, first.card_id, second.card_id);
     if (result.error) {
-      setCombineMessage(result.error);
+      if (result.error === 'Less than 10 cards not allowed') {
+        setShowCombineBlockedPopup(true);
+      } else {
+        setCombineMessage(result.error);
+      }
       return;
     }
     onProfileChange(result.profile);
@@ -112,6 +119,14 @@ export default function Library({ profile, onProfileChange, onMainMenu }) {
 
   const cancelCombine = () => {
     setCombineSelection([]);
+  };
+
+  const enterCombineMode = () => {
+    if (combineBlocked) {
+      setShowCombineBlockedPopup(true);
+      return;
+    }
+    setMode('combine');
   };
 
   const exitCombineMode = () => {
@@ -130,25 +145,13 @@ export default function Library({ profile, onProfileChange, onMainMenu }) {
             Library
           </h2>
           <p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
-            {mode === 'deck' ? (
+            {mode === 'deck' && (
               <>
                 You have {uniqueCatalogCards.length} unique cards. Tap cards to add or remove them from your play deck (choose {PLAY_DECK_SIZE}).
                 {' '}Each card&apos;s attack timer is <strong>attack × 2 seconds</strong> (±2s random variance in battle).
               </>
-            ) : (
-              <>
-                Select two cards of the <strong>same level</strong> to combine. Mismatched levels clear your selection.
-                {' '}Combined cards gain averaged stats plus a random +2 bonus to one stat.
-              </>
             )}
           </p>
-          {mode === 'combine' && (
-            <ul style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 8, paddingLeft: 18 }}>
-              {combineHelpLines.map((line) => (
-                <li key={line}>{line}</li>
-              ))}
-            </ul>
-          )}
         </div>
         <div className="library-actions">
           {mode === 'deck' ? (
@@ -159,7 +162,7 @@ export default function Library({ profile, onProfileChange, onMainMenu }) {
               <button className="btn-secondary" onClick={handleClear} disabled={!playDeck.length}>
                 Clear deck
               </button>
-              <button className="btn-gold" onClick={() => setMode('combine')}>
+              <button className="btn-gold" onClick={enterCombineMode}>
                 Combine
               </button>
             </>
@@ -218,7 +221,9 @@ export default function Library({ profile, onProfileChange, onMainMenu }) {
             ? inDeck > 0
             : combineSelection.some((s) => s.key === key);
           const canAdd = playDeck.length < PLAY_DECK_SIZE && inDeck < owned;
-          const canSelectCombine = mode === 'combine' && (selected || combineSelection.length < 2);
+          const canSelectCombine = mode === 'combine'
+            && !combineBlocked
+            && (selected || combineSelection.length < 2);
           const isCombined = card_id.startsWith('evo_');
           const levelDigit = catalog ? getLevelDigit(catalog) : '0';
           const timerPreview = catalog?.timer != null
@@ -275,6 +280,23 @@ export default function Library({ profile, onProfileChange, onMainMenu }) {
               </button>
               <button type="button" className="btn-secondary" onClick={cancelCombine}>
                 Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showCombineBlockedPopup && (
+        <div className="target-overlay" onClick={() => setShowCombineBlockedPopup(false)}>
+          <div className="confirm-dialog" onClick={(e) => e.stopPropagation()}>
+            <p className="confirm-dialog-text">Less than 10 cards not allowed</p>
+            <div className="confirm-dialog-actions">
+              <button
+                type="button"
+                className="btn-primary"
+                onClick={() => setShowCombineBlockedPopup(false)}
+              >
+                OK
               </button>
             </div>
           </div>
