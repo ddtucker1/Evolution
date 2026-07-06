@@ -484,7 +484,7 @@ export default function BattleView({
   };
 
   const renderHandCardSlot = (row, hand, isPlayer) => {
-    const interactive = isPlayer && !isBossOnlySide(isPlayer);
+    const interactive = isPlayer && !isBossOnlySide(isPlayer) && canDeployFromHand;
     const fadingAway = isBossOnlySide(isPlayer);
     const card = hand?.[row];
     const showFaceDown = !isPlayer && !!card;
@@ -574,15 +574,23 @@ export default function BattleView({
       ? getReadyChainAttackers().filter((c) => c.instanceId !== targetMode.attacker.instanceId)
       : [];
 
-    if (!card) {
+    const isDying = deathAnimation?.instanceId === card?.instanceId;
+    const showAsEmptyDeploySlot = isPlayer && card && !card.alive && !isDying;
+
+    if (!card || showAsEmptyDeploySlot) {
       const canDeployToSlot = isPlayer && !battleEnded && !bossCanAttack && canDeployFromHand;
+      const emptySlotLabel = canDeployToSlot
+        ? 'Deploy here'
+        : isPlayer && !bossCanAttack && (myBattleHand?.length ?? 0) > 0 && replacementsUsed >= maxReplacements
+          ? 'No replacements left'
+          : 'Empty slot';
       return (
         <div
           key={`empty-${slotIndex}`}
           className={`field-slot empty${canDeployToSlot ? ' replace-ready' : ''}`}
           onClick={() => canDeployToSlot && handleReplaceSlotClick(slotIndex)}
         >
-          <span>{canDeployToSlot ? 'Deploy here' : 'Empty slot'}</span>
+          <span>{emptySlotLabel}</span>
         </div>
       );
     }
@@ -663,7 +671,9 @@ export default function BattleView({
     ? 'Paused'
     : bossPhase
       ? 'Boss Phase'
-      : `Replacements: ${replacementsUsed}/${maxReplacements}`;
+      : replacementsUsed >= maxReplacements && (myBattleHand?.length ?? 0) > 0
+        ? 'Replacements used — hand locked'
+        : `Replacements: ${replacementsUsed}/${maxReplacements}`;
 
   return (
     <div className="battle-screen">

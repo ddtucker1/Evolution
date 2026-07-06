@@ -743,9 +743,42 @@ function resumeAnimationTimeouts(game) {
   }
 }
 
+function clearOrphanedDeadFieldSlots(player) {
+  for (let i = 0; i < (player?.field || []).length; i++) {
+    const card = player.field[i];
+    if (card && !card.alive) player.field[i] = null;
+  }
+}
+
+function enqueueDeathAnimation(game, instanceId, role) {
+  if (!game.deathQueue) game.deathQueue = [];
+  if (game.deathQueue.some((entry) => entry.instanceId === instanceId)) return;
+  if (game.deathAnimation?.instanceId === instanceId) return;
+  game.deathQueue.push({ instanceId, role });
+  if (!game.deathAnimation) startNextDeathAnimation(game);
+}
+
+function startNextDeathAnimation(game) {
+  if (!game.deathQueue?.length) return;
+
+  const next = game.deathQueue.shift();
+  game.deathAnimation = {
+    instanceId: next.instanceId,
+    role: next.role,
+    durationMs: DEATH_ANIMATION_MS,
+    shakeMs: DEATH_SHAKE_MS,
+    startedAt: Date.now(),
+  };
+  if (game.deathTimeout) clearTimeout(game.deathTimeout);
+  game.deathTimeout = setTimeout(() => completeDeathAnimation(game), DEATH_ANIMATION_MS);
+}
+
 function completeDeathAnimation(game) {
   const anim = game.deathAnimation;
-  if (!anim) return;
+  if (!anim) {
+    if (game.deathQueue?.length) startNextDeathAnimation(game);
+    return;
+  }
 
   const ref = findFieldCard(game, anim.instanceId);
   let clearedSlotIndex = null;
@@ -763,6 +796,10 @@ function completeDeathAnimation(game) {
     game.deathTimeout = null;
   }
 
+  for (const player of game.players) {
+    clearOrphanedDeadFieldSlots(player);
+  }
+
   if (
     clearedSlotIndex !== null
     && ref?.player?.id === 'player'
@@ -777,6 +814,10 @@ function completeDeathAnimation(game) {
   if (w) finishOffline(game, w);
   else {
     if (game.onUpdate) game.onUpdate(toPrivateState(game, 'player'));
+    if (game.deathQueue?.length) {
+      startNextDeathAnimation(game);
+      return;
+    }
     processPendingActions(game);
   }
 }
@@ -836,13 +877,7 @@ function completeAttackAnimation(game) {
     }
 
     if (killed) {
-      game.deathAnimation = {
-        instanceId: defenderRef.card.instanceId,
-        role: defenderRef.card.role,
-        durationMs: DEATH_ANIMATION_MS,
-        shakeMs: DEATH_SHAKE_MS,
-        startedAt: Date.now(),
-      };
+      enqueueDeathAnimation(game, defenderRef.card.instanceId, defenderRef.card.role);
     }
   }
 
@@ -854,7 +889,6 @@ function completeAttackAnimation(game) {
 
   if (game.deathAnimation) {
     if (game.onUpdate) game.onUpdate(toPrivateState(game, 'player'));
-    game.deathTimeout = setTimeout(() => completeDeathAnimation(game), DEATH_ANIMATION_MS);
     return;
   }
 
@@ -1054,6 +1088,7 @@ export function createOfflineGame(deckIds) {
     attackTimeout: null,
     deathAnimation: null,
     deathTimeout: null,
+    deathQueue: [],
     pendingReplacement: null,
     pendingPlayerActions: [],
     battleElapsed: 0,
@@ -1302,7 +1337,10 @@ function clearDeathAnimation(game) {
     clearTimeout(game.deathTimeout);
     game.deathTimeout = null;
   }
-  if (game) game.deathAnimation = null;
+  if (game) {
+    game.deathAnimation = null;
+    game.deathQueue = [];
+  }
 }
 
 export function clearBattleAnimations(game) {
