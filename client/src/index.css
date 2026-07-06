@@ -573,6 +573,11 @@ input:focus {
   }
 }
 
+.player-zone.boss-only-zone {
+  justify-content: center;
+  align-items: center;
+}
+
 .player-zone {
   background: var(--bg-elevated);
   border-radius: var(--radius);
@@ -611,6 +616,11 @@ input:focus {
 
 .zone-opponent h3 {
   text-align: right;
+}
+
+.player-zone.boss-only-zone {
+  justify-content: center;
+  align-items: center;
 }
 
 .zone-battle-row {
@@ -692,18 +702,110 @@ input:focus {
   grid-template-columns: minmax(0, 1fr);
   grid-template-rows: auto auto;
   justify-items: center;
-  max-width: calc(var(--card-width) + 16px);
+  align-content: center;
+  width: 100%;
+  max-width: none;
+  min-height: calc(2 * var(--card-height) + 48px);
   margin-inline: auto;
 }
 
 .formation-grid.boss-only-board .grid-cell-boss {
   grid-column: 1;
   grid-row: 1;
+  min-height: calc(2 * var(--card-height));
 }
 
 .formation-grid.boss-only-board .grid-cell-abilities {
   grid-column: 1;
   grid-row: 2;
+}
+
+.field-card-row.boss-solo-row {
+  justify-content: center;
+  gap: 12px;
+  width: 100%;
+}
+
+.field-card-anchor.boss-solo-active {
+  width: calc(2 * var(--card-width));
+  max-width: calc(2 * var(--card-width));
+}
+
+.field-card-anchor.boss-solo-active .game-card {
+  width: calc(2 * var(--card-width)) !important;
+  max-width: calc(2 * var(--card-width)) !important;
+  min-width: calc(2 * var(--card-width)) !important;
+  height: calc(2 * var(--card-height)) !important;
+  max-height: calc(2 * var(--card-height)) !important;
+  min-height: calc(2 * var(--card-height)) !important;
+  padding: 18px;
+  border-radius: 20px;
+  border-width: 4px;
+}
+
+.field-card-anchor.boss-solo-active .game-card .card-name-row {
+  gap: 12px;
+  margin-bottom: 8px;
+  height: calc(2 * var(--card-name-area-height));
+  min-height: calc(2 * var(--card-name-area-height));
+  max-height: calc(2 * var(--card-name-area-height));
+}
+
+.field-card-anchor.boss-solo-active .game-card .card-name {
+  font-size: calc(2 * var(--card-name-font-size));
+  height: calc(2 * var(--card-name-area-height));
+}
+
+.field-card-anchor.boss-solo-active .game-card .card-level-digit {
+  font-size: 26px;
+}
+
+.field-card-anchor.boss-solo-active .game-card .card-stats {
+  font-size: 20px;
+  line-height: 1.45;
+}
+
+.field-card-anchor.boss-solo-active .game-card .stat-row {
+  gap: 6px;
+  margin: 4px 0;
+}
+
+.field-card-anchor.boss-solo-active .game-card .card-footer-slot {
+  height: 36px;
+  min-height: 36px;
+  max-height: 36px;
+}
+
+.field-card-anchor.boss-solo-active .game-card .timer-countdown {
+  font-size: 20px;
+  margin-top: 8px;
+}
+
+.field-card-anchor.boss-solo-active .game-card .card-role {
+  top: 8px;
+  right: 8px;
+  font-size: 18px;
+  padding: 4px 12px;
+  border-radius: 8px;
+}
+
+.field-card-anchor.boss-solo-active .game-card .hp-bar,
+.field-card-anchor.boss-solo-active .game-card .cooldown-bar,
+.field-card-anchor.boss-solo-active .game-card .timer-bar {
+  height: 10px;
+  border-radius: 6px;
+  margin-top: 6px;
+}
+
+.card-status-effects-enlarged {
+  gap: 8px;
+}
+
+.card-status-effects-enlarged .status-effect {
+  font-size: 18px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  letter-spacing: 0.7px;
 }
 
 /* Player: hand left, deck/boss/abilities center, fighters right */

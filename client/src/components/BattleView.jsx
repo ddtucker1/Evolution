@@ -408,7 +408,7 @@ export default function BattleView({
       : renderBossMagicActionsPhase1(abilitiesUsed, isPlayerSide)
   );
 
-  const renderStatusEffects = (card, isPlayer) => {
+  const renderStatusEffects = (card, isPlayer, enlarged = false) => {
     if (card.role === 'boss') {
       const bossActive = isPlayer ? bossCanAttack : opponentBossCanAttack;
       if (!bossActive) return null;
@@ -421,7 +421,7 @@ export default function BattleView({
     if (card.poisoned) effects.push({ key: 'poison', label: 'Poison', className: 'status-poison' });
     if (!effects.length) return null;
     return (
-      <div className="card-status-effects">
+      <div className={`card-status-effects${enlarged ? ' card-status-effects-enlarged' : ''}`}>
         {effects.map((effect) => (
           <span key={effect.key} className={`status-effect ${effect.className}`}>
             {effect.label}
@@ -597,6 +597,7 @@ export default function BattleView({
 
     const bossLocked = options.bossLocked ?? (card.role === 'boss' && !bossCanAttack);
     const bossProtected = options.bossProtected ?? false;
+    const bossSoloActive = card.role === 'boss' && isBossOnlySide(isPlayer);
     const inTargetMode = !!targetMode && !winnerId;
     const canSelectForAttack = isPlayer && phase === 'battle' && !winnerId && !inTargetMode && canAttackWith(card);
     const isQueuedAttacker = queuedAttackerIds.includes(card.instanceId);
@@ -639,11 +640,11 @@ export default function BattleView({
     return (
       <div
         key={card.instanceId}
-        className={`field-card-row${isPlayer ? ' player-side' : ' opponent-side'}`}
+        className={`field-card-row${isPlayer ? ' player-side' : ' opponent-side'}${bossSoloActive ? ' boss-solo-row' : ''}`}
       >
-        {!isPlayer && renderStatusEffects(card, isPlayer)}
+        {!isPlayer && renderStatusEffects(card, isPlayer, bossSoloActive)}
         <div
-          className={`field-card-anchor${isTargetHighlighted ? ' target-highlight' : ''}`}
+          className={`field-card-anchor${isTargetHighlighted ? ' target-highlight' : ''}${bossSoloActive ? ' boss-solo-active' : ''}`}
           ref={(el) => {
             if (el) cardRefs.current[card.instanceId] = el;
             else delete cardRefs.current[card.instanceId];
@@ -660,7 +661,7 @@ export default function BattleView({
             onClick={cardClickable || isLeadAttacker ? handleFieldCardClick : undefined}
           />
         </div>
-        {isPlayer && renderStatusEffects(card, isPlayer)}
+        {isPlayer && renderStatusEffects(card, isPlayer, bossSoloActive)}
       </div>
     );
   };
@@ -726,7 +727,7 @@ export default function BattleView({
             />
           </>
         )}
-        <div className={`player-zone zone-player${showBloodOnPlayer ? ' blood-splattered' : ''}`}>
+        <div className={`player-zone zone-player${showBloodOnPlayer ? ' blood-splattered' : ''}${bossCanAttack ? ' boss-only-zone' : ''}`}>
           {showBloodOnPlayer && (
             <BloodSplatter active onComplete={handleBloodSplatterComplete} />
           )}
@@ -746,7 +747,7 @@ export default function BattleView({
           {renderBattlefield(myPlayer, true)}
         </div>
 
-        <div className={`player-zone zone-opponent${showBloodOnOpponent ? ' blood-splattered' : ''}`}>
+        <div className={`player-zone zone-opponent${showBloodOnOpponent ? ' blood-splattered' : ''}${opponentBossCanAttack ? ' boss-only-zone' : ''}`}>
           {showBloodOnOpponent && (
             <BloodSplatter active onComplete={handleBloodSplatterComplete} />
           )}
