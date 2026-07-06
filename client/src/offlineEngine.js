@@ -245,6 +245,18 @@ function applyPoisonToAllActiveCards(game) {
   }
 }
 
+function maybeSetPendingReplacement(game, player, clearedSlotIndex) {
+  if (
+    clearedSlotIndex !== null
+    && player?.id === 'player'
+    && player.battleHand.length > 0
+    && player.replacementsUsed < player.maxReplacements
+    && !game.pendingReplacement
+  ) {
+    game.pendingReplacement = { slotIndex: clearedSlotIndex };
+  }
+}
+
 function applyPoisonTick(game) {
   let anyKilled = false;
   for (const { card, player } of getAllActiveFieldCards(game)) {
@@ -257,7 +269,10 @@ function applyPoisonTick(game) {
       pushBattleLog(game, formatKillLog(card));
       if (card.role === 'field') {
         const idx = (player.field || []).findIndex((c) => c?.instanceId === card.instanceId);
-        if (idx >= 0) player.field[idx] = null;
+        if (idx >= 0) {
+          player.field[idx] = null;
+          maybeSetPendingReplacement(game, player, idx);
+        }
       }
       anyKilled = true;
     }

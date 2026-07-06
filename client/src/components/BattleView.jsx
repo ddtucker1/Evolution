@@ -100,6 +100,8 @@ export default function BattleView({
   } = gameState;
 
   const battleEnded = !!winnerId;
+  const deploymentsRemaining = replacementsUsed < maxReplacements;
+  const canDeployFromHand = deploymentsRemaining && (myBattleHand?.length ?? 0) > 0;
   const queuedActions = pendingPlayerActions || [];
   const drawQueued = queuedActions.some((action) => action.type === 'draw');
   const queuedAttackerIds = queuedActions.flatMap((action) => {
@@ -197,7 +199,6 @@ export default function BattleView({
   };
 
   const handleReplaceSlotClick = (slotIndex) => {
-    if (bossCanAttack) return;
     if (replaceMode) {
       onReplace(replaceMode.handCardId, slotIndex);
       setReplaceMode(null);
@@ -217,7 +218,7 @@ export default function BattleView({
   };
 
   const handleHandCardClick = (handCard) => {
-    if (battleEnded || bossCanAttack || replacementsUsed >= maxReplacements) return;
+    if (battleEnded || replacementsUsed >= maxReplacements) return;
     if (selectedSlot != null) {
       onReplace(handCard.instanceId, selectedSlot);
       setSelectedSlot(null);
@@ -430,7 +431,7 @@ export default function BattleView({
     const timerMax = isPlayer ? drawTimerMax : (oppPlayer?.drawTimerMax ?? 0);
     const handCount = isPlayer ? (myBattleHand?.length ?? 0) : (oppBattleHand?.length ?? 0);
     const handFull = handCount >= 3;
-    const fadingAway = isBossOnlySide(isPlayer);
+    const fadingAway = isBossOnlySide(isPlayer) && !(isPlayer && deploymentsRemaining);
     const timerComplete = timerMax > 0 && timer >= timerMax;
     const canDraw = isPlayer && drawReady && !battleEnded && !fadingAway && !handFull;
     const blocked = timerComplete && remaining > 0 && handFull && !fadingAway;
@@ -477,8 +478,8 @@ export default function BattleView({
   };
 
   const renderHandCardSlot = (row, hand, isPlayer) => {
-    const interactive = isPlayer && !isBossOnlySide(isPlayer);
-    const fadingAway = isBossOnlySide(isPlayer);
+    const interactive = isPlayer && !battleEnded && (!isBossOnlySide(isPlayer) || deploymentsRemaining);
+    const fadingAway = isBossOnlySide(isPlayer) && !(isPlayer && deploymentsRemaining);
     const card = hand?.[row];
     const showFaceDown = !isPlayer && !!card;
 
@@ -565,16 +566,14 @@ export default function BattleView({
       : [];
 
     if (!card) {
-      const canReplace = isPlayer && !battleEnded && !bossCanAttack && replacementsUsed < maxReplacements
-        && myBattleHand?.length > 0
-        && (replaceMode || selectedSlot === slotIndex || pendingReplacement?.slotIndex === slotIndex);
+      const canDeployToSlot = isPlayer && !battleEnded && canDeployFromHand;
       return (
         <div
           key={`empty-${slotIndex}`}
-          className={`field-slot empty${canReplace ? ' replace-ready' : ''}`}
-          onClick={() => canReplace && handleReplaceSlotClick(slotIndex)}
+          className={`field-slot empty${canDeployToSlot ? ' replace-ready' : ''}`}
+          onClick={() => canDeployToSlot && handleReplaceSlotClick(slotIndex)}
         >
-          <span>{canReplace ? 'Deploy here' : 'Empty slot'}</span>
+          <span>{canDeployToSlot ? 'Deploy here' : 'Empty slot'}</span>
         </div>
       );
     }
