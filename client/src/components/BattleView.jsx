@@ -21,11 +21,6 @@ export default function BattleView({
   onDraw,
   onReplace,
   onDismissReplacement,
-  onBossSlow,
-  onBossHeal,
-  onBossHaste,
-  onBossAttack2x,
-  onBossDefenseHalved,
   onMainMenu,
   onTogglePause,
   onToggleSpeed,
@@ -34,7 +29,6 @@ export default function BattleView({
   const [targetMode, setTargetMode] = useState(null);
   const [replaceMode, setReplaceMode] = useState(null);
   const [selectedSlot, setSelectedSlot] = useState(null);
-  const [magicMode, setMagicMode] = useState(null);
   const battlefieldRef = useRef(null);
   const cardRefs = useRef({});
   const battleLogRef = useRef(null);
@@ -87,7 +81,6 @@ export default function BattleView({
     setSelectedSlot(gameState.pendingReplacement.slotIndex);
     setReplaceMode(null);
     setTargetMode(null);
-    setMagicMode(null);
   }, [gameState?.pendingReplacement, gameState?.canDeployFighter]);
 
   if (!gameState) return null;
@@ -115,8 +108,6 @@ export default function BattleView({
     bossCanAttack,
     opponentBossCanAttack,
     canDeployFighter,
-    bossAbilitiesUsed,
-    bossMagicPhase,
     bossPhase,
     log,
     gamePaused,
@@ -153,7 +144,6 @@ export default function BattleView({
 
   const handleAttackClick = (attacker) => {
     if (!canAttackWith(attacker) || winnerId) return;
-    setMagicMode(null);
     const otherReady = getReadyChainAttackers().filter((c) => c.instanceId !== attacker.instanceId);
     if (otherReady.length === 0) {
       setTargetMode({ step: 'direct-target', attacker });
@@ -204,27 +194,6 @@ export default function BattleView({
     setTargetMode({ step: 'direct-target', attacker: targetMode.attacker });
   };
 
-  const handleMagicTargetSelect = (target) => {
-    if (!magicMode || bossMagicExhausted) return;
-    if (magicMode === 'slow') onBossSlow(target.instanceId);
-    else if (magicMode === 'haste') onBossHaste(target.instanceId);
-    else if (magicMode === 'attack2x') onBossAttack2x(target.instanceId);
-    else if (magicMode === 'defenseHalved') onBossDefenseHalved(target.instanceId);
-    setMagicMode(null);
-  };
-
-  const bossMagicExhausted = bossMagicPhase === 2
-    ? (bossAbilitiesUsed?.attack2x || bossAbilitiesUsed?.defenseHalved)
-    : (bossAbilitiesUsed?.slow || bossAbilitiesUsed?.heal || bossAbilitiesUsed?.haste);
-
-  const startBossMagic = (mode) => {
-    if (bossMagicExhausted || winnerId) return;
-    setTargetMode(null);
-    setReplaceMode(null);
-    setSelectedSlot(null);
-    setMagicMode(mode);
-  };
-
   const handleReplaceSlotClick = (slotIndex) => {
     if (!canDeployFromHand) return;
     if (replaceMode) {
@@ -241,7 +210,6 @@ export default function BattleView({
     if (replacementsUsed < maxReplacements && myBattleHand?.length > 0) {
       setSelectedSlot(slotIndex);
       setReplaceMode(null);
-      setMagicMode(null);
     }
   };
 
@@ -261,7 +229,6 @@ export default function BattleView({
     setReplaceMode({ handCardId: handCard.instanceId });
     setSelectedSlot(null);
     setTargetMode(null);
-    setMagicMode(null);
   };
 
   if (phase === 'setup') {
@@ -339,120 +306,12 @@ export default function BattleView({
     return [];
   };
 
-  const getSlowTargets = () => {
-    const fighters = (oppPlayer?.field || []).filter((c) => c && c.alive);
-    if (fighters.length) return fighters;
-    if (oppBossTargetable) return [oppPlayer.boss];
-    return [];
-  };
-
-  const canUseBossHeal = () => {
-    const fighters = getAliveFieldFighters(myPlayer.field);
-    if (fighters.length) return true;
-    return !!(myPlayer.boss?.alive && bossCanAttack);
-  };
-
-  const getHasteTargets = () => {
-    const fighters = getAliveFieldFighters(myPlayer.field);
-    if (fighters.length) return fighters;
-    if (myPlayer.boss?.alive && bossCanAttack) return [myPlayer.boss];
-    return [];
-  };
-
-  const getAttack2xTargets = () => {
-    const cards = getAliveFieldFighters(myPlayer.field).filter((c) => !c.attackDoubled);
-    if (cards.length) return cards;
-    if (myPlayer.boss?.alive && bossCanAttack && !myPlayer.boss.attackDoubled) return [myPlayer.boss];
-    return [];
-  };
-
-  const getDefenseHalvedTargets = () => {
-    const fighters = (oppPlayer?.field || []).filter((c) => c && c.alive && !c.defenseHalved);
-    if (fighters.length) return fighters;
-    if (oppBossTargetable && oppPlayer?.boss?.alive && !oppPlayer.boss.defenseHalved) {
-      return [oppPlayer.boss];
-    }
-    return [];
-  };
-
-  const renderBossMagicActionsPhase1 = (abilitiesUsed, isPlayerSide) => {
-    const exhausted = abilitiesUsed?.slow || abilitiesUsed?.heal || abilitiesUsed?.haste;
-    const healAvailable = isPlayerSide && canUseBossHeal();
-    return (
-    <div className={`boss-magic-actions${isPlayerSide ? '' : ' npc-boss-magic'}`}>
-      <button
-        type="button"
-        className={`boss-magic-btn slow-btn${exhausted ? ' ability-used' : ''}`}
-        disabled={!isPlayerSide || exhausted || !!winnerId}
-        onClick={() => isPlayerSide && startBossMagic('slow')}
-      >
-        Slow Timer
-      </button>
-      <button
-        type="button"
-        className={`boss-magic-btn heal-btn${exhausted ? ' ability-used' : ''}`}
-        disabled={!isPlayerSide || exhausted || !!winnerId || !healAvailable}
-        onClick={() => {
-          if (!isPlayerSide || exhausted || winnerId || !healAvailable) return;
-          onBossHeal();
-        }}
-      >
-        Heal All
-      </button>
-      <button
-        type="button"
-        className={`boss-magic-btn haste-btn${exhausted ? ' ability-used' : ''}`}
-        disabled={!isPlayerSide || exhausted || !!winnerId}
-        onClick={() => isPlayerSide && startBossMagic('haste')}
-      >
-        Haste Timer
-      </button>
-    </div>
-    );
-  };
-
-  const renderBossMagicActionsPhase2 = (abilitiesUsed, isPlayerSide) => {
-    const exhausted = abilitiesUsed?.attack2x || abilitiesUsed?.defenseHalved;
-    const attack2xAvailable = isPlayerSide && getAttack2xTargets().length > 0;
-    const defenseHalvedAvailable = isPlayerSide && getDefenseHalvedTargets().length > 0;
-    return (
-    <div className={`boss-magic-actions${isPlayerSide ? '' : ' npc-boss-magic'}`}>
-      <button
-        type="button"
-        className={`boss-magic-btn attack2x-btn${exhausted ? ' ability-used' : ''}`}
-        disabled={!isPlayerSide || exhausted || !!winnerId || !attack2xAvailable}
-        onClick={() => isPlayerSide && startBossMagic('attack2x')}
-      >
-        Attack 2x
-      </button>
-      <button
-        type="button"
-        className={`boss-magic-btn defense-halved-btn${exhausted ? ' ability-used' : ''}`}
-        disabled={!isPlayerSide || exhausted || !!winnerId || !defenseHalvedAvailable}
-        onClick={() => isPlayerSide && startBossMagic('defenseHalved')}
-      >
-        Defense Halved
-      </button>
-    </div>
-    );
-  };
-
-  const renderBossMagicActions = (abilitiesUsed, isPlayerSide) => (
-    bossMagicPhase === 2
-      ? renderBossMagicActionsPhase2(abilitiesUsed, isPlayerSide)
-      : renderBossMagicActionsPhase1(abilitiesUsed, isPlayerSide)
-  );
-
   const renderStatusEffects = (card, isPlayer, enlarged = false) => {
     if (card.role === 'boss') {
       const bossActive = isPlayer ? bossCanAttack : opponentBossCanAttack;
       if (!bossActive) return null;
     }
     const effects = [];
-    if (card.hasted) effects.push({ key: 'haste', label: 'Haste', className: 'status-haste' });
-    if (card.slowed) effects.push({ key: 'slow', label: 'Slow', className: 'status-slow' });
-    if (card.attackDoubled) effects.push({ key: 'attack2x', label: '2x ATK', className: 'status-attack2x' });
-    if (card.defenseHalved) effects.push({ key: 'defenseHalved', label: '½ DEF', className: 'status-defense-halved' });
     if (card.poisoned) {
       const poisonLabel = (poisonDamage ?? 1) >= 2 ? 'Lethal Poison' : 'Poison';
       effects.push({ key: 'poison', label: poisonLabel, className: 'status-poison' });
@@ -575,12 +434,6 @@ export default function BattleView({
     const hand = isPlayer ? myBattleHand : oppBattleHand;
     const bossOnlyBoard = isBossOnlySide(isPlayer);
 
-    const magicActions = boss?.alive && (
-      isPlayer
-        ? (!winnerId && renderBossMagicActions(bossAbilitiesUsed, true))
-        : renderBossMagicActions(player.bossAbilitiesUsed, false)
-    );
-
     return (
       <div className={`formation-grid${isPlayer ? ' player-formation' : ' opponent-formation'}${bossOnlyBoard ? ' boss-only-board' : ''}`}>
         {!bossOnlyBoard && [0, 1, 2].map((row) => renderHandCardSlot(row, hand, isPlayer))}
@@ -595,11 +448,6 @@ export default function BattleView({
               bossLocked: isPlayer ? !bossCanAttack : !opponentBossCanAttack,
               bossProtected: aliveFighters > 0,
             })}
-          </div>
-        )}
-        {magicActions && (
-          <div className="grid-cell grid-cell-abilities">
-            {magicActions}
           </div>
         )}
         {!bossOnlyBoard && field.map((card, i) => (
@@ -666,19 +514,9 @@ export default function BattleView({
       && inTargetMode
       && (targetMode.step === 'direct-target' || targetMode.step === 'chain-target')
       && attackableTargets.some((t) => t.instanceId === card.instanceId);
-    const isMagicTargetable = !!magicMode && !winnerId && !bossMagicExhausted && (
-      (magicMode === 'slow' && !isPlayer && getSlowTargets().some((t) => t.instanceId === card.instanceId))
-      || (magicMode === 'haste' && isPlayer && getHasteTargets().some((t) => t.instanceId === card.instanceId))
-      || (magicMode === 'attack2x' && isPlayer && getAttack2xTargets().some((t) => t.instanceId === card.instanceId))
-      || (magicMode === 'defenseHalved' && !isPlayer && getDefenseHalvedTargets().some((t) => t.instanceId === card.instanceId))
-    );
-    const isTargetHighlighted = isChainPartner || isLeadAttacker || isEnemyTargetable || isMagicTargetable;
+    const isTargetHighlighted = isChainPartner || isLeadAttacker || isEnemyTargetable;
 
     const handleFieldCardClick = () => {
-      if (isMagicTargetable) {
-        handleMagicTargetSelect(card);
-        return;
-      }
       if (isEnemyTargetable) {
         if (targetMode.step === 'direct-target') handleTargetSelect(card);
         else if (targetMode.step === 'chain-target') handleChainTargetSelect(card);
@@ -691,7 +529,7 @@ export default function BattleView({
       if (canSelectForAttack) handleAttackClick(card);
     };
 
-    const cardClickable = canSelectForAttack || isEnemyTargetable || isChainPartnerCandidate || isMagicTargetable;
+    const cardClickable = canSelectForAttack || isEnemyTargetable || isChainPartnerCandidate;
 
     return (
       <div
@@ -873,19 +711,6 @@ export default function BattleView({
           </div>
         )}
 
-        {magicMode && (
-          <div className="battlefield-target-hint magic-target-hint">
-            <span>
-              {magicMode === 'slow' && 'Slow Timer — click an enemy card'}
-              {magicMode === 'haste' && 'Haste Timer — click one of your cards'}
-              {magicMode === 'attack2x' && 'Attack 2x — click one of your cards'}
-              {magicMode === 'defenseHalved' && 'Defense Halved — click an enemy card'}
-            </span>
-            <button type="button" className="battlefield-hint-cancel" onClick={() => setMagicMode(null)}>
-              Cancel
-            </button>
-          </div>
-        )}
       </div>
 
       {showVictoryLabels && (

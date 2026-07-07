@@ -20,11 +20,6 @@ import {
   offlineDrawCard,
   offlineReplace,
   offlineDismissReplacement,
-  offlineBossSlow,
-  offlineBossHeal,
-  offlineBossHaste,
-  offlineBossAttack2x,
-  offlineBossDefenseHalved,
   getOfflineState,
   stopTicks,
   clearBattleAnimations,
@@ -92,31 +87,6 @@ export default function App() {
   const handleDismissReplacement = () => {
     if (!offlineGameRef.current) return;
     offlineDismissReplacement(offlineGameRef.current);
-  };
-
-  const handleBossSlow = (targetId) => {
-    if (!offlineGameRef.current) return;
-    offlineBossSlow(offlineGameRef.current, targetId);
-  };
-
-  const handleBossHeal = () => {
-    if (!offlineGameRef.current) return;
-    offlineBossHeal(offlineGameRef.current);
-  };
-
-  const handleBossHaste = (targetId) => {
-    if (!offlineGameRef.current) return;
-    offlineBossHaste(offlineGameRef.current, targetId);
-  };
-
-  const handleBossAttack2x = (targetId) => {
-    if (!offlineGameRef.current) return;
-    offlineBossAttack2x(offlineGameRef.current, targetId);
-  };
-
-  const handleBossDefenseHalved = (targetId) => {
-    if (!offlineGameRef.current) return;
-    offlineBossDefenseHalved(offlineGameRef.current, targetId);
   };
 
   const handleTogglePause = () => {
@@ -191,11 +161,6 @@ export default function App() {
           onDraw={handleDraw}
           onReplace={handleReplace}
           onDismissReplacement={handleDismissReplacement}
-          onBossSlow={handleBossSlow}
-          onBossHeal={handleBossHeal}
-          onBossHaste={handleBossHaste}
-          onBossAttack2x={handleBossAttack2x}
-          onBossDefenseHalved={handleBossDefenseHalved}
           onMainMenu={handleLeaveBattle}
           onTogglePause={handleTogglePause}
           onToggleSpeed={handleToggleSpeed}
