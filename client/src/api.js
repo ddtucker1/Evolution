@@ -6,6 +6,8 @@ import {
   canCombineCards,
 } from './combineEngine';
 import { canCombineWithLibrarySize } from '../../shared/combineRules.js';
+import { isFighterAbility } from '../../shared/fighterAbilities.js';
+import { needsFighterAbilityChoice } from './combineEngine';
 
 export { PLAY_DECK_SIZE };
 
@@ -92,7 +94,9 @@ function migrateCombinedCard(card) {
   const level = getCardLevel(card);
   const timer = card.timer != null ? Math.round(card.timer) : getTimerPreview(card.attack);
   const { abilities, ability, ...rest } = card;
-  return { ...rest, level, timer, combined: true };
+  const migrated = { ...rest, level, timer, combined: true };
+  if (card.specialAbility) migrated.specialAbility = card.specialAbility;
+  return migrated;
 }
 
 function migrateProfile(profile) {
@@ -218,8 +222,13 @@ export function combineCards(profile, cardId1, cardId2, options = {}) {
     return { profile, error: 'Only two cards of the same level can be combined.' };
   }
 
+  if (needsFighterAbilityChoice(catalog1, catalog2) && !isFighterAbility(options.specialAbility)) {
+    return { profile, error: 'Choose a special ability for your Level 5 fighter.' };
+  }
+
   const combined = createCombinedCard(catalog1, catalog2, {
     statBoostChoices: options.statBoostChoices,
+    specialAbility: options.specialAbility,
   });
   if (!combined) {
     return { profile, error: 'These cards cannot be combined.' };

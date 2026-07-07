@@ -1,4 +1,5 @@
 import rules from './combineRules.json';
+import { getFighterAbilityHelpLines } from './fighterAbilities.js';
 
 export const COMBINE_RULES_VERSION = rules.version;
 export const COMBINE_STAT_BONUS = rules.statBonus;
@@ -34,5 +35,6 @@ export function getCombineHelpLines() {
   lines.push(
     `The first card selected provides the base stats. You then assign ${COMBINE_STAT_BOOST_COUNT} boosts of +${COMBINE_STAT_BONUS.amount} each to Attack, Defense, or HP (both boosts can go to the same stat).`,
   );
+  lines.push(...getFighterAbilityHelpLines());
   return lines;
 }

@@ -6,7 +6,13 @@ import {
   getLevelDigit,
   previewCombine,
   formatStatBoostLabel,
+  needsFighterAbilityChoice,
+  getInheritedFighterAbilityPreview,
 } from '../combineEngine';
+import {
+  FIGHTER_ABILITIES,
+  FIGHTER_ABILITY_CONFIG,
+} from '../../../shared/fighterAbilities.js';
 import {
   COMBINE_STAT_BONUS,
   COMBINE_STAT_BOOST_COUNT,
@@ -30,7 +36,9 @@ export default function Library({ profile, onProfileChange, onMainMenu }) {
   const [combineMessage, setCombineMessage] = useState('');
   const [showCombineBlockedPopup, setShowCombineBlockedPopup] = useState(false);
   const [showStatBoostDialog, setShowStatBoostDialog] = useState(false);
+  const [showAbilityDialog, setShowAbilityDialog] = useState(false);
   const [statBoostChoices, setStatBoostChoices] = useState([]);
+  const [selectedAbility, setSelectedAbility] = useState(null);
 
   const statBoostOptions = COMBINE_STAT_BONUS.stats;
   const statBoostAmount = COMBINE_STAT_BONUS.amount;
@@ -39,12 +47,17 @@ export default function Library({ profile, onProfileChange, onMainMenu }) {
   const firstCombineCard = firstCombineEntry
     ? getCatalogCard(firstCombineEntry.card_id, profile)
     : null;
-  const statBoostPreview = firstCombineCard && combineSelection.length === 2
-    ? previewCombine(
-      firstCombineCard,
-      getCatalogCard(combineSelection[1].card_id, profile),
-      { statBoostChoices },
-    )
+  const secondCombineCard = combineSelection.length === 2
+    ? getCatalogCard(combineSelection[1].card_id, profile)
+    : null;
+  const requiresAbilityChoice = firstCombineCard && secondCombineCard
+    ? needsFighterAbilityChoice(firstCombineCard, secondCombineCard)
+    : false;
+  const inheritedAbility = firstCombineCard && secondCombineCard
+    ? getInheritedFighterAbilityPreview(firstCombineCard, secondCombineCard)
+    : null;
+  const statBoostPreview = firstCombineCard && secondCombineCard
+    ? previewCombine(firstCombineCard, secondCombineCard, { statBoostChoices })
     : null;
   const allocatedBoostTotals = statBoostChoices.reduce((totals, stat) => {
     totals[stat] = (totals[stat] ?? 0) + statBoostAmount;
@@ -126,11 +139,12 @@ export default function Library({ profile, onProfileChange, onMainMenu }) {
     });
   };
 
-  const finalizeCombine = (boostChoices) => {
+  const finalizeCombine = (boostChoices, ability = null) => {
     if (combineSelection.length < 2) return;
     const [first, second] = combineSelection;
     const result = combineCards(profile, first.card_id, second.card_id, {
       statBoostChoices: boostChoices,
+      specialAbility: ability,
     });
     if (result.error) {
       if (result.error === 'Less than 10 cards not allowed') {
@@ -143,8 +157,13 @@ export default function Library({ profile, onProfileChange, onMainMenu }) {
     onProfileChange(result.profile);
     setCombineSelection([]);
     setShowStatBoostDialog(false);
+    setShowAbilityDialog(false);
     setStatBoostChoices([]);
-    setCombineMessage(`Combined into ${result.combined.name}!`);
+    setSelectedAbility(null);
+    const abilityNote = result.combined.specialAbility
+      ? ` (${FIGHTER_ABILITY_CONFIG[result.combined.specialAbility]?.label || result.combined.specialAbility} ability)`
+      : '';
+    setCombineMessage(`Combined into ${result.combined.name}!${abilityNote}`);
   };
 
   const handleCombineConfirm = () => {
@@ -163,13 +182,26 @@ export default function Library({ profile, onProfileChange, onMainMenu }) {
 
   const handleStatBoostConfirm = () => {
     if (statBoostChoices.length < COMBINE_STAT_BOOST_COUNT) return;
-    finalizeCombine(statBoostChoices);
+    if (requiresAbilityChoice) {
+      setShowStatBoostDialog(false);
+      setSelectedAbility(null);
+      setShowAbilityDialog(true);
+      return;
+    }
+    finalizeCombine(statBoostChoices, inheritedAbility);
+  };
+
+  const handleAbilityConfirm = () => {
+    if (!selectedAbility) return;
+    finalizeCombine(statBoostChoices, selectedAbility);
   };
 
   const cancelCombine = () => {
     setCombineSelection([]);
     setShowStatBoostDialog(false);
+    setShowAbilityDialog(false);
     setStatBoostChoices([]);
+    setSelectedAbility(null);
   };
 
   const enterCombineMode = () => {
@@ -185,7 +217,9 @@ export default function Library({ profile, onProfileChange, onMainMenu }) {
     setCombineSelection([]);
     setCombineMessage('');
     setShowStatBoostDialog(false);
+    setShowAbilityDialog(false);
     setStatBoostChoices([]);
+    setSelectedAbility(null);
   };
 
   const showCombineConfirm = mode === 'combine' && combineSelection.length === 2 && !showStatBoostDialog;
@@ -298,6 +332,11 @@ export default function Library({ profile, onProfileChange, onMainMenu }) {
                   {combineOrderIndex === 0 ? '1st (base)' : '2nd'}
                 </span>
               )}
+              {catalog?.specialAbility && (
+                <span className="deck-badge ability-badge">
+                  {FIGHTER_ABILITY_CONFIG[catalog.specialAbility]?.label || catalog.specialAbility}
+                </span>
+              )}
               <GameCard
                 card={{
                   name: catalog?.name || card_id,
@@ -326,6 +365,17 @@ export default function Library({ profile, onProfileChange, onMainMenu }) {
             <p className="confirm-dialog-text">
               Sacrifice these two cards to combine them into a new card? The first card you selected
               ({firstCombineCard?.name || 'card'}) will provide the base stats.
+              {requiresAbilityChoice && ' At Level 5 you will also choose a special ability.'}
+              {inheritedAbility && !requiresAbilityChoice && (
+                <>
+                  {' '}
+                  The new card will keep the
+                  {' '}
+                  <strong>{FIGHTER_ABILITY_CONFIG[inheritedAbility]?.label || inheritedAbility}</strong>
+                  {' '}
+                  ability from the base card.
+                </>
+              )}
             </p>
             <div className="confirm-dialog-actions">
               <button type="button" className="btn-primary" onClick={handleCombineConfirm}>
@@ -389,7 +439,7 @@ export default function Library({ profile, onProfileChange, onMainMenu }) {
                 disabled={remainingBoosts > 0}
                 onClick={handleStatBoostConfirm}
               >
-                Combine
+                {requiresAbilityChoice ? 'Continue' : 'Combine'}
               </button>
               <button
                 type="button"
@@ -398,6 +448,48 @@ export default function Library({ profile, onProfileChange, onMainMenu }) {
                 onClick={handleStatBoostUndo}
               >
                 Undo last boost
+              </button>
+              <button type="button" className="btn-secondary" onClick={cancelCombine}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showAbilityDialog && firstCombineCard && (
+        <div className="target-overlay" onClick={cancelCombine}>
+          <div className="confirm-dialog ability-choice-dialog" onClick={(e) => e.stopPropagation()}>
+            <h3>Choose Special Ability</h3>
+            <p className="confirm-dialog-text">
+              Your new Level 5 fighter gains a special ability. It only triggers on solo attacks
+              (not chain attacks) and lasts {121} seconds on the target.
+            </p>
+            <div className="ability-choice-options">
+              {FIGHTER_ABILITIES.map((ability) => (
+                <button
+                  key={ability}
+                  type="button"
+                  className={`ability-choice-btn${selectedAbility === ability ? ' selected' : ''}`}
+                  onClick={() => setSelectedAbility(ability)}
+                >
+                  <span className="ability-choice-title">
+                    {FIGHTER_ABILITY_CONFIG[ability].label}
+                  </span>
+                  <span className="ability-choice-detail">
+                    {FIGHTER_ABILITY_CONFIG[ability].description}
+                  </span>
+                </button>
+              ))}
+            </div>
+            <div className="confirm-dialog-actions">
+              <button
+                type="button"
+                className="btn-primary"
+                disabled={!selectedAbility}
+                onClick={handleAbilityConfirm}
+              >
+                Combine
               </button>
               <button type="button" className="btn-secondary" onClick={cancelCombine}>
                 Cancel

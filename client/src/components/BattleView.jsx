@@ -5,6 +5,7 @@ import AttackArrow from './AttackArrow';
 import ChainFireAnimation from './ChainFireAnimation';
 import BloodSplatter from './BloodSplatter';
 import PoisonCloudAnimation from './PoisonCloudAnimation';
+import { FIGHTER_ABILITY_CONFIG } from '../../../shared/fighterAbilities.js';
 
 function formatBattleElapsed(seconds) {
   const m = Math.floor(seconds / 60);
@@ -455,6 +456,16 @@ export default function BattleView({
     if (card.poisoned) {
       const poisonLabel = (poisonDamage ?? 1) >= 2 ? 'Lethal Poison' : 'Poison';
       effects.push({ key: 'poison', label: poisonLabel, className: 'status-poison' });
+    }
+    for (const debuff of card.fighterDebuffs || []) {
+      const config = FIGHTER_ABILITY_CONFIG[debuff.type];
+      const label = config?.label || debuff.type;
+      const suffix = debuff.doubled ? ' 2x' : '';
+      effects.push({
+        key: `fighter-${debuff.type}`,
+        label: `${label}${suffix}`,
+        className: `status-fighter-${debuff.type}`,
+      });
     }
     if (!effects.length) return null;
     return (
