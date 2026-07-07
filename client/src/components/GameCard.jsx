@@ -1,3 +1,4 @@
+import { useRef, useEffect } from 'react';
 import { getLevelDigit } from '../combineEngine';
 import CardBack from './CardBack';
 import { truncateCardName } from '../utils/truncateCardName';
@@ -20,6 +21,13 @@ export default function GameCard({
   hideStatusEffects = false,
   faceDown = false,
 }) {
+  const timerElapsed = Math.max(0, card?.cooldownElapsed ?? 0);
+  const prevElapsedRef = useRef(timerElapsed);
+  const timerReset = card && !card.hidden && !faceDown && timerElapsed < prevElapsedRef.current - 0.5;
+  useEffect(() => {
+    prevElapsedRef.current = timerElapsed;
+  }, [timerElapsed]);
+
   if (card?.hidden) {
     return (
       <div className="game-card disabled" style={{ opacity: 0.3 }}>
@@ -66,7 +74,6 @@ export default function GameCard({
   const bossLocked = card.bossLocked;
   const bossProtected = card.bossProtected;
   const timerMax = card.cooldown || 0;
-  const timerElapsed = Math.max(0, card.cooldownElapsed ?? 0);
   const timerRemaining = Math.max(0, timerMax - timerElapsed);
   const isReady = card.alive && timerElapsed >= timerMax && !bossLocked && !bossProtected;
   const isDead = card.alive === false && !isDying;
@@ -119,7 +126,15 @@ export default function GameCard({
         <div className="stat-row">
           <span className="timer-stat">Timer: {timerLabel}</span>
           <div className={`timer-bar timer-bar-inline${showTimerBar ? '' : ' stat-bar-placeholder'}${isReady ? ' timer-ready' : ''}`}>
-            {showTimerBar && <div className="timer-fill" style={{ width: `${timerProgress}%` }} />}
+            {showTimerBar && (
+              <div
+                className="timer-fill"
+                style={{
+                  width: `${timerProgress}%`,
+                  transition: timerReset ? 'none' : undefined,
+                }}
+              />
+            )}
           </div>
         </div>
       </div>

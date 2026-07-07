@@ -2087,6 +2087,20 @@ input:focus {
   font-weight: 700;
 }
 
+.deck-pile-empty {
+  cursor: default;
+  pointer-events: none;
+  background: transparent;
+  border: 1px dashed rgba(255, 255, 255, 0.12);
+  box-shadow: none;
+  transform: none;
+}
+
+.deck-pile-empty .card-back,
+.deck-pile-empty .deck-pile-overlay {
+  display: none;
+}
+
 .field-slot {
   width: var(--card-width);
   min-width: var(--card-width);

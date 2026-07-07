@@ -475,6 +475,16 @@ export default function BattleView({
     const handCount = isPlayer ? (myBattleHand?.length ?? 0) : (oppBattleHand?.length ?? 0);
     const handFull = handCount >= 3;
     const fadingAway = isBossOnlySide(isPlayer);
+    const deckEmpty = remaining <= 0;
+
+    if (deckEmpty && !fadingAway) {
+      return (
+        <div className="deck-draw-zone">
+          <div className="deck-pile deck-pile-empty" aria-label="Deck empty" />
+        </div>
+      );
+    }
+
     const timerComplete = timerMax > 0 && timer >= timerMax;
     const canDraw = isPlayer && drawReady && !battleEnded && !fadingAway && !handFull;
     const blocked = timerComplete && remaining > 0 && handFull && !fadingAway;
@@ -487,9 +497,7 @@ export default function BattleView({
         ? 'Click to draw!'
         : blocked
           ? 'Hand full'
-          : remaining > 0
-            ? `${Math.max(0, timerMax - timer)}s until draw`
-            : 'Deck empty';
+          : `${Math.max(0, timerMax - timer)}s until draw`;
 
     return (
       <div className={`deck-draw-zone${fadingAway ? ' fade-away' : ''}`}>

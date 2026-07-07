@@ -823,6 +823,28 @@ function isBattlePaused(game) {
   return !!(game.userPaused || game.attackAnimation || game.deathAnimation);
 }
 
+function areBattleTimersPaused(game) {
+  return !!(game.attackAnimation || game.deathAnimation);
+}
+
+function resetAttackerCooldowns(attackers) {
+  for (const attacker of attackers || []) {
+    if (attacker) attacker.cooldownElapsed = 0;
+  }
+}
+
+function handCardDeployScore(card) {
+  return (card.attack || 0) * 3 + (card.defense || 0) + (card.maxHp || 0);
+}
+
+function pickBestHandCardForDeploy(hand) {
+  if (!hand?.length) return null;
+  return hand.reduce(
+    (best, card) => (handCardDeployScore(card) > handCardDeployScore(best) ? card : best),
+    hand[0],
+  );
+}
+
 function freezeAnimationTimeouts(game) {
   if (game.attackTimeout && game.attackAnimation) {
     clearTimeout(game.attackTimeout);
@@ -1032,9 +1054,7 @@ function completeAttackAnimation(game) {
       defenderRef.card.alive = false;
       pushBattleLog(game, formatKillLog(defenderRef.card));
     }
-    for (const attackerRef of attackerRefs) {
-      attackerRef.card.cooldownElapsed = 0;
-    }
+    resetAttackerCooldowns(attackerRefs.map((ref) => ref.card));
 
     if (killed) {
       enqueueDeathAnimation(game, defenderRef.card.instanceId, defenderRef.card.role);
@@ -1068,6 +1088,7 @@ function beginAttackAnimation(game, attacker, defender, logPrefix) {
   const damage = calculateAttackDamage(attacker, defender);
   const durationMs = getAttackAnimationMs(game);
   pushBattleLog(game, formatSingleAttackLog(logPrefix, attacker, defender, damage));
+  resetAttackerCooldowns([attacker]);
   game.attackAnimation = {
     attackerInstanceId: attacker.instanceId,
     defenderInstanceId: defender.instanceId,
@@ -1111,6 +1132,7 @@ function beginChainAttackAnimation(game, attackers, defender, logPrefix, ownerPl
   };
 
   pushBattleLog(game, formatChainAttackLog(logPrefix, attackers, defender, damage));
+  resetAttackerCooldowns(attackers);
 
   if (game.onUpdate) game.onUpdate(toPrivateState(game, 'player'));
 
@@ -1144,7 +1166,7 @@ function tryReplaceFromHand(game, player) {
     const emptySlot = (player.field || []).findIndex((c) => !c || !c.alive);
     if (emptySlot < 0) break;
     const slotCard = player.field[emptySlot];
-    const fighter = player.battleHand[0];
+    const fighter = pickBestHandCardForDeploy(player.battleHand);
     if (!fighter) break;
 
     if (slotCard?.instanceId) cancelDeathPipelineForCard(game, slotCard.instanceId);
@@ -1159,12 +1181,17 @@ function tryReplaceFromHand(game, player) {
   return deployed;
 }
 
-function runNpcReplaceAfterSlotClear(game) {
+function runNpcReplace(game) {
   const npc = game.players[1];
   const deployed = tryReplaceFromHand(game, npc);
   for (const replaced of deployed) {
     pushBattleLog(game, formatDeployLog('CPU', replaced.card, replaced.slotIndex, npc.replacementsUsed, npc.maxReplacements));
   }
+  return deployed;
+}
+
+function runNpcReplaceAfterSlotClear(game) {
+  runNpcReplace(game);
 }
 
 function markPoisonedIfActive(game, card, player) {
@@ -1330,36 +1357,50 @@ function autoNpcSetup(game) {
 function startTicks(game) {
   stopTicks();
   tickTimer = setInterval(() => {
-    if (game.phase !== 'battle' || isBattlePaused(game)) return;
+    if (game.phase !== 'battle' || game.userPaused) return;
 
-    game.battleElapsed = (game.battleElapsed || 0) + 1;
+    const timersPaused = areBattleTimersPaused(game);
+    let stateChanged = false;
 
-    for (const p of game.players) {
-      for (const c of getFieldCards(p)) {
-        if (!isCardReady(c)) c.cooldownElapsed = Math.min(c.cooldown, (c.cooldownElapsed || 0) + 1);
+    if (!timersPaused) {
+      game.battleElapsed = (game.battleElapsed || 0) + 1;
+
+      for (const p of game.players) {
+        for (const c of getFieldCards(p)) {
+          if (!isCardReady(c)) c.cooldownElapsed = Math.min(c.cooldown, (c.cooldownElapsed || 0) + 1);
+        }
+        if (p.deck.length > 0 && p.drawTimer < p.drawTimerMax) p.drawTimer += 1;
       }
-      if (p.drawTimer < p.drawTimerMax) p.drawTimer += 1;
+
+      const npc = game.players[1];
+      if (npc.drawTimer >= npc.drawTimerMax) {
+        if (drawCardForPlayer(game, npc, 'CPU')) stateChanged = true;
+      }
+      if (runNpcReplace(game).length) stateChanged = true;
+
+      runNpcBossMagic(game);
+      runNpcAI(game);
+
+      if (tickPoison(game)) return;
+
+      const w = checkWinner(game.players[0], game.players[1]);
+      if (w) {
+        finishOffline(game, w);
+        return;
+      }
+    } else if (runNpcReplace(game).length) {
+      stateChanged = true;
+      const w = checkWinner(game.players[0], game.players[1]);
+      if (w) {
+        finishOffline(game, w);
+        return;
+      }
     }
 
-    runNpcDrawAndReplace(game);
-    runNpcBossMagic(game);
-    runNpcAI(game);
-
-    if (tickPoison(game)) return;
-
-    const w = checkWinner(game.players[0], game.players[1]);
-    if (w) finishOffline(game, w);
-    else if (game.onUpdate) game.onUpdate(toPrivateState(game, 'player'));
+    if (stateChanged || !timersPaused) {
+      if (game.onUpdate) game.onUpdate(toPrivateState(game, 'player'));
+    }
   }, getTickIntervalMs(game));
-}
-
-function runNpcDrawAndReplace(game) {
-  const npc = game.players[1];
-  if (npc.drawTimer >= npc.drawTimerMax) drawCardForPlayer(game, npc, 'CPU');
-  const deployed = tryReplaceFromHand(game, npc);
-  for (const replaced of deployed) {
-    pushBattleLog(game, formatDeployLog('CPU', replaced.card, replaced.slotIndex, npc.replacementsUsed, npc.maxReplacements));
-  }
 }
 
 function runNpcBossMagic(game) {
@@ -1486,6 +1527,12 @@ function runNpcAI(game) {
   if (isBattlePaused(game)) return;
   const npc = game.players[1];
   const human = game.players[0];
+
+  if (canDeployFighter(npc)) {
+    runNpcReplace(game);
+    return;
+  }
+
   const action = pickBestNpcAttack(game, npc, human);
   if (!action) return;
 
