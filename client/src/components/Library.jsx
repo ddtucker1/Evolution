@@ -1,8 +1,17 @@
 import { useMemo, useState } from 'react';
 import GameCard from './GameCard';
 import { getTimerPreview } from '../offlineEngine';
-import { getCardLevel, getLevelDigit } from '../combineEngine';
-import { canCombineWithLibrarySize } from '../../../shared/combineRules.js';
+import {
+  getCardLevel,
+  getLevelDigit,
+  previewCombine,
+  formatStatBoostLabel,
+} from '../combineEngine';
+import {
+  COMBINE_STAT_BONUS,
+  COMBINE_STAT_BOOST_COUNT,
+  canCombineWithLibrarySize,
+} from '../../../shared/combineRules.js';
 import {
   PLAY_DECK_SIZE,
   getCatalogCard,
@@ -20,6 +29,27 @@ export default function Library({ profile, onProfileChange, onMainMenu }) {
   const [combineSelection, setCombineSelection] = useState([]);
   const [combineMessage, setCombineMessage] = useState('');
   const [showCombineBlockedPopup, setShowCombineBlockedPopup] = useState(false);
+  const [showStatBoostDialog, setShowStatBoostDialog] = useState(false);
+  const [statBoostChoices, setStatBoostChoices] = useState([]);
+
+  const statBoostOptions = COMBINE_STAT_BONUS.stats;
+  const statBoostAmount = COMBINE_STAT_BONUS.amount;
+  const remainingBoosts = COMBINE_STAT_BOOST_COUNT - statBoostChoices.length;
+  const firstCombineEntry = combineSelection[0];
+  const firstCombineCard = firstCombineEntry
+    ? getCatalogCard(firstCombineEntry.card_id, profile)
+    : null;
+  const statBoostPreview = firstCombineCard && combineSelection.length === 2
+    ? previewCombine(
+      firstCombineCard,
+      getCatalogCard(combineSelection[1].card_id, profile),
+      { statBoostChoices },
+    )
+    : null;
+  const allocatedBoostTotals = statBoostChoices.reduce((totals, stat) => {
+    totals[stat] = (totals[stat] ?? 0) + statBoostAmount;
+    return totals;
+  }, {});
 
   const libraryCardCount = getLibraryCardCount(profile);
   const combineBlocked = !canCombineWithLibrarySize(libraryCardCount);
@@ -96,10 +126,12 @@ export default function Library({ profile, onProfileChange, onMainMenu }) {
     });
   };
 
-  const finalizeCombine = () => {
+  const finalizeCombine = (boostChoices) => {
     if (combineSelection.length < 2) return;
     const [first, second] = combineSelection;
-    const result = combineCards(profile, first.card_id, second.card_id);
+    const result = combineCards(profile, first.card_id, second.card_id, {
+      statBoostChoices: boostChoices,
+    });
     if (result.error) {
       if (result.error === 'Less than 10 cards not allowed') {
         setShowCombineBlockedPopup(true);
@@ -110,15 +142,34 @@ export default function Library({ profile, onProfileChange, onMainMenu }) {
     }
     onProfileChange(result.profile);
     setCombineSelection([]);
+    setShowStatBoostDialog(false);
+    setStatBoostChoices([]);
     setCombineMessage(`Combined into ${result.combined.name}!`);
   };
 
   const handleCombineConfirm = () => {
-    finalizeCombine();
+    setStatBoostChoices([]);
+    setShowStatBoostDialog(true);
+  };
+
+  const handleStatBoostSelect = (stat) => {
+    if (statBoostChoices.length >= COMBINE_STAT_BOOST_COUNT) return;
+    setStatBoostChoices((prev) => [...prev, stat]);
+  };
+
+  const handleStatBoostUndo = () => {
+    setStatBoostChoices((prev) => prev.slice(0, -1));
+  };
+
+  const handleStatBoostConfirm = () => {
+    if (statBoostChoices.length < COMBINE_STAT_BOOST_COUNT) return;
+    finalizeCombine(statBoostChoices);
   };
 
   const cancelCombine = () => {
     setCombineSelection([]);
+    setShowStatBoostDialog(false);
+    setStatBoostChoices([]);
   };
 
   const enterCombineMode = () => {
@@ -133,9 +184,11 @@ export default function Library({ profile, onProfileChange, onMainMenu }) {
     setMode('deck');
     setCombineSelection([]);
     setCombineMessage('');
+    setShowStatBoostDialog(false);
+    setStatBoostChoices([]);
   };
 
-  const showCombineConfirm = mode === 'combine' && combineSelection.length === 2;
+  const showCombineConfirm = mode === 'combine' && combineSelection.length === 2 && !showStatBoostDialog;
 
   return (
     <div>
@@ -212,6 +265,9 @@ export default function Library({ profile, onProfileChange, onMainMenu }) {
           const selected = mode === 'deck'
             ? inDeck > 0
             : combineSelection.some((s) => s.key === key);
+          const combineOrderIndex = mode === 'combine'
+            ? combineSelection.findIndex((s) => s.key === key)
+            : -1;
           const canAdd = playDeck.length < PLAY_DECK_SIZE && inDeck < owned;
           const canSelectCombine = mode === 'combine'
             && !combineBlocked
@@ -237,7 +293,11 @@ export default function Library({ profile, onProfileChange, onMainMenu }) {
               }}
             >
               {mode === 'deck' && inDeck > 0 && <span className="deck-badge">{inDeck} in deck</span>}
-              {mode === 'combine' && selected && <span className="deck-badge evolve-badge">Combine</span>}
+              {mode === 'combine' && selected && (
+                <span className="deck-badge evolve-badge">
+                  {combineOrderIndex === 0 ? '1st (base)' : '2nd'}
+                </span>
+              )}
               <GameCard
                 card={{
                   name: catalog?.name || card_id,
@@ -264,11 +324,80 @@ export default function Library({ profile, onProfileChange, onMainMenu }) {
           <div className="confirm-dialog" onClick={(e) => e.stopPropagation()}>
             <h3>Combine Cards?</h3>
             <p className="confirm-dialog-text">
-              Sacrifice these two cards to combine them into a new card?
+              Sacrifice these two cards to combine them into a new card? The first card you selected
+              ({firstCombineCard?.name || 'card'}) will provide the base stats.
             </p>
             <div className="confirm-dialog-actions">
               <button type="button" className="btn-primary" onClick={handleCombineConfirm}>
-                Confirm
+                Continue
+              </button>
+              <button type="button" className="btn-secondary" onClick={cancelCombine}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showStatBoostDialog && firstCombineCard && (
+        <div className="target-overlay" onClick={cancelCombine}>
+          <div className="confirm-dialog ability-choice-dialog" onClick={(e) => e.stopPropagation()}>
+            <h3>Assign Stat Boosts</h3>
+            <p className="confirm-dialog-text">
+              Choose where to apply {COMBINE_STAT_BOOST_COUNT} boosts of +{statBoostAmount} each.
+              You can put both into one stat or split them across two stats.
+            </p>
+            <p className="stat-boost-base-card">
+              Base card: <strong>{firstCombineCard.name}</strong>
+              {' '}(ATK {firstCombineCard.attack}, DEF {firstCombineCard.defense}, HP {firstCombineCard.hp})
+            </p>
+            <p className="stat-boost-remaining">
+              Boosts remaining: <strong>{remainingBoosts}</strong>
+            </p>
+            {statBoostChoices.length > 0 && (
+              <p className="stat-boost-assigned">
+                Assigned: {formatStatBoostLabel(allocatedBoostTotals)}
+              </p>
+            )}
+            {statBoostPreview && statBoostChoices.length > 0 && (
+              <p className="stat-boost-preview">
+                Result preview: ATK {statBoostPreview.attack}, DEF {statBoostPreview.defense}, HP {statBoostPreview.hp}
+              </p>
+            )}
+            <div className="ability-choice-options">
+              {statBoostOptions.map((stat) => (
+                <button
+                  key={stat}
+                  type="button"
+                  className="ability-choice-btn"
+                  disabled={remainingBoosts === 0}
+                  onClick={() => handleStatBoostSelect(stat)}
+                >
+                  <span className="ability-choice-title">
+                    {stat === 'hp' ? 'HP' : stat.charAt(0).toUpperCase() + stat.slice(1)}
+                  </span>
+                  <span className="ability-choice-detail">
+                    Add +{statBoostAmount} to {stat === 'hp' ? 'HP' : stat}
+                  </span>
+                </button>
+              ))}
+            </div>
+            <div className="confirm-dialog-actions">
+              <button
+                type="button"
+                className="btn-primary"
+                disabled={remainingBoosts > 0}
+                onClick={handleStatBoostConfirm}
+              >
+                Combine
+              </button>
+              <button
+                type="button"
+                className="btn-secondary"
+                disabled={statBoostChoices.length === 0}
+                onClick={handleStatBoostUndo}
+              >
+                Undo last boost
               </button>
               <button type="button" className="btn-secondary" onClick={cancelCombine}>
                 Cancel

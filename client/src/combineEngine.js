@@ -2,6 +2,7 @@ import { getTimerPreview } from '../../shared/baseCardStats.js';
 import { generateCardName } from '../../shared/cardNaming.js';
 import {
   COMBINE_STAT_BONUS,
+  COMBINE_STAT_BOOST_COUNT,
   COMBINE_MAX_LEVEL,
   getLevelRule,
 } from '../../shared/combineRules.js';
@@ -31,10 +32,6 @@ function randomPick(arr) {
   return arr[Math.floor(Math.random() * arr.length)];
 }
 
-function averageStat(a, b) {
-  return Math.round((a + b) / 2);
-}
-
 export function getCardLevel(card) {
   if (!card) return 0;
   if (card.level != null) return card.level;
@@ -61,17 +58,105 @@ export function canCombineCards(card1, card2) {
   return getCardLevel(card1) === getCardLevel(card2) && computeOutputLevel(card1, card2) != null;
 }
 
-function buildCombinedCard(card1, card2, { deterministic = false } = {}) {
+function getBaseStats(card) {
+  return {
+    attack: card.attack,
+    defense: card.defense,
+    hp: card.hp,
+    timer: getCardTimer(card),
+  };
+}
+
+function formatStatLabel(stat) {
+  if (stat === 'hp') return 'HP';
+  return stat.charAt(0).toUpperCase() + stat.slice(1);
+}
+
+export function formatStatBoostLabel(allocations) {
+  return Object.entries(allocations)
+    .map(([stat, amount]) => `${formatStatLabel(stat)} +${amount}`)
+    .join(', ');
+}
+
+export function isValidStatBoostChoices(choices) {
+  if (!Array.isArray(choices) || choices.length !== COMBINE_STAT_BOOST_COUNT) return false;
+  const validStats = new Set(COMBINE_STAT_BONUS.stats);
+  return choices.every((stat) => validStats.has(stat));
+}
+
+function generateAutomaticBoostChoices(seed, deterministic) {
+  const options = COMBINE_STAT_BONUS.stats;
+  const choices = [];
+  for (let i = 0; i < COMBINE_STAT_BOOST_COUNT; i += 1) {
+    const choice = deterministic
+      ? seededPick(options, seed, 300 + i)
+      : randomPick(options);
+    if (!choice) return null;
+    choices.push(choice);
+  }
+  return choices;
+}
+
+export function applyStatBoostChoices(stats, choices, { allowPartial = false } = {}) {
+  const validStats = new Set(COMBINE_STAT_BONUS.stats);
+  if (!Array.isArray(choices)) {
+    return { stats, statBonus: null };
+  }
+  if (choices.some((stat) => !validStats.has(stat))) {
+    return { stats, statBonus: null };
+  }
+  if (!allowPartial && !isValidStatBoostChoices(choices)) {
+    return { stats, statBonus: null };
+  }
+  if (allowPartial && choices.length > COMBINE_STAT_BOOST_COUNT) {
+    return { stats, statBonus: null };
+  }
+  if (!choices.length) {
+    return { stats, statBonus: null };
+  }
+
+  const amount = COMBINE_STAT_BONUS.amount;
+  const next = { ...stats };
+  const allocations = {};
+
+  for (const stat of choices) {
+    next[stat] = (next[stat] ?? 0) + amount;
+    allocations[stat] = (allocations[stat] ?? 0) + amount;
+  }
+
+  return {
+    stats: next,
+    statBonus: {
+      allocations,
+      choices: [...choices],
+      label: formatStatBoostLabel(allocations),
+    },
+  };
+}
+
+function buildCombinedCard(card1, card2, { deterministic = false, statBoostChoices, allowPartialBoosts = false } = {}) {
   const seed = [card1.id, card2.id].sort().join('|');
   const level = computeOutputLevel(card1, card2);
   if (level == null) return null;
 
-  let attack = averageStat(card1.attack, card2.attack);
-  let defense = averageStat(card1.defense, card2.defense);
-  let hp = averageStat(card1.hp, card2.hp);
-  let timer = averageStat(getCardTimer(card1), getCardTimer(card2));
+  const base = getBaseStats(card1);
+  let { attack, defense, hp, timer } = base;
 
-  const bonus = applyStatBonus({ attack, defense, hp }, seed, deterministic);
+  let bonus;
+  if (statBoostChoices != null) {
+    bonus = applyStatBoostChoices(
+      { attack, defense, hp },
+      statBoostChoices,
+      { allowPartial: allowPartialBoosts },
+    );
+  } else {
+    const choices = generateAutomaticBoostChoices(seed, deterministic);
+    if (!choices) return null;
+    bonus = applyStatBoostChoices({ attack, defense, hp }, choices);
+  }
+
+  if (!bonus.statBonus && statBoostChoices == null) return null;
+
   attack = bonus.stats.attack;
   defense = bonus.stats.defense;
   hp = bonus.stats.hp;
@@ -90,30 +175,19 @@ function buildCombinedCard(card1, card2, { deterministic = false } = {}) {
   };
 }
 
-function applyStatBonus(stats, seed, deterministic) {
-  const options = COMBINE_STAT_BONUS.stats;
-  const choice = deterministic
-    ? seededPick(options, seed, 300)
-    : randomPick(options);
-  if (!choice) return { stats, statBonus: null };
-
-  const amount = COMBINE_STAT_BONUS.amount;
-  const next = { ...stats };
-  next[choice] = next[choice] + amount;
-  const label = choice === 'hp'
-    ? `HP +${amount}`
-    : `${choice.charAt(0).toUpperCase() + choice.slice(1)} +${amount}`;
-  return { stats: next, statBonus: { stat: choice, label } };
-}
-
-export function previewCombine(card1, card2) {
+export function previewCombine(card1, card2, options = {}) {
   if (!canCombineCards(card1, card2)) return null;
-  return buildCombinedCard(card1, card2, { deterministic: true });
+  return buildCombinedCard(card1, card2, {
+    deterministic: true,
+    allowPartialBoosts: true,
+    ...options,
+  });
 }
 
 export function createCombinedCard(card1, card2, options = {}) {
-  const { deterministic = false } = options;
-  const preview = buildCombinedCard(card1, card2, { deterministic });
+  const { deterministic = false, statBoostChoices } = options;
+  if (statBoostChoices != null && !isValidStatBoostChoices(statBoostChoices)) return null;
+  const preview = buildCombinedCard(card1, card2, { deterministic, statBoostChoices });
   if (!preview) return null;
   const suffix = deterministic
     ? hashSeed([card1.id, card2.id].sort().join('|')).toString(36)

@@ -1,8 +1,9 @@
 {
-  "version": 3,
-  "statFormula": "average",
+  "version": 4,
+  "statFormula": "first",
   "statBonus": {
     "amount": 2,
+    "count": 2,
     "stats": ["attack", "defense", "hp"]
   },
   "requireSameLevel": true,

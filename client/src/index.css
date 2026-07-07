@@ -1842,6 +1842,21 @@ input:focus {
   line-height: 1.4;
 }
 
+.stat-boost-base-card,
+.stat-boost-remaining,
+.stat-boost-assigned,
+.stat-boost-preview {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-bottom: 10px;
+  line-height: 1.4;
+}
+
+.stat-boost-base-card strong,
+.stat-boost-remaining strong {
+  color: var(--accent-gold);
+}
+
 .ability-text {
   font-size: 11px;
   color: var(--accent-purple);

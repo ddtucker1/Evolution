@@ -11,6 +11,7 @@ export default function AbilityHelp({ open, onClose }) {
         <h3>Combining Cards</h3>
         <p className="help-dialog-intro">
           Sacrifice two cards of the same level in the Library to create a stronger card one level higher.
+          The first card you select provides the base stats, then you choose where two +2 boosts are applied.
         </p>
         <ul className="ability-help-list">
           {combineHelpLines.map((line) => (
