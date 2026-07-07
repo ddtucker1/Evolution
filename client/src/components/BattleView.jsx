@@ -81,6 +81,14 @@ export default function BattleView({
     setSelectedSlot(null);
   }, [gameState?.canDeployFighter]);
 
+  useEffect(() => {
+    if (!gameState?.pendingReplacement || !gameState?.canDeployFighter) return;
+    setSelectedSlot(gameState.pendingReplacement.slotIndex);
+    setReplaceMode(null);
+    setTargetMode(null);
+    setMagicMode(null);
+  }, [gameState?.pendingReplacement, gameState?.canDeployFighter]);
+
   if (!gameState) return null;
 
   const {
@@ -311,11 +319,16 @@ export default function BattleView({
   const isBossOnlySide = (isPlayer) => {
     const bossOnly = isPlayer ? bossCanAttack : opponentBossCanAttack;
     if (!bossOnly) return false;
-    if (isPlayer) return !canDeployFromHand;
+    if (isPlayer) return !canDeployFromHand && !drawReady;
     const oppHand = oppBattleHand?.length ?? 0;
     const oppReplacementsLeft = (opponent?.maxReplacements ?? maxReplacements) - (opponent?.replacementsUsed ?? 0);
     const oppEmptySlots = (oppPlayer?.field || []).filter((c) => !c || !c.alive).length;
-    return !(oppHand > 0 && oppReplacementsLeft > 0 && oppEmptySlots > 0);
+    const oppCanDeploy = oppHand > 0 && oppReplacementsLeft > 0 && oppEmptySlots > 0;
+    const oppDrawTimerReady = (oppPlayer?.drawTimer ?? 0) >= (oppPlayer?.drawTimerMax ?? 0);
+    const oppDeckRemaining = oppPlayer?.deckRemaining ?? 0;
+    const oppCanDraw = oppDrawTimerReady && oppDeckRemaining > 0 && oppHand < 3
+      && oppReplacementsLeft > 0 && oppEmptySlots > 0;
+    return !(oppCanDeploy || oppCanDraw);
   };
 
   const getAttackableTargets = () => {
@@ -599,7 +612,7 @@ export default function BattleView({
       : [];
 
     const isDying = deathAnimation?.instanceId === card?.instanceId;
-    const showAsEmptyDeploySlot = isPlayer && card && !card.alive && !isDying;
+    const showAsEmptyDeploySlot = isPlayer && (!card || (!card.alive && (canDeployFromHand || !isDying)));
 
     if (!card || showAsEmptyDeploySlot) {
       const canDeployToSlot = isPlayer && !battleEnded && canDeployFromHand;
