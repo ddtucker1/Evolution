@@ -332,11 +332,6 @@ export default function Library({ profile, onProfileChange, onMainMenu }) {
                   {combineOrderIndex === 0 ? '1st (base)' : '2nd'}
                 </span>
               )}
-              {catalog?.specialAbility && (
-                <span className="deck-badge ability-badge">
-                  {FIGHTER_ABILITY_CONFIG[catalog.specialAbility]?.label || catalog.specialAbility}
-                </span>
-              )}
               <GameCard
                 card={{
                   name: catalog?.name || card_id,
@@ -346,6 +341,8 @@ export default function Library({ profile, onProfileChange, onMainMenu }) {
                   hp: catalog?.hp,
                   maxHp: catalog?.hp,
                   timer: catalog?.timer,
+                  level: catalog?.level,
+                  specialAbility: catalog?.specialAbility,
                   alive: true,
                   isBase: !isCombined,
                 }}
