@@ -715,11 +715,6 @@ input:focus {
   min-height: calc(2 * var(--card-height));
 }
 
-.formation-grid.boss-only-board .grid-cell-abilities {
-  grid-column: 1;
-  grid-row: 2;
-}
-
 .field-card-row.boss-solo-row {
   justify-content: center;
   gap: 12px;
@@ -815,24 +810,22 @@ input:focus {
   letter-spacing: 0.7px;
 }
 
-/* Player: hand left, deck/boss/abilities center, fighters right */
+/* Player: hand left, deck/boss center, fighters right */
 .player-formation .grid-cell-hand-0 { grid-column: 1; grid-row: 1; }
 .player-formation .grid-cell-hand-1 { grid-column: 1; grid-row: 2; }
 .player-formation .grid-cell-hand-2 { grid-column: 1; grid-row: 3; }
 .player-formation .grid-cell-deck { grid-column: 2; grid-row: 1; }
 .player-formation .grid-cell-boss { grid-column: 2; grid-row: 2; }
-.player-formation .grid-cell-abilities { grid-column: 2; grid-row: 3; }
 .player-formation .grid-cell-fighter-0 { grid-column: 3; grid-row: 1; }
 .player-formation .grid-cell-fighter-1 { grid-column: 3; grid-row: 2; }
 .player-formation .grid-cell-fighter-2 { grid-column: 3; grid-row: 3; }
 
-/* Opponent mirrored: fighters left, deck/boss/abilities center, hand right */
+/* Opponent mirrored: fighters left, deck/boss center, hand right */
 .opponent-formation .grid-cell-fighter-0 { grid-column: 1; grid-row: 1; }
 .opponent-formation .grid-cell-fighter-1 { grid-column: 1; grid-row: 2; }
 .opponent-formation .grid-cell-fighter-2 { grid-column: 1; grid-row: 3; }
 .opponent-formation .grid-cell-deck { grid-column: 2; grid-row: 1; }
 .opponent-formation .grid-cell-boss { grid-column: 2; grid-row: 2; }
-.opponent-formation .grid-cell-abilities { grid-column: 2; grid-row: 3; }
 .opponent-formation .grid-cell-hand-0 { grid-column: 3; grid-row: 1; }
 .opponent-formation .grid-cell-hand-1 { grid-column: 3; grid-row: 2; }
 .opponent-formation .grid-cell-hand-2 { grid-column: 3; grid-row: 3; }
@@ -852,23 +845,11 @@ input:focus {
   justify-content: center;
 }
 
-.player-formation .grid-cell-abilities {
-  justify-content: center;
-  align-items: flex-start;
-  padding-top: 4px;
-}
-
 .opponent-formation .grid-cell-hand,
 .opponent-formation .grid-cell-deck,
 .opponent-formation .grid-cell-boss,
 .opponent-formation .grid-cell-fighter {
   justify-content: center;
-}
-
-.opponent-formation .grid-cell-abilities {
-  justify-content: center;
-  align-items: flex-start;
-  padding-top: 4px;
 }
 
 .formation-grid .game-card,
@@ -2170,75 +2151,6 @@ input:focus {
   font-style: italic;
 }
 
-.boss-magic-actions {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  width: 100%;
-  max-width: 130px;
-  align-items: stretch;
-}
-
-.boss-magic-btn {
-  padding: 6px 8px;
-  border-radius: 6px;
-  border: 1px solid var(--border);
-  background: var(--bg-dark);
-  color: var(--text-primary);
-  font-size: 10px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.15s;
-}
-
-.boss-magic-btn:hover {
-  border-color: var(--accent-purple);
-  background: rgba(155, 89, 182, 0.15);
-}
-
-.boss-magic-btn.slow-btn {
-  border-color: rgba(52, 152, 219, 0.5);
-  color: var(--accent-blue);
-}
-
-.boss-magic-btn.heal-btn {
-  border-color: rgba(46, 204, 113, 0.5);
-  color: var(--accent-green);
-}
-
-.boss-magic-btn.haste-btn {
-  border-color: rgba(241, 196, 15, 0.5);
-  color: var(--accent-gold);
-}
-
-.boss-magic-btn.attack2x-btn {
-  border-color: rgba(231, 76, 60, 0.5);
-  color: #e74c3c;
-}
-
-.boss-magic-btn.defense-halved-btn {
-  border-color: rgba(155, 89, 182, 0.5);
-  color: var(--accent-purple);
-}
-
-.boss-magic-btn:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
-  filter: grayscale(0.6);
-}
-
-.boss-magic-btn:disabled:hover {
-  border-color: var(--border);
-  background: var(--bg-dark);
-}
-
-.boss-magic-spent {
-  font-size: 9px;
-  color: var(--text-secondary);
-  text-align: center;
-  font-style: italic;
-}
-
 .queued-attack-banner {
   background: rgba(52, 152, 219, 0.12);
   border-color: rgba(52, 152, 219, 0.35);
@@ -2363,30 +2275,6 @@ input:focus {
   color: #fff;
   text-transform: none;
   letter-spacing: 0;
-}
-
-.boss-magic-btn.ability-used,
-.npc-boss-magic .boss-magic-btn.ability-used {
-  opacity: 0.4;
-  cursor: default;
-  filter: grayscale(0.85);
-  text-decoration: line-through;
-}
-
-.npc-boss-magic .boss-magic-btn {
-  cursor: default;
-  pointer-events: none;
-}
-
-.boss-ability-banner {
-  background: rgba(155, 89, 182, 0.15);
-  border-color: rgba(155, 89, 182, 0.45);
-  color: var(--accent-purple);
-}
-
-.magic-target-hint {
-  border-color: rgba(155, 89, 182, 0.65);
-  background: rgba(26, 26, 46, 0.95);
 }
 
 .field-card-anchor {
