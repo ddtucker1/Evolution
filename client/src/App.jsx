@@ -29,6 +29,7 @@ import {
   stopTicks,
   clearBattleAnimations,
   toggleOfflinePause,
+  toggleGameSpeed,
 } from './offlineEngine';
 
 export default function App() {
@@ -123,6 +124,11 @@ export default function App() {
     toggleOfflinePause(offlineGameRef.current);
   };
 
+  const handleToggleSpeed = () => {
+    if (!offlineGameRef.current) return;
+    toggleGameSpeed(offlineGameRef.current);
+  };
+
   const handleLeaveBattle = () => {
     if (offlineGameRef.current) clearBattleAnimations(offlineGameRef.current);
     stopTicks();
@@ -188,6 +194,7 @@ export default function App() {
           onBossDefenseHalved={handleBossDefenseHalved}
           onMainMenu={handleLeaveBattle}
           onTogglePause={handleTogglePause}
+          onToggleSpeed={handleToggleSpeed}
         />
       )}
     </div>
