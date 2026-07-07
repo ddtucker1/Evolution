@@ -9,6 +9,13 @@ import {
 } from '../../shared/baseCardStats.js';
 import { generateCardName } from '../../shared/cardNaming.js';
 import { createCombinedCard, getCardLevel } from './combineEngine.js';
+import {
+  FIGHTER_ABILITY_UNLOCK_LEVEL,
+  FIGHTER_DEBUFF_DURATION,
+  FIGHTER_ABILITY_CONFIG,
+  isFighterAbilityDoubled,
+  getFighterAbilityLabel,
+} from '../../shared/fighterAbilities.js';
 
 const CATALOG_VERSION = 3;
 const CATALOG_STORAGE_KEY = 'cfb_card_catalog';
@@ -420,6 +427,7 @@ function makeBattleCard(templateId, instanceId) {
     alive: true, role: null,
     isBase: isBaseCardId(templateId),
     level: t.level ?? (isEvolved ? 1 : 0),
+    specialAbility: t.specialAbility || null,
   };
 }
 
@@ -783,7 +791,177 @@ function clearDeadFieldSlot(player, card) {
   if (idx >= 0) player.field[idx] = null;
 }
 
-function sanitize(card, revealed) {
+function getActiveFighterDebuffs(card, battleElapsed) {
+  return (card.fighterDebuffs || []).filter((debuff) => debuff.expiresAt > battleElapsed);
+}
+
+function hasActiveFighterDebuff(card, type, battleElapsed) {
+  return getActiveFighterDebuffs(card, battleElapsed).some((debuff) => debuff.type === type);
+}
+
+function pruneExpiredFighterDebuffs(card, battleElapsed) {
+  if (!card?.fighterDebuffs?.length) return;
+  card.fighterDebuffs = card.fighterDebuffs.filter((debuff) => debuff.expiresAt > battleElapsed);
+}
+
+function applyFighterSlowEffect(target, doubled) {
+  const bonus = doubled
+    ? FIGHTER_ABILITY_CONFIG.slow.timerBonus * 2
+    : FIGHTER_ABILITY_CONFIG.slow.timerBonus;
+  target.cooldown = (target.cooldown || 0) + bonus;
+}
+
+function addFighterDebuff(game, target, type, doubled) {
+  const battleElapsed = game.battleElapsed || 0;
+  if (hasActiveFighterDebuff(target, type, battleElapsed)) return false;
+
+  const debuff = {
+    type,
+    expiresAt: battleElapsed + FIGHTER_DEBUFF_DURATION,
+    tickCounter: 0,
+    doubled: !!doubled,
+    slowApplied: false,
+  };
+
+  if (type === 'slow') {
+    applyFighterSlowEffect(target, doubled);
+    debuff.slowApplied = true;
+  }
+
+  if (!target.fighterDebuffs) target.fighterDebuffs = [];
+  target.fighterDebuffs.push(debuff);
+  return true;
+}
+
+function applyFighterSpecialAbility(game, attacker, defender) {
+  if (!attacker?.specialAbility || attacker.role !== 'field') return null;
+  if ((attacker.level ?? 0) < FIGHTER_ABILITY_UNLOCK_LEVEL) return null;
+
+  const ability = attacker.specialAbility;
+  const doubled = isFighterAbilityDoubled(attacker.level ?? 0);
+  const applied = addFighterDebuff(game, defender, ability, doubled);
+  if (!applied) return null;
+
+  const label = getFighterAbilityLabel(ability);
+  return `${attacker.name}'s ${label} affects ${defender.name} for ${FIGHTER_DEBUFF_DURATION}s`;
+}
+
+function getAdjacentFieldCards(player, card) {
+  const slotIndex = getFieldSlotIndex(player, card);
+  if (slotIndex < 0) return [];
+  return getAdjacentFieldSlotIndices(slotIndex)
+    .map((idx) => player.field?.[idx])
+    .filter((c) => c?.alive);
+}
+
+function applyFighterDebuffStatLoss(card, { hpLoss = 0, defenseLoss = 0, attackLoss = 0 }) {
+  let killed = false;
+  if (hpLoss > 0) {
+    killed = applyFlatDamage(card, hpLoss);
+  }
+  if (defenseLoss > 0) {
+    card.defense = Math.max(0, Math.round(card.defense) - defenseLoss);
+  }
+  if (attackLoss > 0) {
+    card.attack = Math.max(0, Math.round(card.attack) - attackLoss);
+  }
+  return killed;
+}
+
+function handleFighterDebuffDeath(game, card, player) {
+  pushBattleLog(game, formatKillLog(card));
+  if (card.role === 'field') {
+    const idx = (player.field || []).findIndex((c) => c?.instanceId === card.instanceId);
+    if (idx >= 0) {
+      player.field[idx] = null;
+      maybeSetPendingReplacement(game, player, idx);
+      if (player.id === 'npc') runNpcReplaceAfterSlotClear(game);
+    }
+  }
+  syncPoisonForPlayer(game, player);
+}
+
+function tickFighterDebuffs(game) {
+  const battleElapsed = game.battleElapsed || 0;
+  let anyKilled = false;
+
+  for (const player of game.players) {
+    for (const card of getFieldCards(player)) {
+      pruneExpiredFighterDebuffs(card, battleElapsed);
+      const debuffs = getActiveFighterDebuffs(card, battleElapsed);
+      if (!debuffs.length) continue;
+
+      for (const debuff of debuffs) {
+        const config = FIGHTER_ABILITY_CONFIG[debuff.type];
+        if (!config?.interval) continue;
+
+        debuff.tickCounter = (debuff.tickCounter || 0) + 1;
+        if (debuff.tickCounter < config.interval) continue;
+        debuff.tickCounter = 0;
+
+        const multiplier = debuff.doubled ? 2 : 1;
+
+        if (debuff.type === 'fire') {
+          const adjacent = getAdjacentFieldCards(player, card);
+          for (const adjacentCard of adjacent) {
+            const hpLoss = multiplier;
+            const defenseLoss = multiplier;
+            const hpBefore = adjacentCard.hp;
+            const killed = applyFighterDebuffStatLoss(adjacentCard, { hpLoss, defenseLoss });
+            pushBattleLog(
+              game,
+              `Fire: ${adjacentCard.name} loses ${defenseLoss} DEF and ${hpLoss} HP (${hpBefore} → ${adjacentCard.hp} HP)`,
+            );
+            if (killed) {
+              handleFighterDebuffDeath(game, adjacentCard, player);
+              anyKilled = true;
+            }
+          }
+        } else if (debuff.type === 'poison') {
+          const hpLoss = multiplier;
+          const hpBefore = card.hp;
+          const killed = applyFighterDebuffStatLoss(card, { hpLoss });
+          pushBattleLog(
+            game,
+            `Poison: ${card.name} loses ${hpLoss} HP (${hpBefore} → ${card.hp} HP)`,
+          );
+          if (killed) {
+            handleFighterDebuffDeath(game, card, player);
+            anyKilled = true;
+          }
+        } else if (debuff.type === 'rust') {
+          const defenseLoss = multiplier;
+          const defBefore = card.defense;
+          applyFighterDebuffStatLoss(card, { defenseLoss });
+          pushBattleLog(
+            game,
+            `Rust: ${card.name} loses ${defenseLoss} DEF (${defBefore} → ${card.defense})`,
+          );
+        } else if (debuff.type === 'blunt') {
+          const attackLoss = (config.attackLoss || 3) * multiplier;
+          const atkBefore = card.attack;
+          applyFighterDebuffStatLoss(card, { attackLoss });
+          pushBattleLog(
+            game,
+            `Blunt: ${card.name} loses ${attackLoss} ATK (${atkBefore} → ${card.attack})`,
+          );
+        }
+      }
+    }
+  }
+
+  return anyKilled;
+}
+
+function sanitizeFighterDebuffs(card, battleElapsed) {
+  return getActiveFighterDebuffs(card, battleElapsed).map((debuff) => ({
+    type: debuff.type,
+    remaining: Math.max(0, debuff.expiresAt - battleElapsed),
+    doubled: !!debuff.doubled,
+  }));
+}
+
+function sanitize(card, revealed, battleElapsed = 0) {
   if (!revealed) return { hidden: true };
   if (!card) return null;
   return {
@@ -805,6 +983,8 @@ function sanitize(card, revealed) {
     defenseHalved: !!card.defenseHalved,
     level: card.level ?? 0,
     isBase: !!card.isBase,
+    specialAbility: card.specialAbility || null,
+    fighterDebuffs: sanitizeFighterDebuffs(card, battleElapsed),
     bossLocked: false,
   };
 }
@@ -1044,7 +1224,7 @@ function completeAttackAnimation(game) {
       .filter((ref) => ref?.card?.alive)
     : [findFieldCard(game, anim.attackerInstanceId)].filter((ref) => ref?.card?.alive);
 
-  if (attackerRefs.length && defenderRef?.card) {
+    if (attackerRefs.length && defenderRef?.card) {
     if (anim.damage > 0) {
       defenderRef.card.hp -= anim.damage;
     }
@@ -1055,6 +1235,14 @@ function completeAttackAnimation(game) {
       pushBattleLog(game, formatKillLog(defenderRef.card));
     }
     resetAttackerCooldowns(attackerRefs.map((ref) => ref.card));
+
+    if (!anim.isChainAttack && attackerRefs.length === 1) {
+      const defenderAlive = defenderRef.card.alive && defenderRef.card.hp > 0;
+      if (defenderAlive) {
+        const abilityMsg = applyFighterSpecialAbility(game, attackerRefs[0].card, defenderRef.card);
+        if (abilityMsg) pushBattleLog(game, abilityMsg);
+      }
+    }
 
     if (killed) {
       enqueueDeathAnimation(game, defenderRef.card.instanceId, defenderRef.card.role);
@@ -1205,6 +1393,7 @@ function toPrivateState(game, playerId) {
   const me = game.players.find((p) => p.id === playerId);
   const opp = game.players.find((p) => p.id !== playerId);
   const hideSetup = game.phase === 'setup';
+  const battleElapsed = game.battleElapsed || 0;
   const bossCanAttack = canBossAttack(me);
   const opponentBossCanAttack = canBossAttack(opp);
 
@@ -1218,8 +1407,8 @@ function toPrivateState(game, playerId) {
       id: p.id,
       username: p.username,
       setupComplete: p.setupComplete,
-      boss: p.boss ? sanitize(p.boss, game.phase !== 'setup') : null,
-      field: (p.field || []).map((c) => (c ? sanitize(c, game.phase !== 'setup') : null)),
+      boss: p.boss ? sanitize(p.boss, game.phase !== 'setup', battleElapsed) : null,
+      field: (p.field || []).map((c) => (c ? sanitize(c, game.phase !== 'setup', battleElapsed) : null)),
       deckRemaining: p.deck.length,
       isWinner: p.isWinner,
       replacementsUsed: p.replacementsUsed,
@@ -1265,8 +1454,8 @@ function toPrivateState(game, playerId) {
       id: opp.id,
       username: opp.username,
       setupComplete: opp.setupComplete,
-      boss: hideSetup ? null : (opp.boss ? { ...sanitize(opp.boss, true), bossLocked: !opponentBossCanAttack } : null),
-      field: hideSetup ? [] : (opp.field || []).map((c) => (c ? sanitize(c, true) : null)),
+      boss: hideSetup ? null : (opp.boss ? { ...sanitize(opp.boss, true, battleElapsed), bossLocked: !opponentBossCanAttack } : null),
+      field: hideSetup ? [] : (opp.field || []).map((c) => (c ? sanitize(c, true, battleElapsed) : null)),
       deckRemaining: opp.deck.length,
       replacementsUsed: opp.replacementsUsed,
       drawTimer: opp.drawTimer,
@@ -1382,6 +1571,14 @@ function startTicks(game) {
       runNpcAI(game);
 
       if (tickPoison(game)) return;
+
+      if (tickFighterDebuffs(game)) {
+        const w = checkWinner(game.players[0], game.players[1]);
+        if (w) {
+          finishOffline(game, w);
+          return;
+        }
+      }
 
       const w = checkWinner(game.players[0], game.players[1]);
       if (w) {

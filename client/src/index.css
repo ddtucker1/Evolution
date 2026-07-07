@@ -2316,6 +2316,41 @@ input:focus {
   color: #fff;
 }
 
+.status-effect.status-fighter-fire {
+  background: rgba(230, 126, 34, 0.92);
+  color: #fff;
+}
+
+.status-effect.status-fighter-poison {
+  background: rgba(39, 174, 96, 0.92);
+  color: #fff;
+}
+
+.status-effect.status-fighter-rust {
+  background: rgba(149, 165, 166, 0.95);
+  color: #1a1a2e;
+}
+
+.status-effect.status-fighter-blunt {
+  background: rgba(127, 140, 141, 0.95);
+  color: #fff;
+}
+
+.status-effect.status-fighter-slow {
+  background: rgba(52, 152, 219, 0.9);
+  color: #fff;
+}
+
+.deck-badge.ability-badge {
+  background: rgba(230, 126, 34, 0.92);
+  color: #fff;
+}
+
+.ability-choice-btn.selected {
+  outline: 2px solid var(--accent-gold);
+  box-shadow: 0 0 12px rgba(212, 175, 55, 0.45);
+}
+
 .status-effect.status-carried {
   background: rgba(124, 92, 191, 0.88);
   color: #fff;

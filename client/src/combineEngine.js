@@ -6,6 +6,11 @@ import {
   COMBINE_MAX_LEVEL,
   getLevelRule,
 } from '../../shared/combineRules.js';
+import {
+  FIGHTER_ABILITY_UNLOCK_LEVEL,
+  isFighterAbility,
+  resolveInheritedFighterAbility,
+} from '../../shared/fighterAbilities.js';
 
 function hashSeed(seed) {
   let hash = 0;
@@ -134,7 +139,7 @@ export function applyStatBoostChoices(stats, choices, { allowPartial = false } =
   };
 }
 
-function buildCombinedCard(card1, card2, { deterministic = false, statBoostChoices, allowPartialBoosts = false } = {}) {
+function buildCombinedCard(card1, card2, { deterministic = false, statBoostChoices, allowPartialBoosts = false, specialAbility } = {}) {
   const seed = [card1.id, card2.id].sort().join('|');
   const level = computeOutputLevel(card1, card2);
   if (level == null) return null;
@@ -162,6 +167,7 @@ function buildCombinedCard(card1, card2, { deterministic = false, statBoostChoic
   hp = bonus.stats.hp;
 
   const name = generateCardName({ attack, defense, hp, timer }, seed);
+  const resolvedAbility = resolveInheritedFighterAbility(card1, card2, level, specialAbility);
 
   return {
     attack,
@@ -172,6 +178,8 @@ function buildCombinedCard(card1, card2, { deterministic = false, statBoostChoic
     statBonus: bonus.statBonus,
     name,
     parents: [card1.id, card2.id],
+    specialAbility: resolvedAbility,
+    needsAbilityChoice: level === FIGHTER_ABILITY_UNLOCK_LEVEL && !resolvedAbility,
   };
 }
 
@@ -185,9 +193,11 @@ export function previewCombine(card1, card2, options = {}) {
 }
 
 export function createCombinedCard(card1, card2, options = {}) {
-  const { deterministic = false, statBoostChoices } = options;
+  const { deterministic = false, statBoostChoices, specialAbility } = options;
   if (statBoostChoices != null && !isValidStatBoostChoices(statBoostChoices)) return null;
-  const preview = buildCombinedCard(card1, card2, { deterministic, statBoostChoices });
+  const outputLevel = computeOutputLevel(card1, card2);
+  if (outputLevel === FIGHTER_ABILITY_UNLOCK_LEVEL && !isFighterAbility(specialAbility)) return null;
+  const preview = buildCombinedCard(card1, card2, { deterministic, statBoostChoices, specialAbility });
   if (!preview) return null;
   const suffix = deterministic
     ? hashSeed([card1.id, card2.id].sort().join('|')).toString(36)
@@ -204,6 +214,7 @@ export function createCombinedCard(card1, card2, options = {}) {
     statBonus: preview.statBonus,
     parents: preview.parents,
     combined: true,
+    specialAbility: preview.specialAbility || null,
   };
 }
 
@@ -216,6 +227,12 @@ export function getLevelLabel(level) {
   return `Level ${level}`;
 }
 
-// Backward-compatible aliases
-export const previewEvolve = previewCombine;
-export const createEvolvedCard = createCombinedCard;
+export function needsFighterAbilityChoice(card1, card2) {
+  return computeOutputLevel(card1, card2) === FIGHTER_ABILITY_UNLOCK_LEVEL;
+}
+
+export function getInheritedFighterAbilityPreview(card1, card2) {
+  const outputLevel = computeOutputLevel(card1, card2);
+  if (outputLevel == null) return null;
+  return resolveInheritedFighterAbility(card1, card2, outputLevel, null);
+}
