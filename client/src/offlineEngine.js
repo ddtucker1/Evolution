@@ -318,6 +318,7 @@ function applyPoisonTick(game) {
         if (idx >= 0) {
           player.field[idx] = null;
           maybeSetPendingReplacement(game, player, idx);
+          if (player.id === 'npc') runNpcReplaceAfterSlotClear(game);
         }
       }
       syncPoisonForPlayer(game, player);
@@ -539,6 +540,36 @@ function canDeployFighter(player) {
   return hasEmptyFighterSlot(player);
 }
 
+function canDrawBattleCard(player) {
+  if (player.drawTimer < player.drawTimerMax || !player.deck.length) return false;
+  if (player.battleHand.length >= MAX_BATTLE_HAND_SIZE) return false;
+  if (canBossAttack(player)) {
+    return player.replacementsUsed < player.maxReplacements && hasEmptyFighterSlot(player);
+  }
+  return true;
+}
+
+function isCardInDeathPipeline(game, instanceId) {
+  if (!instanceId) return false;
+  if (game.deathAnimation?.instanceId === instanceId) return true;
+  return !!(game.deathQueue || []).some((entry) => entry.instanceId === instanceId);
+}
+
+function cancelDeathPipelineForCard(game, instanceId) {
+  if (!instanceId) return;
+  if (game.deathQueue) {
+    game.deathQueue = game.deathQueue.filter((entry) => entry.instanceId !== instanceId);
+  }
+  if (game.deathAnimation?.instanceId !== instanceId) return;
+
+  if (game.deathTimeout) {
+    clearTimeout(game.deathTimeout);
+    game.deathTimeout = null;
+  }
+  game.deathAnimation = null;
+  if (game.deathQueue?.length) startNextDeathAnimation(game);
+}
+
 function isBossOnlyPhase(player) {
   return player.boss?.alive && getAliveFieldFighters(player).length === 0;
 }
@@ -723,6 +754,8 @@ function executePlayerReplace(game, handCardId, slotIndex) {
   const card = player.battleHand[handIdx];
   if (!card) return { success: false };
 
+  if (slotCard?.instanceId) cancelDeathPipelineForCard(game, slotCard.instanceId);
+
   card.role = 'field';
   player.field[slotIndex] = card;
   player.battleHand.splice(handIdx, 1);
@@ -869,10 +902,12 @@ function rescaleAnimationTimeouts(game, oldSpeed, newSpeed) {
   }
 }
 
-function clearOrphanedDeadFieldSlots(player) {
+function clearOrphanedDeadFieldSlots(game, player) {
   for (let i = 0; i < (player?.field || []).length; i++) {
     const card = player.field[i];
-    if (card && !card.alive) player.field[i] = null;
+    if (card && !card.alive && !isCardInDeathPipeline(game, card.instanceId)) {
+      player.field[i] = null;
+    }
   }
 }
 
@@ -925,9 +960,11 @@ function completeDeathAnimation(game) {
   }
 
   for (const player of game.players) {
-    clearOrphanedDeadFieldSlots(player);
+    clearOrphanedDeadFieldSlots(game, player);
     syncPoisonForPlayer(game, player);
   }
+
+  runNpcReplaceAfterSlotClear(game);
 
   if (clearedSlotIndex !== null && ref?.player?.id === 'player') {
     maybeSetPendingReplacement(game, ref.player, clearedSlotIndex);
@@ -1088,9 +1125,7 @@ function checkWinner(p1, p2) {
 }
 
 function drawCardForPlayer(game, player, logPrefix) {
-  if (canBossAttack(player)) return false;
-  if (player.drawTimer < player.drawTimerMax || !player.deck.length) return false;
-  if (player.battleHand.length >= MAX_BATTLE_HAND_SIZE) return false;
+  if (!canDrawBattleCard(player)) return false;
   const nextIdx = player.deck.findIndex((entry) => getTemplate(entry.templateId));
   if (nextIdx < 0) return false;
   const [next] = player.deck.splice(nextIdx, 1);
@@ -1108,8 +1143,11 @@ function tryReplaceFromHand(game, player) {
   while (canDeployFighter(player)) {
     const emptySlot = (player.field || []).findIndex((c) => !c || !c.alive);
     if (emptySlot < 0) break;
+    const slotCard = player.field[emptySlot];
     const fighter = player.battleHand[0];
     if (!fighter) break;
+
+    if (slotCard?.instanceId) cancelDeathPipelineForCard(game, slotCard.instanceId);
 
     fighter.role = 'field';
     player.field[emptySlot] = fighter;
@@ -1119,6 +1157,14 @@ function tryReplaceFromHand(game, player) {
     deployed.push({ card: fighter, slotIndex: emptySlot });
   }
   return deployed;
+}
+
+function runNpcReplaceAfterSlotClear(game) {
+  const npc = game.players[1];
+  const deployed = tryReplaceFromHand(game, npc);
+  for (const replaced of deployed) {
+    pushBattleLog(game, formatDeployLog('CPU', replaced.card, replaced.slotIndex, npc.replacementsUsed, npc.maxReplacements));
+  }
 }
 
 function markPoisonedIfActive(game, card, player) {
@@ -1153,7 +1199,7 @@ function toPrivateState(game, playerId) {
       maxReplacements: p.maxReplacements,
       drawTimer: p.drawTimer,
       drawTimerMax: p.drawTimerMax,
-      drawReady: p.drawTimer >= p.drawTimerMax && p.deck.length > 0 && p.battleHand.length < MAX_BATTLE_HAND_SIZE && !canBossAttack(p),
+      drawReady: p.drawTimer >= p.drawTimerMax && canDrawBattleCard(p),
       bossAbilitiesUsed: { ...(p.bossAbilitiesUsed || defaultBossAbilitiesUsed()) },
     })),
     log: [...game.log],
@@ -1178,7 +1224,7 @@ function toPrivateState(game, playerId) {
     maxReplacements: me.maxReplacements,
     drawTimer: me.drawTimer,
     drawTimerMax: me.drawTimerMax,
-    drawReady: me.drawTimer >= me.drawTimerMax && me.deck.length > 0 && me.battleHand.length < MAX_BATTLE_HAND_SIZE && !bossCanAttack,
+    drawReady: canDrawBattleCard(me),
     deckRemaining: me.deck.length,
     bossCanAttack,
     opponentBossCanAttack,
@@ -1485,14 +1531,20 @@ export function clearBattleAnimations(game) {
 
 export function offlineDrawCard(game) {
   const player = game.players[0];
-  if (canBossAttack(player)) {
-    return { success: false, message: 'Boss is fighting alone' };
-  }
-  if (player.drawTimer < player.drawTimerMax || !player.deck.length) {
+  if (!canDrawBattleCard(player)) {
+    if (canBossAttack(player) && player.replacementsUsed >= player.maxReplacements) {
+      return { success: false, message: 'No replacements left' };
+    }
+    if (canBossAttack(player) && !hasEmptyFighterSlot(player)) {
+      return { success: false, message: 'Boss is fighting alone' };
+    }
+    if (player.drawTimer < player.drawTimerMax || !player.deck.length) {
+      return { success: false, message: 'Cannot draw yet' };
+    }
+    if (player.battleHand.length >= MAX_BATTLE_HAND_SIZE) {
+      return { success: false, message: 'Hand is full' };
+    }
     return { success: false, message: 'Cannot draw yet' };
-  }
-  if (player.battleHand.length >= MAX_BATTLE_HAND_SIZE) {
-    return { success: false, message: 'Hand is full' };
   }
   if (isBattlePaused(game)) {
     return queuePlayerAction(game, { type: 'draw' });
