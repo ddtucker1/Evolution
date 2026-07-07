@@ -1,5 +1,11 @@
 import { useRef, useEffect } from 'react';
-import { getLevelDigit } from '../combineEngine';
+import { getCardLevel, getLevelDigit } from '../combineEngine';
+import {
+  FIGHTER_ABILITY_UNLOCK_LEVEL,
+  getFighterAbilityDescription,
+  getFighterAbilityLabel,
+  isFighterAbilityDoubled,
+} from '../../../shared/fighterAbilities.js';
 import CardBack from './CardBack';
 import { truncateCardName } from '../utils/truncateCardName';
 
@@ -41,6 +47,7 @@ export default function GameCard({
             <div className="hp-bar hp-bar-inline stat-bar-placeholder" />
           </div>
           <div>ATK: —</div>
+          <div className="card-ability-slot" aria-hidden="true" />
           <div className="stat-row">
             <span className="timer-stat">Timer: —</span>
             <div className="timer-bar timer-bar-inline stat-bar-placeholder" />
@@ -105,6 +112,15 @@ export default function GameCard({
   ].filter(Boolean).join(' ');
 
   const displayLevel = levelDigit ?? (levelLabel ? levelLabel.replace(/\D/g, '') || null : getLevelDigit(card));
+  const cardLevel = getCardLevel(card);
+  const showAbility = cardLevel >= FIGHTER_ABILITY_UNLOCK_LEVEL && card.specialAbility;
+  const abilityDoubled = showAbility && isFighterAbilityDoubled(cardLevel);
+  const abilityLabel = showAbility
+    ? `${getFighterAbilityLabel(card.specialAbility)}${abilityDoubled ? ' 2x' : ''}`
+    : null;
+  const abilityDescription = showAbility
+    ? getFighterAbilityDescription(card.specialAbility, abilityDoubled)
+    : null;
   const displayName = truncateCardName(card.name);
 
   return (
@@ -123,6 +139,13 @@ export default function GameCard({
           </div>
         </div>
         <div>ATK: {Math.round(card.attack ?? 0)}</div>
+        <div className="card-ability-slot" aria-hidden={!showAbility}>
+          {showAbility && (
+            <span className="card-ability" title={abilityDescription}>
+              {abilityLabel}
+            </span>
+          )}
+        </div>
         <div className="stat-row">
           <span className="timer-stat">Timer: {timerLabel}</span>
           <div className={`timer-bar timer-bar-inline${showTimerBar ? '' : ' stat-bar-placeholder'}${isReady ? ' timer-ready' : ''}`}>
