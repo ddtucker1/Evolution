@@ -1,5 +1,4 @@
 import {
-  calculateBattleTimer,
   getTimerPreview,
   isBaseCardId,
   generateRandomBaseStats,
@@ -93,8 +92,8 @@ const CARD_DATA = {
 };
 
 const baseAttacks = CARD_DATA.unique.map((c) => c.attack);
-const CARD_TIMER_MIN = Math.min(...baseAttacks) * 2 - 2;
-const CARD_TIMER_MAX = Math.max(...baseAttacks) * 2 + 2;
+const CARD_TIMER_MIN = getTimerPreview(Math.min(...baseAttacks));
+const CARD_TIMER_MAX = getTimerPreview(Math.max(...baseAttacks));
 
 const DRAW_TIMER_MAX = 70;
 const DEATH_ANIMATION_MS = 6000;
@@ -418,7 +417,7 @@ function makeBattleCard(templateId, instanceId) {
   const maxHp = Math.round(t.hp);
   const cooldown = isEvolved && t.timer != null
     ? Math.round(t.timer)
-    : calculateBattleTimer(attack);
+    : getTimerPreview(attack);
   return {
     instanceId, templateId, name: t.name, type: 'unique',
     attack, defense,

@@ -1,7 +1,7 @@
 import { readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
-import { calculateBattleTimer } from '../../shared/baseCardStats.js';
+import { getTimerPreview } from '../../shared/baseCardStats.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const cardData = JSON.parse(readFileSync(join(__dirname, '../data/cards.json'), 'utf-8'));
@@ -57,7 +57,7 @@ export function createBattleCard(templateId, instanceId) {
   const defense = Math.round(template.defense || 0);
   const maxHp = Math.round(template.hp || 0);
   const cooldown = isUnique
-    ? calculateBattleTimer(attack)
+    ? getTimerPreview(attack)
     : Math.round(template.cooldown || 0);
   return {
     instanceId,

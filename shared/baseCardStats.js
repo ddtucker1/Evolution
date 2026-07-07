@@ -3,7 +3,6 @@ export const MIN_STAT_VALUE = 3;
 export const MAX_LIBRARY_SIZE = 50;
 export const CATALOG_SIZE = Math.min(40, MAX_LIBRARY_SIZE);
 
-const TIMER_OFFSETS = [-2, -1, 0, 1, 2];
 const WEIGHT_MAX = 40;
 
 export function computeBaseStats(attackWeight, defenseWeight, healthWeight) {
@@ -17,13 +16,7 @@ export function computeBaseStats(attackWeight, defenseWeight, healthWeight) {
 }
 
 export function getTimerPreview(attack) {
-  return Math.round(attack) * 2;
-}
-
-export function calculateBattleTimer(attack) {
-  const base = getTimerPreview(attack);
-  const offset = TIMER_OFFSETS[Math.floor(Math.random() * TIMER_OFFSETS.length)];
-  return Math.max(1, base + offset);
+  return Math.round(attack * 1.5);
 }
 
 export function isBaseCardId(id) {
