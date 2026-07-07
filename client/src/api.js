@@ -94,7 +94,7 @@ export function getOfflineProfile() {
 function migrateCombinedCard(card) {
   if (!card) return card;
   const level = getCardLevel(card);
-  const timer = card.timer != null ? Math.round(card.timer) : getTimerPreview(card.attack);
+  const timer = getTimerPreview(card.attack);
   const { abilities, ability, ...rest } = card;
   const migrated = { ...rest, level, timer, combined: true };
   if (card.specialAbility) migrated.specialAbility = card.specialAbility;

@@ -90,9 +90,7 @@ export default function Library({ profile, onProfileChange, onMainMenu }) {
         case 'hp':
           return catalog.hp ?? 0;
         case 'timer':
-          return catalog.timer != null
-            ? Math.round(catalog.timer)
-            : getTimerPreview(catalog.attack ?? 0);
+          return getTimerPreview(catalog.attack ?? 0);
         case 'level':
         default:
           return getCardLevel(catalog);
@@ -308,9 +306,7 @@ export default function Library({ profile, onProfileChange, onMainMenu }) {
             && (selected || combineSelection.length < 2);
           const isCombined = card_id.startsWith('evo_') || card_id.startsWith('test_l');
           const levelDigit = catalog ? getLevelDigit(catalog) : '0';
-          const timerPreview = catalog?.timer != null
-            ? Math.round(catalog.timer)
-            : getTimerPreview(catalog?.attack ?? 0);
+          const timerPreview = getTimerPreview(catalog?.attack ?? 0);
 
           return (
             <div
@@ -340,7 +336,6 @@ export default function Library({ profile, onProfileChange, onMainMenu }) {
                   defense: catalog?.defense,
                   hp: catalog?.hp,
                   maxHp: catalog?.hp,
-                  timer: catalog?.timer,
                   level: catalog?.level,
                   specialAbility: catalog?.specialAbility,
                   alive: true,
