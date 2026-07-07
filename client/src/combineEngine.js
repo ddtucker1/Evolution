@@ -44,11 +44,6 @@ export function getCardLevel(card) {
   return 0;
 }
 
-function getCardTimer(card) {
-  if (card.timer != null) return Math.round(card.timer);
-  return getTimerPreview(card.attack);
-}
-
 function computeOutputLevel(card1, card2) {
   const level1 = getCardLevel(card1);
   const level2 = getCardLevel(card2);
@@ -68,7 +63,6 @@ function getBaseStats(card) {
     attack: card.attack,
     defense: card.defense,
     hp: card.hp,
-    timer: getCardTimer(card),
   };
 }
 
@@ -145,7 +139,7 @@ function buildCombinedCard(card1, card2, { deterministic = false, statBoostChoic
   if (level == null) return null;
 
   const base = getBaseStats(card1);
-  let { attack, defense, hp, timer } = base;
+  let { attack, defense, hp } = base;
 
   let bonus;
   if (statBoostChoices != null) {
@@ -165,6 +159,7 @@ function buildCombinedCard(card1, card2, { deterministic = false, statBoostChoic
   attack = bonus.stats.attack;
   defense = bonus.stats.defense;
   hp = bonus.stats.hp;
+  const timer = getTimerPreview(attack);
 
   const name = generateCardName({ attack, defense, hp, timer }, seed);
   const resolvedAbility = resolveInheritedFighterAbility(card1, card2, level, specialAbility);

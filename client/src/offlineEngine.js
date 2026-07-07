@@ -389,9 +389,7 @@ function makeBattleCard(templateId, instanceId) {
   const attack = Math.round(t.attack);
   const defense = Math.round(t.defense);
   const maxHp = Math.round(t.hp);
-  const cooldown = isEvolved && t.timer != null
-    ? Math.round(t.timer)
-    : getTimerPreview(attack);
+  const cooldown = getTimerPreview(attack);
   return {
     instanceId, templateId, name: t.name, type: 'unique',
     attack, defense,
