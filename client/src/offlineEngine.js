@@ -412,7 +412,7 @@ function tickPoison(game) {
 function makeBattleCard(templateId, instanceId) {
   const t = getTemplate(templateId);
   if (!t) return null;
-  const isEvolved = templateId.startsWith('evo_');
+  const isEvolved = templateId.startsWith('evo_') || templateId.startsWith('test_l');
   const attack = Math.round(t.attack);
   const defense = Math.round(t.defense);
   const maxHp = Math.round(t.hp);
@@ -1467,13 +1467,14 @@ function toPrivateState(game, playerId) {
 
 export function createOfflineGame(deckIds) {
   instanceCounter = 0;
+  const npcDeckIds = shuffle([...deckIds]);
   const game = {
     id: 'offline_' + Date.now(),
     mode: 'npc',
     phase: 'setup',
     players: [
       createPlayer('player', 'You', deckIds),
-      createPlayer('npc', 'CPU Opponent', npcDeck()),
+      createPlayer('npc', 'CPU Opponent', npcDeckIds),
     ],
     log: [],
     winnerId: null,
@@ -1696,28 +1697,37 @@ function pickBestNpcAttack(game, npc, human) {
   if (!readyAll.length || !targets.length) return null;
 
   const defender = targets.reduce((best, t) => (t.hp < best.hp ? t : best), targets[0]);
-  let bestAction = null;
-  let bestDamage = -1;
+  let bestSingle = null;
+  let bestSingleDamage = -1;
+  let bestChain = null;
+  let bestChainDamage = -1;
 
   for (const attacker of readyAll) {
     const damage = calculateAttackDamage(attacker, defender);
-    if (damage > bestDamage) {
-      bestDamage = damage;
-      bestAction = { type: 'single', attacker, defender };
+    if (damage > bestSingleDamage) {
+      bestSingleDamage = damage;
+      bestSingle = { type: 'single', attacker, defender };
     }
   }
 
   if (readyFighters.length >= 2) {
     for (const attackers of getChainAttackCombos(readyFighters)) {
       const damage = calculateChainAttackDamage(attackers, defender);
-      if (damage > bestDamage) {
-        bestDamage = damage;
-        bestAction = { type: 'chain', attackers, defender };
+      if (damage > bestChainDamage) {
+        bestChainDamage = damage;
+        bestChain = { type: 'chain', attackers, defender };
       }
     }
   }
 
-  return bestAction;
+  if (bestChain && bestChainDamage > 0) {
+    const chainIsBest = bestChainDamage >= bestSingleDamage;
+    const chainIsCompetitive = bestSingleDamage <= 0 || bestChainDamage >= bestSingleDamage * 0.65;
+    const mixInChain = chainIsBest || (chainIsCompetitive && Math.random() < 0.4);
+    if (mixInChain) return bestChain;
+  }
+
+  return bestSingle;
 }
 
 function runNpcAI(game) {

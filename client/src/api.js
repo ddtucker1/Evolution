@@ -8,6 +8,7 @@ import {
 import { canCombineWithLibrarySize } from '../../shared/combineRules.js';
 import { isFighterAbility } from '../../shared/fighterAbilities.js';
 import { needsFighterAbilityChoice } from './combineEngine';
+import { buildTestLibraryProfile, TEST_LIBRARY_VERSION } from './testLibrary';
 
 export { PLAY_DECK_SIZE };
 
@@ -22,7 +23,8 @@ function isCatalogCardId(cardId) {
 }
 
 function isCombinedCardId(cardId, profile) {
-  return cardId.startsWith('evo_') && !!profile?.evolvedCards?.find((c) => c.id === cardId);
+  const isEvolvedId = cardId.startsWith('evo_') || cardId.startsWith('test_l');
+  return isEvolvedId && !!profile?.evolvedCards?.find((c) => c.id === cardId);
 }
 
 function isPlayableCardId(cardId, profile) {
@@ -100,22 +102,21 @@ function migrateCombinedCard(card) {
 }
 
 function migrateProfile(profile) {
-  const evolvedCards = (profile.evolvedCards || []).map(migrateCombinedCard);
   const catalogChanged = profile.catalogVersion !== CATALOG_VERSION;
+  const needsTestLibrary = profile.testLibraryVersion !== TEST_LIBRARY_VERSION;
 
-  if (catalogChanged) {
-    const next = {
+  if (catalogChanged || needsTestLibrary) {
+    const next = buildTestLibraryProfile({
       ...profile,
       catalogVersion: CATALOG_VERSION,
-      collection: buildStarterCollection(),
-      playDeck: [],
-      evolvedCards: [],
-    };
+    });
     return next;
   }
 
-  let collection = ensureFullCollection(profile.collection || profile.cards || buildStarterCollection());
-  collection = collection.filter((c) => isPlayableCardId(c.card_id, { ...profile, evolvedCards }));
+  const evolvedCards = (profile.evolvedCards || []).map(migrateCombinedCard);
+  let collection = (profile.collection || profile.cards || []).filter(
+    (c) => isPlayableCardId(c.card_id, { ...profile, evolvedCards }),
+  );
   let playDeck = (profile.playDeck || []).filter((id) => isPlayableCardId(id, { ...profile, evolvedCards }));
   ({ collection, playDeck } = trimCollectionToMax(collection, playDeck));
   return {
@@ -130,14 +131,9 @@ function migrateProfile(profile) {
 export function getOrCreateOfflineProfile() {
   let profile = getOfflineProfile();
   if (!profile) {
-    profile = {
-      id: 'offline_user',
-      username: 'Player',
+    profile = buildTestLibraryProfile({
       catalogVersion: CATALOG_VERSION,
-      collection: buildStarterCollection(),
-      playDeck: [],
-      evolvedCards: [],
-    };
+    });
     saveOfflineProfile(profile);
   }
   profile = migrateProfile(profile);

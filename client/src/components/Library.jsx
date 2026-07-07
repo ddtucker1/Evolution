@@ -306,7 +306,7 @@ export default function Library({ profile, onProfileChange, onMainMenu }) {
           const canSelectCombine = mode === 'combine'
             && !combineBlocked
             && (selected || combineSelection.length < 2);
-          const isCombined = card_id.startsWith('evo_');
+          const isCombined = card_id.startsWith('evo_') || card_id.startsWith('test_l');
           const levelDigit = catalog ? getLevelDigit(catalog) : '0';
           const timerPreview = catalog?.timer != null
             ? Math.round(catalog.timer)
