@@ -992,6 +992,32 @@ input:focus {
   font-size: 12px;
 }
 
+.battle-elapsed-timer-row {
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+}
+
+.battle-elapsed-timer-row .battle-elapsed-timer {
+  flex: 1;
+  min-width: 0;
+}
+
+.battle-speed-btn {
+  flex: 0 0 auto;
+  min-width: 44px;
+  padding: 8px 10px;
+  font-size: 12px;
+  font-family: var(--font-display);
+  font-variant-numeric: tabular-nums;
+}
+
+.battle-speed-btn-active {
+  border-color: var(--accent-gold);
+  color: var(--accent-gold);
+  background: rgba(212, 175, 55, 0.12);
+}
+
 .battle-elapsed-timer {
   display: flex;
   flex-direction: column;

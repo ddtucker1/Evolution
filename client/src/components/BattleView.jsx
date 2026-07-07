@@ -27,6 +27,7 @@ export default function BattleView({
   onBossDefenseHalved,
   onMainMenu,
   onTogglePause,
+  onToggleSpeed,
 }) {
   const [targetMode, setTargetMode] = useState(null);
   const [replaceMode, setReplaceMode] = useState(null);
@@ -108,6 +109,7 @@ export default function BattleView({
     bossPhase,
     log,
     gamePaused,
+    gameSpeed,
     poisonAnimation,
     battleElapsed,
     timersPaused,
@@ -682,6 +684,7 @@ export default function BattleView({
 
   const elapsedSeconds = battleElapsed ?? 0;
   const timerPaused = gamePaused || timersPaused;
+  const speedMultiplier = gameSpeed ?? 1;
 
   const statusLabel = gamePaused
     ? 'Paused'
@@ -709,10 +712,22 @@ export default function BattleView({
                 {gamePaused ? 'Resume' : 'Pause'}
               </button>
             </div>
-            <div className={`battle-elapsed-timer${timerPaused ? ' battle-elapsed-timer-paused' : ''}`}>
-              <span className="battle-elapsed-label">Battle Time</span>
-              <span className="battle-elapsed-value">{formatBattleElapsed(elapsedSeconds)}</span>
-              {timerPaused && <span className="battle-elapsed-paused">Paused</span>}
+            <div className="battle-elapsed-timer-row">
+              <div className={`battle-elapsed-timer${timerPaused ? ' battle-elapsed-timer-paused' : ''}`}>
+                <span className="battle-elapsed-label">Battle Time</span>
+                <span className="battle-elapsed-value">{formatBattleElapsed(elapsedSeconds)}</span>
+                {timerPaused && <span className="battle-elapsed-paused">Paused</span>}
+              </div>
+              <button
+                type="button"
+                className={`btn-secondary battle-speed-btn${speedMultiplier === 3 ? ' battle-speed-btn-active' : ''}`}
+                onClick={onToggleSpeed}
+                disabled={!!winnerId}
+                title={speedMultiplier === 3 ? 'Return to normal speed' : 'Speed up game 3×'}
+                aria-pressed={speedMultiplier === 3}
+              >
+                {speedMultiplier === 3 ? '3×' : '1×'}
+              </button>
             </div>
             <span className="battle-status-label">{statusLabel}</span>
             <div className="battle-log-panel">

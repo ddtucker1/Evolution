@@ -96,6 +96,7 @@ const PLAY_DECK_SIZE = 10;
 const MAX_REPLACEMENTS = 3;
 const MAX_BATTLE_HAND_SIZE = 3;
 const ATTACK_ANIM_MS = 4000;
+const TICK_BASE_MS = 1000;
 const BOSS_PHASE2_TIME = 4 * 60;
 const POISON_TRIGGER_TIME = 8 * 60;
 const POISON2_TRIGGER_TIME = 10 * 60;
@@ -133,8 +134,20 @@ function shuffle(arr) {
   return a;
 }
 
-function getAttackAnimationMs() {
-  return ATTACK_ANIM_MS;
+function getSpeedMultiplier(game) {
+  return game?.speedMultiplier || 1;
+}
+
+function scaleMs(baseMs, game) {
+  return Math.max(1, Math.round(baseMs / getSpeedMultiplier(game)));
+}
+
+function getAttackAnimationMs(game) {
+  return scaleMs(ATTACK_ANIM_MS, game);
+}
+
+function getTickIntervalMs(game) {
+  return Math.max(1, Math.round(TICK_BASE_MS / getSpeedMultiplier(game)));
 }
 
 function getCooldownRemaining(card) {
@@ -326,8 +339,10 @@ function startPoisonAnimation(game, { tier = 1 } = {}) {
   }
   if (game.onUpdate) game.onUpdate(toPrivateState(game, 'player'));
 
+  game.poisonAnimTier = tier;
   if (game.poisonAnimTimeout) clearTimeout(game.poisonAnimTimeout);
-  game.poisonAnimTimeout = setTimeout(() => completePoisonAnimation(game, tier), POISON_ANIM_MS);
+  const poisonDurationMs = scaleMs(POISON_ANIM_MS, game);
+  game.poisonAnimTimeout = setTimeout(() => completePoisonAnimation(game, tier), poisonDurationMs);
 }
 
 function completePoisonAnimation(game, tier = 1) {
@@ -802,6 +817,53 @@ function resumeAnimationTimeouts(game) {
   }
 }
 
+function rescaleAnimationTimeouts(game, oldSpeed, newSpeed) {
+  if (oldSpeed === newSpeed) return;
+
+  if (game.userPaused) {
+    if (game.attackAnimation?.remainingMs != null) {
+      game.attackAnimation.remainingMs = Math.max(1, Math.round(game.attackAnimation.remainingMs * oldSpeed / newSpeed));
+      game.attackAnimation.durationMs = game.attackAnimation.remainingMs;
+    }
+    if (game.deathAnimation?.remainingMs != null) {
+      game.deathAnimation.remainingMs = Math.max(1, Math.round(game.deathAnimation.remainingMs * oldSpeed / newSpeed));
+      game.deathAnimation.durationMs = game.deathAnimation.remainingMs;
+      if (game.deathAnimation.shakeMs != null) {
+        game.deathAnimation.shakeMs = Math.max(1, Math.round(game.deathAnimation.shakeMs * oldSpeed / newSpeed));
+      }
+    }
+    return;
+  }
+
+  if (game.attackTimeout && game.attackAnimation) {
+    clearTimeout(game.attackTimeout);
+    const elapsed = Date.now() - (game.attackAnimation.startedAt || Date.now());
+    const remaining = Math.max(1, Math.round((ATTACK_ANIM_MS - elapsed * oldSpeed) / newSpeed));
+    game.attackAnimation.durationMs = remaining;
+    game.attackAnimation.startedAt = Date.now();
+    game.attackTimeout = setTimeout(() => completeAttackAnimation(game), remaining);
+  }
+
+  if (game.deathTimeout && game.deathAnimation) {
+    clearTimeout(game.deathTimeout);
+    const elapsed = Date.now() - (game.deathAnimation.startedAt || Date.now());
+    const remaining = Math.max(1, Math.round((DEATH_ANIMATION_MS - elapsed * oldSpeed) / newSpeed));
+    game.deathAnimation.durationMs = remaining;
+    game.deathAnimation.shakeMs = Math.max(1, Math.round((DEATH_SHAKE_MS - elapsed * oldSpeed) / newSpeed));
+    game.deathAnimation.startedAt = Date.now();
+    game.deathTimeout = setTimeout(() => completeDeathAnimation(game), remaining);
+  }
+
+  if (game.poisonAnimTimeout && game.poisonPhase === 'animating') {
+    clearTimeout(game.poisonAnimTimeout);
+    const tier = game.poisonAnimTier ?? 1;
+    const elapsed = Date.now() - (game.poisonAnimStartedAt || Date.now());
+    const remaining = Math.max(1, Math.round((POISON_ANIM_MS - elapsed * oldSpeed) / newSpeed));
+    game.poisonAnimStartedAt = Date.now();
+    game.poisonAnimTimeout = setTimeout(() => completePoisonAnimation(game, tier), remaining);
+  }
+}
+
 function clearOrphanedDeadFieldSlots(player) {
   for (let i = 0; i < (player?.field || []).length; i++) {
     const card = player.field[i];
@@ -821,15 +883,17 @@ function startNextDeathAnimation(game) {
   if (!game.deathQueue?.length) return;
 
   const next = game.deathQueue.shift();
+  const deathDurationMs = scaleMs(DEATH_ANIMATION_MS, game);
+  const deathShakeMs = scaleMs(DEATH_SHAKE_MS, game);
   game.deathAnimation = {
     instanceId: next.instanceId,
     role: next.role,
-    durationMs: DEATH_ANIMATION_MS,
-    shakeMs: DEATH_SHAKE_MS,
+    durationMs: deathDurationMs,
+    shakeMs: deathShakeMs,
     startedAt: Date.now(),
   };
   if (game.deathTimeout) clearTimeout(game.deathTimeout);
-  game.deathTimeout = setTimeout(() => completeDeathAnimation(game), DEATH_ANIMATION_MS);
+  game.deathTimeout = setTimeout(() => completeDeathAnimation(game), deathDurationMs);
 }
 
 function completeDeathAnimation(game) {
@@ -966,7 +1030,7 @@ function beginAttackAnimation(game, attacker, defender, logPrefix) {
   if (!owner || !canCardAttack(attacker, owner)) return { success: false, message: 'Cannot attack yet' };
 
   const damage = calculateAttackDamage(attacker, defender);
-  const durationMs = getAttackAnimationMs();
+  const durationMs = getAttackAnimationMs(game);
   pushBattleLog(game, formatSingleAttackLog(logPrefix, attacker, defender, damage));
   game.attackAnimation = {
     attackerInstanceId: attacker.instanceId,
@@ -998,7 +1062,7 @@ function beginChainAttackAnimation(game, attackers, defender, logPrefix, ownerPl
   }
 
   const damage = calculateChainAttackDamage(attackers, defender);
-  const durationMs = getAttackAnimationMs();
+  const durationMs = getAttackAnimationMs(game);
   game.attackAnimation = {
     attackerInstanceId: attackers[0].instanceId,
     attackerInstanceIds: attackers.map((a) => a.instanceId),
@@ -1093,6 +1157,7 @@ function toPrivateState(game, playerId) {
     })),
     log: [...game.log],
     gamePaused: !!game.userPaused,
+    gameSpeed: getSpeedMultiplier(game),
     winnerId: game.winnerId,
     battleElapsed: game.battleElapsed || 0,
     poisonPhase: game.poisonPhase || null,
@@ -1161,6 +1226,7 @@ export function createOfflineGame(deckIds) {
     poisonTier2Triggered: false,
     poisonTickCounter: 0,
     poisonAnimTimeout: null,
+    speedMultiplier: 1,
   };
   return game;
 }
@@ -1236,7 +1302,7 @@ function startTicks(game) {
     const w = checkWinner(game.players[0], game.players[1]);
     if (w) finishOffline(game, w);
     else if (game.onUpdate) game.onUpdate(toPrivateState(game, 'player'));
-  }, 1000);
+  }, getTickIntervalMs(game));
 }
 
 function runNpcDrawAndReplace(game) {
@@ -1736,6 +1802,22 @@ export function toggleOfflinePause(game) {
 
   if (game.onUpdate) game.onUpdate(toPrivateState(game, 'player'));
   return { success: true, paused: game.userPaused };
+}
+
+export function toggleGameSpeed(game) {
+  if (!game || game.phase !== 'battle' || game.winnerId) {
+    return { success: false, speed: getSpeedMultiplier(game) };
+  }
+
+  const oldSpeed = getSpeedMultiplier(game);
+  game.speedMultiplier = oldSpeed === 3 ? 1 : 3;
+  const newSpeed = game.speedMultiplier;
+
+  rescaleAnimationTimeouts(game, oldSpeed, newSpeed);
+  startTicks(game);
+
+  if (game.onUpdate) game.onUpdate(toPrivateState(game, 'player'));
+  return { success: true, speed: newSpeed };
 }
 
 export { CARD_DATA, CARD_TIMER_MIN, CARD_TIMER_MAX, PLAY_DECK_SIZE, getTimerPreview, CATALOG_VERSION };
