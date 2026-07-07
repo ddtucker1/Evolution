@@ -218,7 +218,9 @@ export function combineCards(profile, cardId1, cardId2, options = {}) {
     return { profile, error: 'Only two cards of the same level can be combined.' };
   }
 
-  const combined = createCombinedCard(catalog1, catalog2);
+  const combined = createCombinedCard(catalog1, catalog2, {
+    statBoostChoices: options.statBoostChoices,
+  });
   if (!combined) {
     return { profile, error: 'These cards cannot be combined.' };
   }

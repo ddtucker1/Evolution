@@ -2,6 +2,7 @@ import rules from './combineRules.json';
 
 export const COMBINE_RULES_VERSION = rules.version;
 export const COMBINE_STAT_BONUS = rules.statBonus;
+export const COMBINE_STAT_BOOST_COUNT = COMBINE_STAT_BONUS.count ?? 2;
 export const COMBINE_REQUIRE_SAME_LEVEL = rules.requireSameLevel;
 export const COMBINE_MAX_LEVEL = rules.maxLevel;
 export const MIN_LIBRARY_SIZE_FOR_COMBINE = 11;
@@ -30,5 +31,8 @@ export function getCombineHelpLines() {
     if (rule) lines.push(`Level ${rule.inputLevel} + Level ${rule.inputLevel} → Level ${rule.outputLevel}`);
   }
   lines.push(`Max card level is ${COMBINE_MAX_LEVEL}. Level ${COMBINE_MAX_LEVEL} cards cannot be combined further.`);
+  lines.push(
+    `The first card selected provides the base stats. You then assign ${COMBINE_STAT_BOOST_COUNT} boosts of +${COMBINE_STAT_BONUS.amount} each to Attack, Defense, or HP (both boosts can go to the same stat).`,
+  );
   return lines;
 }
