@@ -7,7 +7,7 @@ Play against the CPU on your laptop. No login, no internet required.
 - **Main Menu** — Library and Battle only (no multiplayer)
 - **Library** — view your full card collection and pick **10 cards** for your play deck
 - **Battle** — fight the CPU with your play deck
-- **Random card stats** each battle: Attack 10–25, HP 30–100, Timer 10–60 seconds
+- **Random card stats** each battle: Attack 10–25, HP 30–100, Timer = attack × 1.5s (rounded)
 - **Boss rule** — your Boss can only attack after all 3 fighters are defeated
 - **Replacements** — deploy a fighter from your hand when a field slot opens (3 per match)
 - **Draw timer** — every 90 seconds, click your play deck to draw a card into your hand
