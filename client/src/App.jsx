@@ -152,10 +152,14 @@ export default function App() {
       <div className="header-bar">
         <h1>Card Fusion Battle</h1>
         <div className="header-actions">
-          <button type="button" className="btn-secondary" onClick={() => setShowHelp(true)}>
-            Help
-          </button>
-          <span className="user-info">{profile.username}</span>
+          {screen !== 'battle' && (
+            <button type="button" className="btn-secondary" onClick={() => setShowHelp(true)}>
+              Help
+            </button>
+          )}
+          {screen !== 'battle' && (
+            <span className="user-info">{profile.username}</span>
+          )}
         </div>
       </div>
 
@@ -195,6 +199,7 @@ export default function App() {
           onMainMenu={handleLeaveBattle}
           onTogglePause={handleTogglePause}
           onToggleSpeed={handleToggleSpeed}
+          onShowHelp={() => setShowHelp(true)}
         />
       )}
     </div>

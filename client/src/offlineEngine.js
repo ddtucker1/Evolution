@@ -295,9 +295,7 @@ function maybeSetPendingReplacement(game, player, clearedSlotIndex) {
   if (
     clearedSlotIndex !== null
     && player?.id === 'player'
-    && !canBossAttack(player)
-    && player.battleHand.length > 0
-    && player.replacementsUsed < player.maxReplacements
+    && canDeployFighter(player)
     && !game.pendingReplacement
   ) {
     game.pendingReplacement = { slotIndex: clearedSlotIndex };
@@ -531,6 +529,16 @@ function canBossAttack(player) {
   return player.boss?.alive && getAliveFieldFighters(player).length === 0;
 }
 
+function hasEmptyFighterSlot(player) {
+  return (player.field || []).some((c) => !c || !c.alive);
+}
+
+function canDeployFighter(player) {
+  if (player.replacementsUsed >= player.maxReplacements) return false;
+  if (!player.battleHand?.length) return false;
+  return hasEmptyFighterSlot(player);
+}
+
 function isBossOnlyPhase(player) {
   return player.boss?.alive && getAliveFieldFighters(player).length === 0;
 }
@@ -703,9 +711,6 @@ function processPendingActions(game) {
 
 function executePlayerReplace(game, handCardId, slotIndex) {
   const player = game.players[0];
-  if (canBossAttack(player)) {
-    return { success: false, message: 'Boss is fighting alone' };
-  }
   if (player.replacementsUsed >= player.maxReplacements) {
     return { success: false, message: 'No replacements left' };
   }
@@ -924,13 +929,7 @@ function completeDeathAnimation(game) {
     syncPoisonForPlayer(game, player);
   }
 
-  if (
-    clearedSlotIndex !== null
-    && ref?.player?.id === 'player'
-    && !canBossAttack(ref.player)
-    && ref.player.battleHand.length > 0
-    && ref.player.replacementsUsed < ref.player.maxReplacements
-  ) {
+  if (clearedSlotIndex !== null && ref?.player?.id === 'player') {
     maybeSetPendingReplacement(game, ref.player, clearedSlotIndex);
   }
 
@@ -1105,19 +1104,21 @@ function drawCardForPlayer(game, player, logPrefix) {
 }
 
 function tryReplaceFromHand(game, player) {
-  if (canBossAttack(player)) return null;
-  if (player.replacementsUsed >= player.maxReplacements) return null;
-  const emptySlot = (player.field || []).findIndex((c) => !c || !c.alive);
-  if (emptySlot < 0) return null;
-  const fighter = player.battleHand[0];
-  if (!fighter) return null;
+  const deployed = [];
+  while (canDeployFighter(player)) {
+    const emptySlot = (player.field || []).findIndex((c) => !c || !c.alive);
+    if (emptySlot < 0) break;
+    const fighter = player.battleHand[0];
+    if (!fighter) break;
 
-  fighter.role = 'field';
-  player.field[emptySlot] = fighter;
-  player.battleHand = player.battleHand.filter((c) => c.instanceId !== fighter.instanceId);
-  player.replacementsUsed += 1;
-  markPoisonedIfActive(game, fighter, player);
-  return { card: fighter, slotIndex: emptySlot };
+    fighter.role = 'field';
+    player.field[emptySlot] = fighter;
+    player.battleHand = player.battleHand.filter((c) => c.instanceId !== fighter.instanceId);
+    player.replacementsUsed += 1;
+    markPoisonedIfActive(game, fighter, player);
+    deployed.push({ card: fighter, slotIndex: emptySlot });
+  }
+  return deployed;
 }
 
 function markPoisonedIfActive(game, card, player) {
@@ -1134,7 +1135,7 @@ function toPrivateState(game, playerId) {
   const bossCanAttack = canBossAttack(me);
   const opponentBossCanAttack = canBossAttack(opp);
 
-  if (bossCanAttack) game.pendingReplacement = null;
+  if (!canDeployFighter(me)) game.pendingReplacement = null;
 
   return {
     id: game.id,
@@ -1181,6 +1182,7 @@ function toPrivateState(game, playerId) {
     deckRemaining: me.deck.length,
     bossCanAttack,
     opponentBossCanAttack,
+    canDeployFighter: canDeployFighter(me),
     bossAbilitiesUsed: { ...(me.bossAbilitiesUsed || defaultBossAbilitiesUsed()) },
     bossAbilityEvent: game.bossAbilityEvent ? { ...game.bossAbilityEvent } : null,
     bossMagicPhase: getBossMagicPhase(game),
@@ -1308,8 +1310,8 @@ function startTicks(game) {
 function runNpcDrawAndReplace(game) {
   const npc = game.players[1];
   if (npc.drawTimer >= npc.drawTimerMax) drawCardForPlayer(game, npc, 'CPU');
-  const replaced = tryReplaceFromHand(game, npc);
-  if (replaced) {
+  const deployed = tryReplaceFromHand(game, npc);
+  for (const replaced of deployed) {
     pushBattleLog(game, formatDeployLog('CPU', replaced.card, replaced.slotIndex, npc.replacementsUsed, npc.maxReplacements));
   }
 }
@@ -1504,9 +1506,6 @@ export function offlineDrawCard(game) {
 export function offlineReplace(game, handCardId, slotIndex) {
   if (isBattlePaused(game)) {
     const player = game.players[0];
-    if (canBossAttack(player)) {
-      return { success: false, message: 'Boss is fighting alone' };
-    }
     if (player.replacementsUsed >= player.maxReplacements) {
       return { success: false, message: 'No replacements left' };
     }

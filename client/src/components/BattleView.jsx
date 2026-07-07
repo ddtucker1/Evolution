@@ -28,6 +28,7 @@ export default function BattleView({
   onMainMenu,
   onTogglePause,
   onToggleSpeed,
+  onShowHelp,
 }) {
   const [targetMode, setTargetMode] = useState(null);
   const [replaceMode, setReplaceMode] = useState(null);
@@ -75,10 +76,10 @@ export default function BattleView({
   }, [gameState?.winnerId, me?.id]);
 
   useEffect(() => {
-    if (!gameState?.bossCanAttack) return;
+    if (gameState?.canDeployFighter) return;
     setReplaceMode(null);
     setSelectedSlot(null);
-  }, [gameState?.bossCanAttack]);
+  }, [gameState?.canDeployFighter]);
 
   if (!gameState) return null;
 
@@ -104,6 +105,7 @@ export default function BattleView({
     maxReplacements,
     bossCanAttack,
     opponentBossCanAttack,
+    canDeployFighter,
     bossAbilitiesUsed,
     bossMagicPhase,
     bossPhase,
@@ -117,7 +119,7 @@ export default function BattleView({
   } = gameState;
 
   const battleEnded = !!winnerId;
-  const canDeployFromHand = replacementsUsed < maxReplacements && (myBattleHand?.length ?? 0) > 0;
+  const canDeployFromHand = canDeployFighter;
   const queuedActions = pendingPlayerActions || [];
   const drawQueued = queuedActions.some((action) => action.type === 'draw');
   const queuedAttackerIds = queuedActions.flatMap((action) => {
@@ -215,7 +217,7 @@ export default function BattleView({
   };
 
   const handleReplaceSlotClick = (slotIndex) => {
-    if (bossCanAttack) return;
+    if (!canDeployFromHand) return;
     if (replaceMode) {
       onReplace(replaceMode.handCardId, slotIndex);
       setReplaceMode(null);
@@ -235,7 +237,7 @@ export default function BattleView({
   };
 
   const handleHandCardClick = (handCard) => {
-    if (battleEnded || bossCanAttack || replacementsUsed >= maxReplacements) return;
+    if (battleEnded || !canDeployFromHand) return;
     if (selectedSlot != null) {
       onReplace(handCard.instanceId, selectedSlot);
       setSelectedSlot(null);
@@ -306,7 +308,15 @@ export default function BattleView({
   const myAliveFighters = countAliveFighters(myPlayer.field);
   const oppAliveFighters = countAliveFighters(oppPlayer?.field);
   const oppBossTargetable = !oppAliveFighters && oppPlayer?.boss?.alive;
-  const isBossOnlySide = (isPlayer) => (isPlayer ? bossCanAttack : opponentBossCanAttack);
+  const isBossOnlySide = (isPlayer) => {
+    const bossOnly = isPlayer ? bossCanAttack : opponentBossCanAttack;
+    if (!bossOnly) return false;
+    if (isPlayer) return !canDeployFromHand;
+    const oppHand = oppBattleHand?.length ?? 0;
+    const oppReplacementsLeft = (opponent?.maxReplacements ?? maxReplacements) - (opponent?.replacementsUsed ?? 0);
+    const oppEmptySlots = (oppPlayer?.field || []).filter((c) => !c || !c.alive).length;
+    return !(oppHand > 0 && oppReplacementsLeft > 0 && oppEmptySlots > 0);
+  };
 
   const getAttackableTargets = () => {
     const fighters = (oppPlayer?.field || []).filter((c) => c && c.alive);
@@ -592,10 +602,10 @@ export default function BattleView({
     const showAsEmptyDeploySlot = isPlayer && card && !card.alive && !isDying;
 
     if (!card || showAsEmptyDeploySlot) {
-      const canDeployToSlot = isPlayer && !battleEnded && !bossCanAttack && canDeployFromHand;
+      const canDeployToSlot = isPlayer && !battleEnded && canDeployFromHand;
       const emptySlotLabel = canDeployToSlot
         ? 'Deploy here'
-        : isPlayer && !bossCanAttack && (myBattleHand?.length ?? 0) > 0 && replacementsUsed >= maxReplacements
+        : isPlayer && (myBattleHand?.length ?? 0) > 0 && replacementsUsed >= maxReplacements
           ? 'No replacements left'
           : 'Empty slot';
       return (
@@ -703,6 +713,9 @@ export default function BattleView({
               <button type="button" className="btn-secondary battle-quit-btn" onClick={onMainMenu}>
                 Quit
               </button>
+              <button type="button" className="btn-secondary battle-help-btn" onClick={onShowHelp}>
+                Help
+              </button>
               <button
                 type="button"
                 className={`btn-secondary battle-pause-btn${gamePaused ? ' battle-pause-btn-active' : ''}`}
@@ -772,7 +785,7 @@ export default function BattleView({
           {showVictoryLabels && loserIsPlayer && (
             <div className="zone-result-label zone-result-loser">Loser</div>
           )}
-          {(replaceMode || selectedSlot != null) && !bossCanAttack && (
+          {(replaceMode || selectedSlot != null) && canDeployFromHand && (
             <p className="replace-hint">
               {replaceMode
                 ? 'Select an empty field slot to deploy'

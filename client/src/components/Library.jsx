@@ -144,14 +144,6 @@ export default function Library({ profile, onProfileChange, onMainMenu }) {
           <h2 style={{ fontFamily: 'var(--font-display)', color: 'var(--accent-gold)', marginBottom: 4 }}>
             Library
           </h2>
-          <p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
-            {mode === 'deck' && (
-              <>
-                You have {uniqueCatalogCards.length} unique cards. Tap cards to add or remove them from your play deck (choose {PLAY_DECK_SIZE}).
-                {' '}Each card&apos;s attack timer is <strong>attack × 2 seconds</strong> (±2s random variance in battle).
-              </>
-            )}
-          </p>
         </div>
         <div className="library-actions">
           {mode === 'deck' ? (
