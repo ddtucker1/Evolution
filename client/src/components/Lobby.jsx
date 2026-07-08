@@ -6,7 +6,7 @@ export default function Lobby({ onStartNPC, cardCount = 12 }) {
       </h2>
       <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 16, lineHeight: 1.6 }}>
         Deploy 4 cards from your shuffled deck — 1 Boss and 3 fighters — then fight in real-time combat.
-        Each unique card&apos;s timer is <strong>attack × 1.5 seconds</strong> (rounded), plus random
+        Each unique card&apos;s timer equals its <strong>attack value in seconds</strong>, plus random
         <strong> 10–25 attack</strong> and <strong>30–100 HP</strong>. Timers pause during attacks.
       </p>
 

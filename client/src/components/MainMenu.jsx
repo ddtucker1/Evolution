@@ -8,7 +8,7 @@ export default function MainMenu({ onLibrary, onBattle, playDeckCount, battleRea
       </h2>
       <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 20, lineHeight: 1.6 }}>
         Build a {PLAY_DECK_SIZE}-card play deck in the Library, then battle the CPU.
-        Each fighter&apos;s attack timer is <strong>attack × 1.5 seconds</strong> (rounded to the nearest whole number).
+        Each fighter&apos;s attack timer equals its <strong>attack value in seconds</strong>. Once battle starts, timers are fixed and no longer follow attack changes.
       </p>
 
       <div className="mode-grid" style={{ gridTemplateColumns: '1fr 1fr', maxWidth: 560 }}>
