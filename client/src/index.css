@@ -1919,8 +1919,11 @@ input:focus {
 }
 
 .evolve-counter {
-  color: var(--accent-purple);
-  border: 1px solid var(--accent-purple);
+  font-size: 18px;
+  font-weight: 700;
+  padding: 10px 16px;
+  color: #f5e642;
+  border: 1px solid #f5e642;
 }
 
 .evolved-badge {
@@ -1972,6 +1975,15 @@ input:focus {
 
 .evolve-badge {
   background: var(--accent-red);
+}
+
+.library-card-wrap .upgrade-cost-badge {
+  top: auto;
+  left: 50%;
+  bottom: 6px;
+  right: auto;
+  transform: translateX(-50%);
+  white-space: nowrap;
 }
 
 .success-toast {

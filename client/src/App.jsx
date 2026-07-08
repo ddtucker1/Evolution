@@ -130,7 +130,7 @@ export default function App() {
               Help
             </button>
           )}
-          {screen !== 'battle' && (
+          {screen !== 'battle' && screen !== 'library' && (
             <span className="user-info">{profile.username}</span>
           )}
         </div>

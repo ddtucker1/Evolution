@@ -399,7 +399,7 @@ export default function Library({ profile, onProfileChange, onMainMenu }) {
                 </span>
               )}
               {mode === 'upgrade' && !selected && (
-                <span className="deck-badge evolve-badge">
+                <span className="deck-badge evolve-badge upgrade-cost-badge">
                   Sell: {getSellPoints(cardLevel)} | Up: {atMaxLevel ? '—' : getUpgradeCost(cardLevel)}
                 </span>
               )}
