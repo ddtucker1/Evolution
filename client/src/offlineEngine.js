@@ -16,7 +16,7 @@ import {
   getFighterAbilityLabel,
 } from '../../shared/fighterAbilities.js';
 
-const CATALOG_VERSION = 3;
+const CATALOG_VERSION = 4;
 const CATALOG_STORAGE_KEY = 'cfb_card_catalog';
 
 function buildRandomCatalog(count = CATALOG_SIZE) {

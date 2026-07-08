@@ -16,7 +16,7 @@ export function computeBaseStats(attackWeight, defenseWeight, healthWeight) {
 }
 
 export function getTimerPreview(attack) {
-  return Math.round(attack * 1.5);
+  return Math.round(attack ?? 0);
 }
 
 export function normalizeCardTimer(card) {

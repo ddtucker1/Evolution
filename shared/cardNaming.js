@@ -15,8 +15,8 @@ const ATTACK_HIGH = 16;
 const ATTACK_LOW = 12;
 const HP_HIGH = 38;
 const HP_LOW = 32;
-const TIMER_FAST = 25;
-const TIMER_SLOW = 45;
+const TIMER_FAST = 17;
+const TIMER_SLOW = 24;
 
 function hashSeed(seed) {
   let hash = 0;

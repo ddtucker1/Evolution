@@ -89,7 +89,7 @@ export default function GameCard({
   const maxHp = card.maxHp || 0;
   const currentHp = Math.max(0, (card.hp ?? maxHp) - (isHit ? pendingDamage : 0));
   const hpPercent = maxHp > 0 ? (currentHp / maxHp) * 100 : 0;
-  const displayTimer = cooldownPreview ?? (card.attack != null ? getTimerPreview(card.attack) : null);
+  const displayTimer = cooldownPreview ?? (timerMax > 0 ? timerMax : (card.attack != null ? getTimerPreview(card.attack) : null));
   const timerLabel = displayTimer != null
     ? `${displayTimer}s`
     : (timerMax > 0 ? `${timerMax}s` : '—');
