@@ -284,20 +284,9 @@ export default function BattleView({
   const myAliveFighters = countAliveFighters(myPlayer.field);
   const oppAliveFighters = countAliveFighters(oppPlayer?.field);
   const oppBossTargetable = !oppAliveFighters && oppPlayer?.boss?.alive;
-  const isBossOnlySide = (isPlayer) => {
-    const bossOnly = isPlayer ? bossCanAttack : opponentBossCanAttack;
-    if (!bossOnly) return false;
-    if (isPlayer) return !canDeployFromHand && !drawReady;
-    const oppHand = oppBattleHand?.length ?? 0;
-    const oppReplacementsLeft = (opponent?.maxReplacements ?? maxReplacements) - (opponent?.replacementsUsed ?? 0);
-    const oppEmptySlots = (oppPlayer?.field || []).filter((c) => !c || !c.alive).length;
-    const oppCanDeploy = oppHand > 0 && oppReplacementsLeft > 0 && oppEmptySlots > 0;
-    const oppDrawTimerReady = (oppPlayer?.drawTimer ?? 0) >= (oppPlayer?.drawTimerMax ?? 0);
-    const oppDeckRemaining = oppPlayer?.deckRemaining ?? 0;
-    const oppCanDraw = oppDrawTimerReady && oppDeckRemaining > 0 && oppHand < 3
-      && oppReplacementsLeft > 0 && oppEmptySlots > 0;
-    return !(oppCanDeploy || oppCanDraw);
-  };
+  const isBossOnlySide = (isPlayer) => (
+    isPlayer ? bossCanAttack : opponentBossCanAttack
+  );
 
   const getAttackableTargets = () => {
     const fighters = (oppPlayer?.field || []).filter((c) => c && c.alive);
