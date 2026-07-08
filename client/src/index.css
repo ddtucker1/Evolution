@@ -1772,6 +1772,15 @@ input:focus {
   font-weight: 700;
 }
 
+.library-card-wrap .in-deck-badge {
+  top: auto;
+  left: 50%;
+  bottom: 6px;
+  right: auto;
+  transform: translateX(-50%);
+  white-space: nowrap;
+}
+
 .confirm-dialog {
   background: var(--bg-card);
   border: 2px solid var(--accent-purple);
