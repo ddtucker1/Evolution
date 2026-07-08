@@ -4,14 +4,22 @@ import { dirname, extname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const sourceDir = join(homedir(), 'Desktop', 'dragon pictures');
+const sourceCandidates = [
+  process.env.DRAGON_PICTURES_DIR,
+  join(homedir(), 'Desktop', 'Game', 'dragon pictures'),
+  join(homedir(), 'Desktop', 'dragon pictures'),
+].filter(Boolean);
 const targetDir = join(__dirname, '..', 'client', 'public', 'card-art');
 const imageExt = new Set(['.png', '.jpg', '.jpeg', '.webp', '.gif']);
 
-const levelMatchers = [
-  { level: 0, patterns: [/level[\s_-]*0/i, /^0(?:[\s_.-]|$)/i, /lvl[\s_-]*0/i] },
-  { level: 1, patterns: [/level[\s_-]*1/i, /^1(?:[\s_.-]|$)/i, /lvl[\s_-]*1/i] },
-];
+const levelMatchers = Array.from({ length: 10 }, (_, level) => ({
+  level,
+  patterns: [
+    new RegExp(`level[\\s_-]*${level}(?:[\\s_.-]|$)`, 'i'),
+    new RegExp(`^${level}(?:[\\s_.-]|$)`, 'i'),
+    new RegExp(`lvl[\\s_-]*${level}(?:[\\s_.-]|$)`, 'i'),
+  ],
+}));
 
 function matchLevel(filename) {
   const base = filename.replace(extname(filename), '');
@@ -23,12 +31,24 @@ function matchLevel(filename) {
   return null;
 }
 
+function resolveSourceDir() {
+  for (const candidate of sourceCandidates) {
+    if (existsSync(candidate)) return candidate;
+  }
+  return null;
+}
+
 function syncDragonPictures() {
-  if (!existsSync(sourceDir)) {
-    console.log(`No source folder found at ${sourceDir}`);
+  const sourceDir = resolveSourceDir();
+  if (!sourceDir) {
+    console.log('No source folder found. Checked:');
+    for (const candidate of sourceCandidates) {
+      console.log(`  - ${candidate}`);
+    }
     return;
   }
 
+  console.log(`Using source folder: ${sourceDir}`);
   mkdirSync(targetDir, { recursive: true });
 
   const files = readdirSync(sourceDir, { withFileTypes: true })
@@ -51,7 +71,10 @@ function syncDragonPictures() {
   }
 
   if (!copied) {
-    console.log('No level 0 or level 1 images matched in dragon pictures folder.');
+    console.log('No level 0–9 images matched in dragon pictures folder.');
+    console.log('Expected names like level0.png, level1.jpg, level-2.png, etc.');
+  } else {
+    console.log(`Synced ${copied} card art image(s) for levels 0–9.`);
   }
 }
 

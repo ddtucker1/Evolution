@@ -1,4 +1,4 @@
-const CARD_ART_LEVELS = [0, 1];
+const CARD_ART_LEVELS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
 const CARD_ART_EXTENSIONS = ['.png', '.jpg', '.jpeg', '.webp', '.gif'];
 
 export function getCardArtCandidates(level) {
