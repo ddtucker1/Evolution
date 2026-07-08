@@ -39,6 +39,9 @@ export default function App() {
   const battleBackgroundUrl = useBattleBackground(screen === 'battle');
 
   useEffect(() => () => stopTicks(), []);
+  useEffect(() => {
+    registerEvolvedCards(profile.evolvedCards || []);
+  }, [profile.evolvedCards, profile.libraryBatchId]);
   useBattleMusic(screen, gameState);
 
   const resumeMusicOnInteraction = () => {

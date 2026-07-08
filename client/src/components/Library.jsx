@@ -300,7 +300,7 @@ export default function Library({ profile, onProfileChange, onMainMenu }) {
           </select>
         </label>
       </h3>
-      <div className="collection-grid">
+      <div className="collection-grid" key={profile.libraryBatchId || 'library-default'}>
         {sortedCatalogCards.map((entry) => {
           const { card_id, key } = entry;
           const catalog = getCatalogCard(card_id, profile);

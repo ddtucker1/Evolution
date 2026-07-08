@@ -19,6 +19,11 @@ export function getTimerPreview(attack) {
   return Math.round(attack * 1.5);
 }
 
+export function normalizeCardTimer(card) {
+  if (!card) return card;
+  return { ...card, timer: getTimerPreview(card.attack ?? 0) };
+}
+
 export function isBaseCardId(id) {
   return !!id && !id.startsWith('evo_') && !id.startsWith('fus_');
 }

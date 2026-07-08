@@ -1,6 +1,7 @@
 import { CARD_DATA, PLAY_DECK_SIZE } from './offlineEngine';
 import { createCombinedCard } from './combineEngine';
 import { FIGHTER_ABILITIES } from '../../shared/fighterAbilities.js';
+import { normalizeCardTimer } from '../../shared/baseCardStats.js';
 
 export const TEST_LIBRARY_VERSION = 1;
 
@@ -70,9 +71,13 @@ function buildTestPlayDeck(baseCards, level2Cards, level5Cards) {
   ].slice(0, PLAY_DECK_SIZE);
 }
 
+function normalizeEvolvedCard(card) {
+  return normalizeCardTimer(card);
+}
+
 export function buildTestLibraryProfile(existingProfile = null) {
   const { baseCards, level2Cards, level5Cards } = buildTestLibraryCards();
-  const evolvedCards = [...level2Cards, ...level5Cards];
+  const evolvedCards = [...level2Cards, ...level5Cards].map(normalizeEvolvedCard);
   const collection = [
     ...baseCards.map((c) => ({ card_id: c.id, quantity: 1 })),
     ...level2Cards.map((c) => ({ card_id: c.id, quantity: 1 })),
@@ -88,5 +93,6 @@ export function buildTestLibraryProfile(existingProfile = null) {
     collection,
     playDeck: buildTestPlayDeck(baseCards, level2Cards, level5Cards),
     evolvedCards,
+    libraryBatchId: Date.now(),
   };
 }

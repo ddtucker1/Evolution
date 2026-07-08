@@ -124,7 +124,16 @@ function nextInstanceId(prefix, templateId) {
 
 function getTemplate(id) { return LOOKUP.get(id); }
 
+function isEvolvedLookupId(id) {
+  return id.startsWith('evo_') || id.startsWith('test_l') || id.startsWith('test_tmp_');
+}
+
 export function registerEvolvedCards(cards) {
+  for (const key of [...LOOKUP.keys()]) {
+    if (isEvolvedLookupId(key)) {
+      LOOKUP.delete(key);
+    }
+  }
   for (const c of cards || []) {
     LOOKUP.set(c.id, c);
   }
