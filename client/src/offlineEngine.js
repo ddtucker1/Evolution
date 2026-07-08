@@ -519,17 +519,16 @@ function hasEmptyFighterSlot(player) {
 }
 
 function canDeployFighter(player) {
+  if (canBossAttack(player)) return false;
   if (player.replacementsUsed >= player.maxReplacements) return false;
   if (!player.battleHand?.length) return false;
   return hasEmptyFighterSlot(player);
 }
 
 function canDrawBattleCard(player) {
+  if (canBossAttack(player)) return false;
   if (player.drawTimer < player.drawTimerMax || !player.deck.length) return false;
   if (player.battleHand.length >= MAX_BATTLE_HAND_SIZE) return false;
-  if (canBossAttack(player)) {
-    return player.replacementsUsed < player.maxReplacements && hasEmptyFighterSlot(player);
-  }
   return true;
 }
 
@@ -657,6 +656,9 @@ function processPendingActions(game) {
 
 function executePlayerReplace(game, handCardId, slotIndex) {
   const player = game.players[0];
+  if (!canDeployFighter(player)) {
+    return { success: false, message: canBossAttack(player) ? 'Boss is fighting alone' : 'Cannot deploy' };
+  }
   if (player.replacementsUsed >= player.maxReplacements) {
     return { success: false, message: 'No replacements left' };
   }
@@ -1607,10 +1609,7 @@ export function clearBattleAnimations(game) {
 export function offlineDrawCard(game) {
   const player = game.players[0];
   if (!canDrawBattleCard(player)) {
-    if (canBossAttack(player) && player.replacementsUsed >= player.maxReplacements) {
-      return { success: false, message: 'No replacements left' };
-    }
-    if (canBossAttack(player) && !hasEmptyFighterSlot(player)) {
+    if (canBossAttack(player)) {
       return { success: false, message: 'Boss is fighting alone' };
     }
     if (player.drawTimer < player.drawTimerMax || !player.deck.length) {
@@ -1631,8 +1630,11 @@ export function offlineDrawCard(game) {
 }
 
 export function offlineReplace(game, handCardId, slotIndex) {
+  const player = game.players[0];
+  if (!canDeployFighter(player)) {
+    return { success: false, message: canBossAttack(player) ? 'Boss is fighting alone' : 'Cannot deploy' };
+  }
   if (isBattlePaused(game)) {
-    const player = game.players[0];
     if (player.replacementsUsed >= player.maxReplacements) {
       return { success: false, message: 'No replacements left' };
     }
