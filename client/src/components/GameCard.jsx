@@ -8,6 +8,7 @@ import {
 } from '../../../shared/fighterAbilities.js';
 import CardBack from './CardBack';
 import { truncateCardName } from '../utils/truncateCardName';
+import { useCardArtUrl } from '../hooks/useCardArtUrl';
 import { getTimerPreview } from '../../../shared/baseCardStats.js';
 
 export default function GameCard({
@@ -123,50 +124,58 @@ export default function GameCard({
     ? getFighterAbilityDescription(card.specialAbility, abilityDoubled)
     : null;
   const displayName = truncateCardName(card.name);
+  const cardArtUrl = useCardArtUrl(cardLevel);
 
   return (
     <div className={classes} onClick={disabled ? undefined : onClick}>
-      {card.role && !hideRole && <span className="card-role">{card.role}</span>}
-      <div className="card-name-row">
-        <div className="card-name" title={card.name}>{displayName}</div>
-        {displayLevel != null && <span className="card-level-digit">{displayLevel}</span>}
-      </div>
-      <div className="card-stats">
-        <div>DEF: {Math.round(card.defense ?? 0)}</div>
-        <div className="stat-row">
-          <span>HP: {Math.round(currentHp)}/{Math.round(maxHp)}</span>
-          <div className={`hp-bar hp-bar-inline${showHpBar ? '' : ' stat-bar-placeholder'}`}>
-            {showHpBar && <div className="hp-fill" style={{ width: `${hpPercent}%` }} />}
+      {cardArtUrl && (
+        <div className="card-art" aria-hidden="true">
+          <img src={cardArtUrl} alt="" draggable={false} />
+        </div>
+      )}
+      <div className="card-content">
+        {card.role && !hideRole && <span className="card-role">{card.role}</span>}
+        <div className="card-name-row">
+          <div className="card-name" title={card.name}>{displayName}</div>
+          {displayLevel != null && <span className="card-level-digit">{displayLevel}</span>}
+        </div>
+        <div className="card-stats">
+          <div>DEF: {Math.round(card.defense ?? 0)}</div>
+          <div className="stat-row">
+            <span>HP: {Math.round(currentHp)}/{Math.round(maxHp)}</span>
+            <div className={`hp-bar hp-bar-inline${showHpBar ? '' : ' stat-bar-placeholder'}`}>
+              {showHpBar && <div className="hp-fill" style={{ width: `${hpPercent}%` }} />}
+            </div>
           </div>
-        </div>
-        <div>ATK: {Math.round(card.attack ?? 0)}</div>
-        <div className="card-ability-slot" aria-hidden={!showAbility}>
-          {showAbility && (
-            <span className="card-ability" title={abilityDescription}>
-              {abilityLabel}
-            </span>
-          )}
-        </div>
-        <div className="stat-row">
-          <span className="timer-stat">Timer: {timerLabel}</span>
-          <div className={`timer-bar timer-bar-inline${showTimerBar ? '' : ' stat-bar-placeholder'}${isReady ? ' timer-ready' : ''}`}>
-            {showTimerBar && (
-              <div
-                className="timer-fill"
-                style={{
-                  width: `${timerProgress}%`,
-                  transition: timerReset ? 'none' : undefined,
-                }}
-              />
+          <div>ATK: {Math.round(card.attack ?? 0)}</div>
+          <div className="card-ability-slot" aria-hidden={!showAbility}>
+            {showAbility && (
+              <span className="card-ability" title={abilityDescription}>
+                {abilityLabel}
+              </span>
             )}
           </div>
+          <div className="stat-row">
+            <span className="timer-stat">Timer: {timerLabel}</span>
+            <div className={`timer-bar timer-bar-inline${showTimerBar ? '' : ' stat-bar-placeholder'}${isReady ? ' timer-ready' : ''}`}>
+              {showTimerBar && (
+                <div
+                  className="timer-fill"
+                  style={{
+                    width: `${timerProgress}%`,
+                    transition: timerReset ? 'none' : undefined,
+                  }}
+                />
+              )}
+            </div>
+          </div>
         </div>
-      </div>
-      <div className="card-footer-slot">
-        <div className={`timer-countdown${showCountdown && isReady ? ' timer-countdown-ready' : ''}${showCountdown ? '' : ' stat-bar-placeholder'}`}>
-          {showCountdown
-            ? (bossProtected ? 'Protected' : bossLocked ? 'Boss locked' : isReady ? 'Ready to attack!' : `${timerRemaining}s`)
-            : '\u00a0'}
+        <div className="card-footer-slot">
+          <div className={`timer-countdown${showCountdown && isReady ? ' timer-countdown-ready' : ''}${showCountdown ? '' : ' stat-bar-placeholder'}`}>
+            {showCountdown
+              ? (bossProtected ? 'Protected' : bossLocked ? 'Boss locked' : isReady ? 'Ready to attack!' : `${timerRemaining}s`)
+              : '\u00a0'}
+          </div>
         </div>
       </div>
     </div>
