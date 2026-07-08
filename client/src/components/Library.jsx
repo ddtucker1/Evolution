@@ -16,12 +16,10 @@ import {
   canSellWithLibrarySize,
 } from '../../../shared/upgradePoints.js';
 import {
-  PURCHASE_MAX_SUM_SQUARES,
   PURCHASE_MIN_ATTACK,
   PURCHASE_MIN_HP,
   PURCHASE_MIN_DEFENSE,
   UPGRADE_STAT_POINTS,
-  getStatSumOfSquares,
   isValidPurchaseStats,
   getDefaultPurchaseStats,
   createEmptyStatAllocations,
@@ -40,7 +38,6 @@ import {
   sellCardForPoints,
   upgradeCardWithPoints,
   purchaseLevel0Card,
-  replaceLibraryWithNewBatch,
 } from '../api';
 import { needsUpgradeAbilityChoice, previewUpgradeAllocation } from '../upgradeEngine';
 
@@ -50,7 +47,6 @@ export default function Library({ profile, onProfileChange, onMainMenu }) {
   const [selectedEntry, setSelectedEntry] = useState(null);
   const [upgradeMessage, setUpgradeMessage] = useState('');
   const [showSellBlockedPopup, setShowSellBlockedPopup] = useState(false);
-  const [showReplaceBatchDialog, setShowReplaceBatchDialog] = useState(false);
   const [showAbilityDialog, setShowAbilityDialog] = useState(false);
   const [showStatAllocDialog, setShowStatAllocDialog] = useState(false);
   const [showPurchaseDialog, setShowPurchaseDialog] = useState(false);
@@ -80,7 +76,6 @@ export default function Library({ profile, onProfileChange, onMainMenu }) {
   const statAllocPreview = selectedCard && showStatAllocDialog && remainingStatPoints < UPGRADE_STAT_POINTS
     ? previewUpgradeAllocation(selectedCard, statAllocations)
     : null;
-  const purchaseSumSquares = getStatSumOfSquares(purchaseStats);
   const purchaseStatsValid = isValidPurchaseStats(purchaseStats);
 
   const expandedCollection = [];
@@ -126,13 +121,6 @@ export default function Library({ profile, onProfileChange, onMainMenu }) {
 
   const handleClear = () => {
     onProfileChange(clearPlayDeck(profile));
-  };
-
-  const handleReplaceBatch = () => {
-    onProfileChange(replaceLibraryWithNewBatch(profile));
-    setShowReplaceBatchDialog(false);
-    exitUpgradeMode();
-    setUpgradeMessage('Library replaced with a new batch of cards.');
   };
 
   const selectCard = (entry) => {
@@ -306,9 +294,6 @@ export default function Library({ profile, onProfileChange, onMainMenu }) {
               <button className="btn-gold" onClick={enterUpgradeMode}>
                 Upgrade
               </button>
-              <button className="btn-secondary" onClick={() => setShowReplaceBatchDialog(true)}>
-                New batch
-              </button>
             </>
           ) : (
             <>
@@ -392,7 +377,9 @@ export default function Library({ profile, onProfileChange, onMainMenu }) {
                 if (mode === 'upgrade') selectCard(entry);
               }}
             >
-              {mode === 'deck' && inDeck > 0 && <span className="deck-badge">{inDeck} in deck</span>}
+              {mode === 'deck' && inDeck > 0 && (
+                <span className="deck-badge in-deck-badge">{inDeck} in deck</span>
+              )}
               {mode === 'upgrade' && selected && (
                 <span className="deck-badge evolve-badge">
                   Selected
@@ -533,14 +520,6 @@ export default function Library({ profile, onProfileChange, onMainMenu }) {
         <div className="target-overlay" onClick={cancelPurchase}>
           <div className="confirm-dialog ability-choice-dialog" onClick={(e) => e.stopPropagation()}>
             <h3>Choose Card Stats</h3>
-            <p className="confirm-dialog-text">
-              Set Attack, Defense, and HP for your new Level 0 card.
-              Attack and HP must be at least {PURCHASE_MIN_ATTACK}.
-              The sum of squares must be {PURCHASE_MAX_SUM_SQUARES} or less.
-            </p>
-            <p className="stat-boost-remaining">
-              Sum of squares: <strong>{purchaseSumSquares}</strong> / {PURCHASE_MAX_SUM_SQUARES}
-            </p>
             <div className="ability-choice-options">
               {[
                 { key: 'attack', label: 'Attack', min: PURCHASE_MIN_ATTACK },
@@ -622,27 +601,6 @@ export default function Library({ profile, onProfileChange, onMainMenu }) {
                 Upgrade
               </button>
               <button type="button" className="btn-secondary" onClick={cancelUpgradeAction}>
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {showReplaceBatchDialog && (
-        <div className="target-overlay" onClick={() => setShowReplaceBatchDialog(false)}>
-          <div className="confirm-dialog" onClick={(e) => e.stopPropagation()}>
-            <h3>Replace all cards?</h3>
-            <p className="confirm-dialog-text">
-              This removes every card in your library and replaces them with a fresh batch
-              of 30 cards (10 base, 10 Level 2, and 10 Level 5). Your play deck and any
-              upgraded cards will also be reset.
-            </p>
-            <div className="confirm-dialog-actions">
-              <button type="button" className="btn-primary" onClick={handleReplaceBatch}>
-                Replace
-              </button>
-              <button type="button" className="btn-secondary" onClick={() => setShowReplaceBatchDialog(false)}>
                 Cancel
               </button>
             </div>
