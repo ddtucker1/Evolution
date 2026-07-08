@@ -1,4 +1,5 @@
-import { CARD_DATA, PLAY_DECK_SIZE, getTimerPreview, CATALOG_VERSION } from './offlineEngine';
+import { CARD_DATA, PLAY_DECK_SIZE, CATALOG_VERSION } from './offlineEngine';
+import { normalizeCardTimer } from '../../shared/baseCardStats.js';
 import { CATALOG_SIZE, MAX_LIBRARY_SIZE } from '../../shared/baseCardStats.js';
 import {
   createCombinedCard,
@@ -94,9 +95,8 @@ export function getOfflineProfile() {
 function migrateCombinedCard(card) {
   if (!card) return card;
   const level = getCardLevel(card);
-  const timer = getTimerPreview(card.attack);
   const { abilities, ability, ...rest } = card;
-  const migrated = { ...rest, level, timer, combined: true };
+  const migrated = normalizeCardTimer({ ...rest, level, combined: true });
   if (card.specialAbility) migrated.specialAbility = card.specialAbility;
   return migrated;
 }
