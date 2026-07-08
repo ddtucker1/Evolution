@@ -1,20 +1,17 @@
 import { getTimerPreview } from '../../shared/baseCardStats.js';
 import { generateCardName } from '../../shared/cardNaming.js';
-import {
-  COMBINE_STAT_BONUS,
-  COMBINE_STAT_BOOST_COUNT,
-  COMBINE_MAX_LEVEL,
-} from '../../shared/combineRules.js';
+import { COMBINE_MAX_LEVEL } from '../../shared/combineRules.js';
 import {
   FIGHTER_ABILITY_UNLOCK_LEVEL,
   isFighterAbility,
   resolveInheritedFighterAbility,
 } from '../../shared/fighterAbilities.js';
 import {
-  getCardLevel,
-  applyStatBoostChoices,
-  isValidStatBoostChoices,
-} from './combineEngine.js';
+  applyStatPointAllocations,
+  isValidStatPointAllocations,
+  STAT_KEYS,
+} from '../../shared/cardStatRules.js';
+import { getCardLevel } from './combineEngine.js';
 
 function hashSeed(seed) {
   let hash = 0;
@@ -25,17 +22,6 @@ function hashSeed(seed) {
   return Math.abs(hash);
 }
 
-function seededRandom(seed, salt = 0) {
-  const h = hashSeed(`${seed}:${salt}`);
-  return (h % 10000) / 10000;
-}
-
-function seededPick(arr, seed, salt = 0) {
-  if (!arr.length) return null;
-  const idx = Math.floor(seededRandom(seed, salt) * arr.length);
-  return arr[idx];
-}
-
 function getBaseStats(card) {
   return {
     attack: card.attack,
@@ -44,40 +30,17 @@ function getBaseStats(card) {
   };
 }
 
-function generateAutomaticBoostChoices(seed) {
-  const options = COMBINE_STAT_BONUS.stats;
-  const choices = [];
-  for (let i = 0; i < COMBINE_STAT_BOOST_COUNT; i += 1) {
-    const choice = seededPick(options, seed, 300 + i);
-    if (!choice) return null;
-    choices.push(choice);
-  }
-  return choices;
-}
-
-function buildUpgradedCard(card, { statBoostChoices, specialAbility } = {}) {
+function buildUpgradedCard(card, { statAllocations, specialAbility } = {}) {
   const currentLevel = getCardLevel(card);
   if (currentLevel >= COMBINE_MAX_LEVEL) return null;
   const nextLevel = currentLevel + 1;
   const seed = `${card.id}|upgrade`;
 
   const base = getBaseStats(card);
-  let { attack, defense, hp } = base;
-
-  let bonus;
-  if (statBoostChoices != null) {
-    bonus = applyStatBoostChoices({ attack, defense, hp }, statBoostChoices);
-  } else {
-    const choices = generateAutomaticBoostChoices(seed);
-    if (!choices) return null;
-    bonus = applyStatBoostChoices({ attack, defense, hp }, choices);
-  }
-
+  const bonus = applyStatPointAllocations(base, statAllocations);
   if (!bonus.statBonus) return null;
 
-  attack = bonus.stats.attack;
-  defense = bonus.stats.defense;
-  hp = bonus.stats.hp;
+  const { attack, defense, hp } = bonus.stats;
   const timer = getTimerPreview(attack);
   const name = generateCardName({ attack, defense, hp, timer }, seed);
   const resolvedAbility = resolveInheritedFighterAbility(card, card, nextLevel, specialAbility);
@@ -100,18 +63,29 @@ export function previewUpgrade(card, options = {}) {
   return buildUpgradedCard(card, options);
 }
 
+export function previewUpgradeAllocation(card, statAllocations) {
+  if (!card || !statAllocations) return null;
+  const base = getBaseStats(card);
+  const next = { ...base };
+  for (const key of STAT_KEYS) {
+    const amount = statAllocations[key] ?? 0;
+    if (amount > 0) next[key] = (next[key] ?? 0) + amount;
+  }
+  return next;
+}
+
 export function needsUpgradeAbilityChoice(card) {
   return getCardLevel(card) === FIGHTER_ABILITY_UNLOCK_LEVEL - 1;
 }
 
 export function createUpgradedCard(card, options = {}) {
-  const { statBoostChoices, specialAbility } = options;
-  if (statBoostChoices != null && !isValidStatBoostChoices(statBoostChoices)) return null;
+  const { statAllocations, specialAbility } = options;
+  if (!isValidStatPointAllocations(statAllocations)) return null;
   const currentLevel = getCardLevel(card);
   const nextLevel = currentLevel + 1;
   if (nextLevel === FIGHTER_ABILITY_UNLOCK_LEVEL && !isFighterAbility(specialAbility)) return null;
 
-  const preview = buildUpgradedCard(card, { statBoostChoices, specialAbility });
+  const preview = buildUpgradedCard(card, { statAllocations, specialAbility });
   if (!preview) return null;
 
   const suffix = hashSeed(`${card.id}|upgrade`).toString(36);
@@ -128,5 +102,23 @@ export function createUpgradedCard(card, options = {}) {
     parents: preview.parents,
     combined: true,
     specialAbility: preview.specialAbility || null,
+  };
+}
+
+export function createPurchasedCard(stats) {
+  const timer = getTimerPreview(stats.attack);
+  const seed = `${stats.attack},${stats.defense},${stats.hp}`;
+  const name = generateCardName({ ...stats, timer }, seed);
+  const suffix = hashSeed(seed).toString(36);
+  return {
+    id: `pur_${Date.now()}_${suffix}`,
+    name,
+    type: 'unique',
+    attack: stats.attack,
+    defense: stats.defense,
+    hp: stats.hp,
+    timer,
+    level: 0,
+    purchased: true,
   };
 }

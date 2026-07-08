@@ -18,7 +18,8 @@ import {
   canSellWithLibrarySize,
   getTodayDateString,
 } from '../../shared/upgradePoints.js';
-import { createUpgradedCard, needsUpgradeAbilityChoice } from './upgradeEngine';
+import { isValidPurchaseStats, isValidStatPointAllocations } from '../../shared/cardStatRules.js';
+import { createUpgradedCard, createPurchasedCard, needsUpgradeAbilityChoice } from './upgradeEngine';
 
 export { PLAY_DECK_SIZE };
 
@@ -33,8 +34,8 @@ function isCatalogCardId(cardId) {
 }
 
 function isCombinedCardId(cardId, profile) {
-  const isEvolvedId = cardId.startsWith('evo_') || cardId.startsWith('test_l');
-  return isEvolvedId && !!profile?.evolvedCards?.find((c) => c.id === cardId);
+  const isCustomId = cardId.startsWith('evo_') || cardId.startsWith('test_l') || cardId.startsWith('pur_');
+  return isCustomId && !!profile?.evolvedCards?.find((c) => c.id === cardId);
 }
 
 function isPlayableCardId(cardId, profile) {
@@ -291,7 +292,12 @@ export function upgradeCardWithPoints(profile, cardId, options = {}) {
     return { profile, error: 'Choose a special ability for your Level 5 fighter.' };
   }
 
+  if (!isValidStatPointAllocations(options.statAllocations)) {
+    return { profile, error: 'Assign all 4 upgrade stat points.' };
+  }
+
   const upgraded = createUpgradedCard(catalog, {
+    statAllocations: options.statAllocations,
     specialAbility: options.specialAbility,
   });
   if (!upgraded) {
@@ -314,23 +320,24 @@ export function upgradeCardWithPoints(profile, cardId, options = {}) {
   return { profile: next, upgraded, cost };
 }
 
-export function purchaseLevel0Card(profile) {
+export function purchaseLevel0Card(profile, stats) {
   if (collectionCardCount(profile?.collection) >= MAX_LIBRARY_SIZE) {
     return { profile, error: 'Your library is full.' };
   }
   if (getUpgradePoints(profile) < PURCHASE_LEVEL_0_COST) {
     return { profile, error: `Not enough points. Purchasing costs ${PURCHASE_LEVEL_0_COST} point.` };
   }
-
-  const catalog = CARD_DATA.unique;
-  if (!catalog.length) {
-    return { profile, error: 'No cards available to purchase.' };
+  if (!isValidPurchaseStats(stats)) {
+    return { profile, error: 'Invalid card stats. Attack and HP must be at least 6, and the sum of squares must be 900 or less.' };
   }
-  const card = catalog[Math.floor(Math.random() * catalog.length)];
+
+  const card = createPurchasedCard(stats);
   const collection = incrementCollection(profile.collection || [], card.id);
+  const evolvedCards = [...(profile.evolvedCards || []), card];
   const next = {
     ...profile,
     collection,
+    evolvedCards,
     upgradePoints: getUpgradePoints(profile) - PURCHASE_LEVEL_0_COST,
   };
   saveOfflineProfile(next);

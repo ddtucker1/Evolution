@@ -15,6 +15,18 @@ import {
   getUpgradeCost,
   canSellWithLibrarySize,
 } from '../../../shared/upgradePoints.js';
+import {
+  PURCHASE_MAX_SUM_SQUARES,
+  PURCHASE_MIN_ATTACK,
+  PURCHASE_MIN_HP,
+  PURCHASE_MIN_DEFENSE,
+  UPGRADE_STAT_POINTS,
+  getStatSumOfSquares,
+  isValidPurchaseStats,
+  getDefaultPurchaseStats,
+  createEmptyStatAllocations,
+  getRemainingStatPoints,
+} from '../../../shared/cardStatRules.js';
 import { COMBINE_MAX_LEVEL } from '../../../shared/combineRules.js';
 import {
   PLAY_DECK_SIZE,
@@ -30,7 +42,7 @@ import {
   purchaseLevel0Card,
   replaceLibraryWithNewBatch,
 } from '../api';
-import { needsUpgradeAbilityChoice } from '../upgradeEngine';
+import { needsUpgradeAbilityChoice, previewUpgradeAllocation } from '../upgradeEngine';
 
 export default function Library({ profile, onProfileChange, onMainMenu }) {
   const [mode, setMode] = useState('deck');
@@ -40,7 +52,11 @@ export default function Library({ profile, onProfileChange, onMainMenu }) {
   const [showSellBlockedPopup, setShowSellBlockedPopup] = useState(false);
   const [showReplaceBatchDialog, setShowReplaceBatchDialog] = useState(false);
   const [showAbilityDialog, setShowAbilityDialog] = useState(false);
+  const [showStatAllocDialog, setShowStatAllocDialog] = useState(false);
+  const [showPurchaseDialog, setShowPurchaseDialog] = useState(false);
   const [selectedAbility, setSelectedAbility] = useState(null);
+  const [statAllocations, setStatAllocations] = useState(createEmptyStatAllocations);
+  const [purchaseStats, setPurchaseStats] = useState(getDefaultPurchaseStats);
 
   const libraryCardCount = getLibraryCardCount(profile);
   const upgradePoints = getUpgradePoints(profile);
@@ -60,6 +76,12 @@ export default function Library({ profile, onProfileChange, onMainMenu }) {
   const requiresAbilityChoice = selectedCard
     ? needsUpgradeAbilityChoice(selectedCard)
     : false;
+  const remainingStatPoints = getRemainingStatPoints(statAllocations);
+  const statAllocPreview = selectedCard && showStatAllocDialog && remainingStatPoints < UPGRADE_STAT_POINTS
+    ? previewUpgradeAllocation(selectedCard, statAllocations)
+    : null;
+  const purchaseSumSquares = getStatSumOfSquares(purchaseStats);
+  const purchaseStatsValid = isValidPurchaseStats(purchaseStats);
 
   const expandedCollection = [];
   for (const { card_id, quantity } of profile.collection || []) {
@@ -138,10 +160,11 @@ export default function Library({ profile, onProfileChange, onMainMenu }) {
     setUpgradeMessage(`Sold for ${result.pointsEarned} point${result.pointsEarned === 1 ? '' : 's'}!`);
   };
 
-  const finalizeUpgrade = (ability = null) => {
+  const finalizeUpgrade = (ability = null, allocations = statAllocations) => {
     if (!selectedEntry) return;
     const result = upgradeCardWithPoints(profile, selectedEntry.card_id, {
       specialAbility: ability,
+      statAllocations: allocations,
     });
     if (result.error) {
       setUpgradeMessage(result.error);
@@ -150,7 +173,9 @@ export default function Library({ profile, onProfileChange, onMainMenu }) {
     onProfileChange(result.profile);
     setSelectedEntry(null);
     setShowAbilityDialog(false);
+    setShowStatAllocDialog(false);
     setSelectedAbility(null);
+    setStatAllocations(createEmptyStatAllocations());
     const abilityNote = result.upgraded.specialAbility
       ? ` (${FIGHTER_ABILITY_CONFIG[result.upgraded.specialAbility]?.label || result.upgraded.specialAbility} ability)`
       : '';
@@ -159,33 +184,87 @@ export default function Library({ profile, onProfileChange, onMainMenu }) {
 
   const handleUpgrade = () => {
     if (!selectedEntry || !canUpgradeSelected) return;
+    setStatAllocations(createEmptyStatAllocations());
+    setShowStatAllocDialog(true);
+  };
+
+  const handleStatAllocSelect = (stat) => {
+    if (remainingStatPoints <= 0) return;
+    setStatAllocations((prev) => ({
+      ...prev,
+      [stat]: (prev[stat] ?? 0) + 1,
+    }));
+  };
+
+  const handleStatAllocUndo = () => {
+    setStatAllocations((prev) => {
+      const next = { ...prev };
+      const order = ['hp', 'defense', 'attack'];
+      for (const stat of order) {
+        if (next[stat] > 0) {
+          next[stat] -= 1;
+          break;
+        }
+      }
+      return next;
+    });
+  };
+
+  const handleStatAllocConfirm = () => {
+    if (remainingStatPoints > 0) return;
+    setShowStatAllocDialog(false);
     if (requiresAbilityChoice) {
       setSelectedAbility(null);
       setShowAbilityDialog(true);
       return;
     }
-    finalizeUpgrade();
+    finalizeUpgrade(null, statAllocations);
   };
 
   const handleAbilityConfirm = () => {
     if (!selectedAbility) return;
-    finalizeUpgrade(selectedAbility);
+    finalizeUpgrade(selectedAbility, statAllocations);
   };
 
   const handlePurchase = () => {
-    const result = purchaseLevel0Card(profile);
+    setPurchaseStats(getDefaultPurchaseStats());
+    setShowPurchaseDialog(true);
+  };
+
+  const adjustPurchaseStat = (stat, delta) => {
+    const minByStat = {
+      attack: PURCHASE_MIN_ATTACK,
+      defense: PURCHASE_MIN_DEFENSE,
+      hp: PURCHASE_MIN_HP,
+    };
+    setPurchaseStats((prev) => ({
+      ...prev,
+      [stat]: Math.max(minByStat[stat], (prev[stat] ?? minByStat[stat]) + delta),
+    }));
+  };
+
+  const handlePurchaseConfirm = () => {
+    const result = purchaseLevel0Card(profile, purchaseStats);
     if (result.error) {
       setUpgradeMessage(result.error);
       return;
     }
     onProfileChange(result.profile);
+    setShowPurchaseDialog(false);
     setUpgradeMessage(`Purchased ${result.card.name} for ${PURCHASE_LEVEL_0_COST} point!`);
   };
 
   const cancelUpgradeAction = () => {
     setSelectedEntry(null);
     setShowAbilityDialog(false);
+    setShowStatAllocDialog(false);
     setSelectedAbility(null);
+    setStatAllocations(createEmptyStatAllocations());
+  };
+
+  const cancelPurchase = () => {
+    setShowPurchaseDialog(false);
+    setPurchaseStats(getDefaultPurchaseStats());
   };
 
   const enterUpgradeMode = () => {
@@ -197,10 +276,15 @@ export default function Library({ profile, onProfileChange, onMainMenu }) {
     setSelectedEntry(null);
     setUpgradeMessage('');
     setShowAbilityDialog(false);
+    setShowStatAllocDialog(false);
+    setShowPurchaseDialog(false);
     setSelectedAbility(null);
+    setStatAllocations(createEmptyStatAllocations());
+    setPurchaseStats(getDefaultPurchaseStats());
   };
 
-  const showCardActions = mode === 'upgrade' && selectedEntry && selectedCard && !showAbilityDialog;
+  const showCardActions = mode === 'upgrade' && selectedEntry && selectedCard
+    && !showAbilityDialog && !showStatAllocDialog;
 
   return (
     <div>
@@ -289,6 +373,7 @@ export default function Library({ profile, onProfileChange, onMainMenu }) {
             : selectedEntry?.key === key;
           const canAdd = playDeck.length < PLAY_DECK_SIZE && inDeck < owned;
           const isCombined = card_id.startsWith('evo_') || card_id.startsWith('test_l');
+          const isPurchased = card_id.startsWith('pur_');
           const levelDigit = catalog ? getLevelDigit(catalog) : '0';
           const timerPreview = getTimerPreview(catalog?.attack ?? 0);
           const cardLevel = catalog ? getCardLevel(catalog) : 0;
@@ -329,7 +414,7 @@ export default function Library({ profile, onProfileChange, onMainMenu }) {
                   level: catalog?.level,
                   specialAbility: catalog?.specialAbility,
                   alive: true,
-                  isBase: !isCombined,
+                  isBase: !isCombined && !isPurchased,
                 }}
                 showCooldown={false}
                 cooldownPreview={timerPreview}
@@ -369,6 +454,132 @@ export default function Library({ profile, onProfileChange, onMainMenu }) {
                 {upgradeCost != null ? `Upgrade (${upgradeCost} pt${upgradeCost === 1 ? '' : 's'})` : 'Max level'}
               </button>
               <button type="button" className="btn-secondary" onClick={cancelUpgradeAction}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showStatAllocDialog && selectedCard && (
+        <div className="target-overlay" onClick={cancelUpgradeAction}>
+          <div className="confirm-dialog ability-choice-dialog" onClick={(e) => e.stopPropagation()}>
+            <h3>Assign Upgrade Points</h3>
+            <p className="confirm-dialog-text">
+              Distribute {UPGRADE_STAT_POINTS} upgrade points across Attack, Defense, and HP (+1 per point).
+              You can put all points into one stat or split them any way you like.
+            </p>
+            <p className="stat-boost-base-card">
+              Base card: <strong>{selectedCard.name}</strong>
+              {' '}(ATK {selectedCard.attack}, DEF {selectedCard.defense}, HP {selectedCard.hp})
+            </p>
+            <p className="stat-boost-remaining">
+              Points remaining: <strong>{remainingStatPoints}</strong>
+            </p>
+            {remainingStatPoints < UPGRADE_STAT_POINTS && (
+              <p className="stat-boost-assigned">
+                Assigned: ATK +{statAllocations.attack}, DEF +{statAllocations.defense}, HP +{statAllocations.hp}
+              </p>
+            )}
+            {statAllocPreview && remainingStatPoints < UPGRADE_STAT_POINTS && (
+              <p className="stat-boost-preview">
+                Result preview: ATK {statAllocPreview.attack}, DEF {statAllocPreview.defense}, HP {statAllocPreview.hp}
+              </p>
+            )}
+            <div className="ability-choice-options">
+              {['attack', 'defense', 'hp'].map((stat) => (
+                <button
+                  key={stat}
+                  type="button"
+                  className="ability-choice-btn"
+                  disabled={remainingStatPoints === 0}
+                  onClick={() => handleStatAllocSelect(stat)}
+                >
+                  <span className="ability-choice-title">
+                    {stat === 'hp' ? 'HP' : stat.charAt(0).toUpperCase() + stat.slice(1)}
+                  </span>
+                  <span className="ability-choice-detail">
+                    +1 ({statAllocations[stat]} assigned)
+                  </span>
+                </button>
+              ))}
+            </div>
+            <div className="confirm-dialog-actions">
+              <button
+                type="button"
+                className="btn-primary"
+                disabled={remainingStatPoints > 0}
+                onClick={handleStatAllocConfirm}
+              >
+                {requiresAbilityChoice ? 'Continue' : 'Upgrade'}
+              </button>
+              <button
+                type="button"
+                className="btn-secondary"
+                disabled={UPGRADE_STAT_POINTS - remainingStatPoints === 0}
+                onClick={handleStatAllocUndo}
+              >
+                Undo last point
+              </button>
+              <button type="button" className="btn-secondary" onClick={cancelUpgradeAction}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showPurchaseDialog && (
+        <div className="target-overlay" onClick={cancelPurchase}>
+          <div className="confirm-dialog ability-choice-dialog" onClick={(e) => e.stopPropagation()}>
+            <h3>Choose Card Stats</h3>
+            <p className="confirm-dialog-text">
+              Set Attack, Defense, and HP for your new Level 0 card.
+              Attack and HP must be at least {PURCHASE_MIN_ATTACK}.
+              The sum of squares must be {PURCHASE_MAX_SUM_SQUARES} or less.
+            </p>
+            <p className="stat-boost-remaining">
+              Sum of squares: <strong>{purchaseSumSquares}</strong> / {PURCHASE_MAX_SUM_SQUARES}
+            </p>
+            <div className="ability-choice-options">
+              {[
+                { key: 'attack', label: 'Attack', min: PURCHASE_MIN_ATTACK },
+                { key: 'defense', label: 'Defense', min: PURCHASE_MIN_DEFENSE },
+                { key: 'hp', label: 'HP', min: PURCHASE_MIN_HP },
+              ].map(({ key, label, min }) => (
+                <div key={key} className="purchase-stat-row">
+                  <span className="ability-choice-title">{label} (min {min})</span>
+                  <div className="purchase-stat-controls">
+                    <button
+                      type="button"
+                      className="btn-secondary"
+                      onClick={() => adjustPurchaseStat(key, -1)}
+                      disabled={purchaseStats[key] <= min}
+                    >
+                      −
+                    </button>
+                    <span className="purchase-stat-value">{purchaseStats[key]}</span>
+                    <button
+                      type="button"
+                      className="btn-secondary"
+                      onClick={() => adjustPurchaseStat(key, 1)}
+                    >
+                      +
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="confirm-dialog-actions">
+              <button
+                type="button"
+                className="btn-primary"
+                disabled={!purchaseStatsValid || upgradePoints < PURCHASE_LEVEL_0_COST}
+                onClick={handlePurchaseConfirm}
+              >
+                Purchase ({PURCHASE_LEVEL_0_COST} pt)
+              </button>
+              <button type="button" className="btn-secondary" onClick={cancelPurchase}>
                 Cancel
               </button>
             </div>
