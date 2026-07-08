@@ -1,5 +1,6 @@
 export const BASE_STAT_SUM_OF_SQUARES = 1000;
 export const MIN_STAT_VALUE = 3;
+export const MIN_ATTACK_VALUE = 9;
 export const MAX_LIBRARY_SIZE = 50;
 export const CATALOG_SIZE = Math.min(40, MAX_LIBRARY_SIZE);
 
@@ -35,7 +36,7 @@ function randomWeight() {
 export function generateRandomBaseStats() {
   for (let attempt = 0; attempt < 500; attempt++) {
     const stats = computeBaseStats(randomWeight(), randomWeight(), randomWeight());
-    if (stats.attack >= MIN_STAT_VALUE && stats.defense >= MIN_STAT_VALUE && stats.hp >= MIN_STAT_VALUE) {
+    if (stats.attack >= MIN_ATTACK_VALUE && stats.defense >= MIN_STAT_VALUE && stats.hp >= MIN_STAT_VALUE) {
       return stats;
     }
   }
