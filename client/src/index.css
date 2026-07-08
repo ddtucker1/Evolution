@@ -1874,6 +1874,30 @@ input:focus {
   color: var(--accent-gold);
 }
 
+.purchase-stat-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.purchase-stat-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.purchase-stat-value {
+  min-width: 28px;
+  text-align: center;
+  font-weight: 600;
+  color: var(--accent-gold);
+}
+
 .ability-text {
   font-size: 11px;
   color: var(--accent-purple);
