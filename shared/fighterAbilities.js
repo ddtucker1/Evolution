@@ -55,7 +55,7 @@ export function getFighterAbilityDescription(ability, doubled = false) {
 
 export function getFighterAbilityHelpLines() {
   return [
-    `At Level ${FIGHTER_ABILITY_UNLOCK_LEVEL}, fighter cards gain a special ability chosen when combining.`,
+    `At Level ${FIGHTER_ABILITY_UNLOCK_LEVEL}, fighter cards gain a special ability chosen when upgrading.`,
     'Special abilities only trigger on solo attacks, not chain attacks.',
     `The ability persists as the card levels up. At Level ${FIGHTER_ABILITY_DOUBLE_LEVEL}, the effect is doubled.`,
     `Debuffs last ${FIGHTER_DEBUFF_DURATION} seconds. A card can have multiple different debuffs, but not the same one twice until it expires.`,

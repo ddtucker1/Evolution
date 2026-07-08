@@ -10,6 +10,15 @@ import { canCombineWithLibrarySize } from '../../shared/combineRules.js';
 import { isFighterAbility } from '../../shared/fighterAbilities.js';
 import { needsFighterAbilityChoice } from './combineEngine';
 import { buildTestLibraryProfile, TEST_LIBRARY_VERSION } from './testLibrary';
+import {
+  DAILY_FREE_POINTS,
+  PURCHASE_LEVEL_0_COST,
+  getSellPoints,
+  getUpgradeCost,
+  canSellWithLibrarySize,
+  getTodayDateString,
+} from '../../shared/upgradePoints.js';
+import { createUpgradedCard, needsUpgradeAbilityChoice } from './upgradeEngine';
 
 export { PLAY_DECK_SIZE };
 
@@ -101,15 +110,25 @@ function migrateCombinedCard(card) {
   return migrated;
 }
 
+function applyDailyPoints(profile) {
+  const today = getTodayDateString();
+  if (profile.lastDailyPointsDate === today) return profile;
+  return {
+    ...profile,
+    upgradePoints: (profile.upgradePoints ?? 0) + DAILY_FREE_POINTS,
+    lastDailyPointsDate: today,
+  };
+}
+
 function migrateProfile(profile) {
   const catalogChanged = profile.catalogVersion !== CATALOG_VERSION;
   const needsTestLibrary = profile.testLibraryVersion !== TEST_LIBRARY_VERSION;
 
   if (catalogChanged || needsTestLibrary) {
-    const next = buildTestLibraryProfile({
+    const next = applyDailyPoints(buildTestLibraryProfile({
       ...profile,
       catalogVersion: CATALOG_VERSION,
-    });
+    }));
     return next;
   }
 
@@ -119,13 +138,14 @@ function migrateProfile(profile) {
   );
   let playDeck = (profile.playDeck || []).filter((id) => isPlayableCardId(id, { ...profile, evolvedCards }));
   ({ collection, playDeck } = trimCollectionToMax(collection, playDeck));
-  return {
+  return applyDailyPoints({
     ...profile,
     catalogVersion: CATALOG_VERSION,
     collection,
     playDeck,
     evolvedCards,
-  };
+    upgradePoints: profile.upgradePoints ?? 0,
+  });
 }
 
 export function getOrCreateOfflineProfile() {
@@ -199,6 +219,122 @@ export function getCatalogCard(cardId, profile = null) {
 
 export function getLibraryCardCount(profile) {
   return collectionCardCount(profile?.collection);
+}
+
+export function getUpgradePoints(profile) {
+  return profile?.upgradePoints ?? 0;
+}
+
+function incrementCollection(collection, cardId) {
+  const next = [...(collection || [])];
+  const idx = next.findIndex((c) => c.card_id === cardId);
+  if (idx >= 0) {
+    next[idx] = { ...next[idx], quantity: next[idx].quantity + 1 };
+  } else {
+    next.push({ card_id: cardId, quantity: 1 });
+  }
+  return next;
+}
+
+export function sellCardForPoints(profile, cardId) {
+  if (!cardId) {
+    return { profile, error: 'Select a card to sell.' };
+  }
+  if (!canSellWithLibrarySize(collectionCardCount(profile?.collection))) {
+    return { profile, error: 'You need at least 15 cards in your library to sell.' };
+  }
+  const catalog = getCatalogCard(cardId, profile);
+  if (!catalog) {
+    return { profile, error: 'Invalid card selected.' };
+  }
+  if (getCollectionCount(profile, cardId) < 1) {
+    return { profile, error: 'You do not own this card.' };
+  }
+
+  const level = getCardLevel(catalog);
+  const pointsEarned = getSellPoints(level);
+  let collection = decrementCollection(profile.collection || [], cardId);
+  let playDeck = removeOneFromPlayDeck(profile.playDeck || [], cardId);
+
+  const next = {
+    ...profile,
+    collection,
+    playDeck,
+    upgradePoints: getUpgradePoints(profile) + pointsEarned,
+  };
+  saveOfflineProfile(next);
+  return { profile: next, pointsEarned };
+}
+
+export function upgradeCardWithPoints(profile, cardId, options = {}) {
+  if (!cardId) {
+    return { profile, error: 'Select a card to upgrade.' };
+  }
+  const catalog = getCatalogCard(cardId, profile);
+  if (!catalog) {
+    return { profile, error: 'Invalid card selected.' };
+  }
+  if (getCollectionCount(profile, cardId) < 1) {
+    return { profile, error: 'You do not own this card.' };
+  }
+
+  const currentLevel = getCardLevel(catalog);
+  const cost = getUpgradeCost(currentLevel);
+  if (cost == null) {
+    return { profile, error: 'This card is already at max level.' };
+  }
+  if (getUpgradePoints(profile) < cost) {
+    return { profile, error: `Not enough points. Upgrade costs ${cost} points.` };
+  }
+
+  if (needsUpgradeAbilityChoice(catalog) && !isFighterAbility(options.specialAbility)) {
+    return { profile, error: 'Choose a special ability for your Level 5 fighter.' };
+  }
+
+  const upgraded = createUpgradedCard(catalog, {
+    specialAbility: options.specialAbility,
+  });
+  if (!upgraded) {
+    return { profile, error: 'This card cannot be upgraded.' };
+  }
+
+  let collection = decrementCollection(profile.collection || [], cardId);
+  collection = incrementCollection(collection, upgraded.id);
+  let playDeck = removeOneFromPlayDeck(profile.playDeck || [], cardId);
+
+  const evolvedCards = [...(profile.evolvedCards || []), upgraded];
+  const next = {
+    ...profile,
+    collection,
+    playDeck,
+    evolvedCards,
+    upgradePoints: getUpgradePoints(profile) - cost,
+  };
+  saveOfflineProfile(next);
+  return { profile: next, upgraded, cost };
+}
+
+export function purchaseLevel0Card(profile) {
+  if (collectionCardCount(profile?.collection) >= MAX_LIBRARY_SIZE) {
+    return { profile, error: 'Your library is full.' };
+  }
+  if (getUpgradePoints(profile) < PURCHASE_LEVEL_0_COST) {
+    return { profile, error: `Not enough points. Purchasing costs ${PURCHASE_LEVEL_0_COST} point.` };
+  }
+
+  const catalog = CARD_DATA.unique;
+  if (!catalog.length) {
+    return { profile, error: 'No cards available to purchase.' };
+  }
+  const card = catalog[Math.floor(Math.random() * catalog.length)];
+  const collection = incrementCollection(profile.collection || [], card.id);
+  const next = {
+    ...profile,
+    collection,
+    upgradePoints: getUpgradePoints(profile) - PURCHASE_LEVEL_0_COST,
+  };
+  saveOfflineProfile(next);
+  return { profile: next, card };
 }
 
 export function combineCards(profile, cardId1, cardId2, options = {}) {

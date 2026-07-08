@@ -1,20 +1,20 @@
-import { getCombineHelpLines } from '../../../shared/combineRules.js';
+import { getUpgradeHelpLines } from '../../../shared/upgradePoints.js';
 
 export default function AbilityHelp({ open, onClose }) {
   if (!open) return null;
 
-  const combineHelpLines = getCombineHelpLines();
+  const upgradeHelpLines = getUpgradeHelpLines();
 
   return (
     <div className="target-overlay" onClick={onClose}>
       <div className="help-dialog" onClick={(e) => e.stopPropagation()}>
-        <h3>Combining Cards</h3>
+        <h3>Upgrading Cards</h3>
         <p className="help-dialog-intro">
-          Sacrifice two cards of the same level in the Library to create a stronger card one level higher.
-          The first card you select provides the base stats, then you choose where two +2 boosts are applied.
+          Use Upgrade mode in the Library to sell cards for points and spend points to upgrade
+          or purchase new cards.
         </p>
         <ul className="ability-help-list">
-          {combineHelpLines.map((line) => (
+          {upgradeHelpLines.map((line) => (
             <li key={line}>{line}</li>
           ))}
         </ul>
