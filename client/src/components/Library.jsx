@@ -27,6 +27,7 @@ import {
   clearPlayDeck,
   combineCards,
   getLibraryCardCount,
+  replaceLibraryWithNewBatch,
 } from '../api';
 
 export default function Library({ profile, onProfileChange, onMainMenu }) {
@@ -35,6 +36,7 @@ export default function Library({ profile, onProfileChange, onMainMenu }) {
   const [combineSelection, setCombineSelection] = useState([]);
   const [combineMessage, setCombineMessage] = useState('');
   const [showCombineBlockedPopup, setShowCombineBlockedPopup] = useState(false);
+  const [showReplaceBatchDialog, setShowReplaceBatchDialog] = useState(false);
   const [showStatBoostDialog, setShowStatBoostDialog] = useState(false);
   const [showAbilityDialog, setShowAbilityDialog] = useState(false);
   const [statBoostChoices, setStatBoostChoices] = useState([]);
@@ -112,6 +114,13 @@ export default function Library({ profile, onProfileChange, onMainMenu }) {
 
   const handleClear = () => {
     onProfileChange(clearPlayDeck(profile));
+  };
+
+  const handleReplaceBatch = () => {
+    onProfileChange(replaceLibraryWithNewBatch(profile));
+    setShowReplaceBatchDialog(false);
+    exitCombineMode();
+    setCombineMessage('Library replaced with a new batch of cards.');
   };
 
   const toggleCombineSelection = (entry) => {
@@ -241,6 +250,9 @@ export default function Library({ profile, onProfileChange, onMainMenu }) {
               </button>
               <button className="btn-gold" onClick={enterCombineMode}>
                 Combine
+              </button>
+              <button className="btn-secondary" onClick={() => setShowReplaceBatchDialog(true)}>
+                New batch
               </button>
             </>
           ) : (
@@ -484,6 +496,27 @@ export default function Library({ profile, onProfileChange, onMainMenu }) {
                 Combine
               </button>
               <button type="button" className="btn-secondary" onClick={cancelCombine}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showReplaceBatchDialog && (
+        <div className="target-overlay" onClick={() => setShowReplaceBatchDialog(false)}>
+          <div className="confirm-dialog" onClick={(e) => e.stopPropagation()}>
+            <h3>Replace all cards?</h3>
+            <p className="confirm-dialog-text">
+              This removes every card in your library and replaces them with a fresh batch
+              of 30 cards (10 base, 10 Level 2, and 10 Level 5). Your play deck and any
+              combined cards will also be reset.
+            </p>
+            <div className="confirm-dialog-actions">
+              <button type="button" className="btn-primary" onClick={handleReplaceBatch}>
+                Replace
+              </button>
+              <button type="button" className="btn-secondary" onClick={() => setShowReplaceBatchDialog(false)}>
                 Cancel
               </button>
             </div>

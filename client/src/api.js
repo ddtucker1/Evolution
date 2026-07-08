@@ -185,6 +185,12 @@ export function clearPlayDeck(profile) {
   return next;
 }
 
+export function replaceLibraryWithNewBatch(profile) {
+  const next = buildTestLibraryProfile(profile);
+  saveOfflineProfile(next);
+  return next;
+}
+
 export function getCatalogCard(cardId, profile = null) {
   const evolved = profile?.evolvedCards?.find((c) => c.id === cardId);
   if (evolved) return evolved;
