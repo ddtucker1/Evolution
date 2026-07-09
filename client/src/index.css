@@ -1292,9 +1292,14 @@ input:focus {
 }
 
 /* Boss selection: text on the left, art on the right */
+.setup-card-wrap .game-card {
+  padding-left: 6px;
+  padding-right: 4px;
+}
+
 .setup-card-wrap .game-card .card-content {
-  width: 52%;
-  max-width: 52%;
+  width: 48%;
+  max-width: 48%;
   align-self: flex-start;
   text-align: left;
   align-items: flex-start;
@@ -2242,9 +2247,14 @@ input:focus {
   text-align: left;
 }
 
+.player-formation .hand-card-wrap .game-card {
+  padding-left: 4px;
+  padding-right: 4px;
+}
+
 .player-formation .hand-card-wrap .game-card .card-content {
-  width: 52%;
-  max-width: 52%;
+  width: 48%;
+  max-width: 48%;
   align-self: flex-start;
   text-align: left;
   align-items: flex-start;
