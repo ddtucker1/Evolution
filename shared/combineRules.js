@@ -1,4 +1,4 @@
-import rules from './combineRules.json';
+import rules from './combineRules.json' with { type: 'json' };
 import { getFighterAbilityHelpLines } from './fighterAbilities.js';
 
 export const COMBINE_RULES_VERSION = rules.version;

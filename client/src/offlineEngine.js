@@ -7,7 +7,11 @@ import {
   MAX_LIBRARY_SIZE,
 } from '../../shared/baseCardStats.js';
 import { generateCardName } from '../../shared/cardNaming.js';
-import { createCombinedCard, getCardLevel } from './combineEngine.js';
+import {
+  computeCpuTargetLevelSum,
+  generateCpuDeck,
+  getDeckLevelSum,
+} from './cpuDeckGenerator.js';
 import {
   FIGHTER_ABILITY_UNLOCK_LEVEL,
   FIGHTER_DEBUFF_DURATION,
@@ -394,7 +398,11 @@ function tickPoison(game) {
 function makeBattleCard(templateId, instanceId) {
   const t = getTemplate(templateId);
   if (!t) return null;
-  const isEvolved = templateId.startsWith('evo_') || templateId.startsWith('test_l');
+  const isEvolved = (
+    templateId.startsWith('evo_')
+    || templateId.startsWith('test_l')
+    || templateId.startsWith('npc_l')
+  );
   const attack = Math.round(t.attack);
   const defense = Math.round(t.defense);
   const maxHp = Math.round(t.hp);
@@ -405,7 +413,7 @@ function makeBattleCard(templateId, instanceId) {
     maxHp, hp: maxHp,
     cooldown, cooldownElapsed: 0,
     alive: true, role: null,
-    isBase: isBaseCardId(templateId),
+    isBase: t.isBase != null ? !!t.isBase : isBaseCardId(templateId),
     level: t.level ?? (isEvolved ? 1 : 0),
     specialAbility: t.specialAbility || null,
   };
@@ -441,63 +449,27 @@ function createPlayer(id, username, deckIds) {
   };
 }
 
-let npcEvolvedPool = null;
-
-function createNpcCombinedCard(card1, card2, id) {
-  const combined = createCombinedCard(card1, card2, { deterministic: true });
-  if (!combined) return null;
-  const card = { ...combined, id };
-  LOOKUP.set(id, card);
-  return card;
+function clearNpcLookupCards() {
+  for (const key of [...LOOKUP.keys()]) {
+    if (key.startsWith('npc_')) {
+      LOOKUP.delete(key);
+    }
+  }
 }
 
-function getNpcEvolvedPool() {
-  if (npcEvolvedPool) return npcEvolvedPool;
-
-  const base = CARD_DATA.unique;
-  const level1 = [];
-  for (let i = 0; i < 3; i++) {
-    const c1 = base[(i * 2) % base.length];
-    const c2 = base[(i * 2 + 1) % base.length];
-    const card = createNpcCombinedCard(c1, c2, `npc_evo_l1_${i}`);
-    if (card) level1.push(card);
+function registerNpcDeckCards(cards) {
+  clearNpcLookupCards();
+  for (const card of cards || []) {
+    LOOKUP.set(card.id, card);
   }
-
-  const level2 = [];
-  for (let i = 0; i < 3; i++) {
-    const c1 = level1[i % level1.length];
-    const c2 = level1[(i + 1) % level1.length];
-    const card = createNpcCombinedCard(c1, c2, `npc_evo_l2_${i}`);
-    if (card) level2.push(card);
-  }
-
-  const level3 = [];
-  for (let i = 0; i < 4; i++) {
-    const c1 = level2[i % level2.length];
-    const c2 = level2[(i + 1) % level2.length];
-    const card = createNpcCombinedCard(c1, c2, `npc_evo_l3_${i}`);
-    if (card) level3.push(card);
-  }
-
-  npcEvolvedPool = [...level1, ...level2, ...level3];
-  return npcEvolvedPool;
 }
 
-function npcDeck() {
-  const pool = getNpcEvolvedPool();
-  const byLevel = {
-    1: pool.filter((c) => c.level === 1),
-    2: pool.filter((c) => c.level === 2),
-    3: pool.filter((c) => c.level === 3),
-  };
-  const deck = [];
-  const pattern = [1, 2, 3, 1, 2, 3, 2, 3, 1, 3];
-  for (let i = 0; i < PLAY_DECK_SIZE; i++) {
-    const level = pattern[i % pattern.length];
-    const group = byLevel[level];
-    deck.push(group[i % group.length].id);
-  }
-  return shuffle(deck);
+function buildNpcDeckFromPlayerDeck(deckIds) {
+  const playerLevelSum = getDeckLevelSum(deckIds, (id) => getTemplate(id));
+  const targetSum = computeCpuTargetLevelSum(playerLevelSum);
+  const generated = generateCpuDeck(targetSum, { catalog: CARD_DATA.unique });
+  registerNpcDeckCards(generated.cards);
+  return generated.ids;
 }
 
 function getAliveFieldFighters(player) {
@@ -1367,7 +1339,7 @@ function toPrivateState(game, playerId) {
 
 export function createOfflineGame(deckIds) {
   instanceCounter = 0;
-  const npcDeckIds = shuffle([...deckIds]);
+  const npcDeckIds = buildNpcDeckFromPlayerDeck(deckIds);
   const game = {
     id: 'offline_' + Date.now(),
     mode: 'npc',
