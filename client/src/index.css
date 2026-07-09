@@ -1291,6 +1291,40 @@ input:focus {
   text-align: center;
 }
 
+/* Boss selection: text on the left, art on the right */
+.setup-card-wrap .game-card {
+  padding-left: 6px;
+  padding-right: 4px;
+}
+
+.setup-card-wrap .game-card .card-content {
+  width: 48%;
+  max-width: 48%;
+  align-self: flex-start;
+  text-align: left;
+  align-items: flex-start;
+}
+
+.setup-card-wrap .game-card .card-name-row {
+  justify-content: flex-start;
+  width: 100%;
+}
+
+.setup-card-wrap .game-card .card-stats,
+.setup-card-wrap .game-card .card-footer-slot,
+.setup-card-wrap .game-card .card-ability-slot {
+  width: 100%;
+  text-align: left;
+}
+
+.setup-card-wrap .game-card .card-art img {
+  right: 0;
+  left: auto;
+  height: 88%;
+  max-height: 88%;
+  object-position: right center;
+}
+
 .setup-instructions {
   text-align: center;
   padding: 20px;
@@ -2205,6 +2239,37 @@ input:focus {
   align-items: center;
   gap: 4px;
   text-align: center;
+}
+
+/* Player hand in battle: keep text on the far left */
+.player-formation .hand-card-wrap {
+  align-items: flex-start;
+  text-align: left;
+}
+
+.player-formation .hand-card-wrap .game-card {
+  padding-left: 4px;
+  padding-right: 4px;
+}
+
+.player-formation .hand-card-wrap .game-card .card-content {
+  width: 48%;
+  max-width: 48%;
+  align-self: flex-start;
+  text-align: left;
+  align-items: flex-start;
+}
+
+.player-formation .hand-card-wrap .game-card .card-name-row {
+  justify-content: flex-start;
+  width: 100%;
+}
+
+.player-formation .hand-card-wrap .game-card .card-stats,
+.player-formation .hand-card-wrap .game-card .card-footer-slot,
+.player-formation .hand-card-wrap .game-card .card-ability-slot {
+  width: 100%;
+  text-align: left;
 }
 
 .opponent-formation .hand-card-wrap .game-card-face-down {
