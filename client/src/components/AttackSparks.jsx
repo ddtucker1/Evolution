@@ -6,16 +6,23 @@ const VIDEO_CANDIDATES = [
   '/effects/attack-sparks.webm',
 ];
 
-async function resolveAttackSparksUrl() {
-  for (const url of VIDEO_CANDIDATES) {
-    try {
-      const res = await fetch(url, { method: 'HEAD' });
-      if (res.ok) return url;
-    } catch {
-      // try next candidate
-    }
+let cachedVideoUrlPromise;
+
+function resolveAttackSparksUrl() {
+  if (!cachedVideoUrlPromise) {
+    cachedVideoUrlPromise = (async () => {
+      for (const url of VIDEO_CANDIDATES) {
+        try {
+          const res = await fetch(url, { method: 'HEAD' });
+          if (res.ok) return url;
+        } catch {
+          // try next candidate
+        }
+      }
+      return null;
+    })();
   }
-  return null;
+  return cachedVideoUrlPromise;
 }
 
 export default function AttackSparks({
@@ -27,11 +34,9 @@ export default function AttackSparks({
 }) {
   const [videoUrl, setVideoUrl] = useState(null);
   const [visible, setVisible] = useState(false);
-  const [ready, setReady] = useState(false);
   const [pos, setPos] = useState(null);
   const videoRef = useRef(null);
-  const delayRemainingRef = useRef(null);
-  const attackActiveRef = useRef(false);
+  const delayRemainingRef = useRef(Math.max(0, (durationMs || 0) / 2));
 
   useEffect(() => {
     let cancelled = false;
@@ -44,22 +49,7 @@ export default function AttackSparks({
   }, []);
 
   useEffect(() => {
-    if (!targetId || !durationMs) {
-      attackActiveRef.current = false;
-      delayRemainingRef.current = null;
-      setVisible(false);
-      setReady(false);
-      return undefined;
-    }
-
-    if (!attackActiveRef.current) {
-      attackActiveRef.current = true;
-      delayRemainingRef.current = Math.max(0, durationMs / 2);
-      setVisible(false);
-      setReady(false);
-    }
-
-    if (paused || delayRemainingRef.current == null || visible) return undefined;
+    if (!targetId || visible || paused) return undefined;
 
     const started = Date.now();
     const delay = delayRemainingRef.current;
@@ -70,11 +60,11 @@ export default function AttackSparks({
 
     return () => {
       clearTimeout(timer);
-      if (delayRemainingRef.current != null && delayRemainingRef.current > 0) {
+      if (delayRemainingRef.current > 0) {
         delayRemainingRef.current = Math.max(0, delay - (Date.now() - started));
       }
     };
-  }, [targetId, durationMs, paused, visible]);
+  }, [targetId, paused, visible]);
 
   useLayoutEffect(() => {
     if (!visible || !targetId) {
@@ -112,35 +102,32 @@ export default function AttackSparks({
     if (!visible || !video || !videoUrl) return undefined;
 
     let cancelled = false;
-    setReady(false);
-
-    const tryPlay = () => {
+    video.muted = true;
+    const play = () => {
       if (cancelled) return;
-      video.muted = true;
-      video.currentTime = 0;
-      const playPromise = video.play();
-      if (playPromise?.catch) {
-        playPromise.catch(() => {
-          if (!cancelled) setReady(false);
-        });
+      try {
+        video.currentTime = 0;
+      } catch {
+        // ignore seek errors before metadata
       }
+      const playPromise = video.play();
+      if (playPromise?.catch) playPromise.catch(() => {});
     };
 
-    const onPlaying = () => {
-      if (!cancelled) setReady(true);
-    };
-    const onEnded = () => {
-      if (!cancelled) setReady(false);
-    };
-
-    video.addEventListener('playing', onPlaying);
-    video.addEventListener('ended', onEnded);
-    tryPlay();
+    if (video.readyState >= 2) play();
+    else {
+      const onReady = () => play();
+      video.addEventListener('loadeddata', onReady, { once: true });
+      video.load();
+      return () => {
+        cancelled = true;
+        video.removeEventListener('loadeddata', onReady);
+        video.pause();
+      };
+    }
 
     return () => {
       cancelled = true;
-      video.removeEventListener('playing', onPlaying);
-      video.removeEventListener('ended', onEnded);
       video.pause();
     };
   }, [visible, videoUrl, targetId]);
@@ -156,11 +143,25 @@ export default function AttackSparks({
     if (playPromise?.catch) playPromise.catch(() => {});
   }, [paused, visible]);
 
-  if (!visible || !pos || !videoUrl) return null;
+  if (!videoUrl || !targetId) return null;
+
+  if (!visible || !pos) {
+    return (
+      <video
+        ref={videoRef}
+        className="attack-sparks-preload"
+        src={videoUrl}
+        muted
+        playsInline
+        preload="auto"
+        aria-hidden="true"
+      />
+    );
+  }
 
   return (
     <div
-      className={`attack-sparks-overlay${ready ? ' attack-sparks-ready' : ''}`}
+      className="attack-sparks-overlay"
       style={{
         left: pos.x,
         top: pos.y,

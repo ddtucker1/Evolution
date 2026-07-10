@@ -204,18 +204,58 @@ function attachDesktopVideoMiddleware(middlewares) {
       '.m4v': 'video/mp4',
       '.ogv': 'video/ogg',
     };
-    res.setHeader('Content-Type', videoTypes[ext] || contentTypeFor(filePath));
+    const contentType = videoTypes[ext] || contentTypeFor(filePath);
+    let stat;
+    try {
+      stat = fs.statSync(filePath);
+    } catch {
+      res.statusCode = 404;
+      res.end('Not found');
+      return;
+    }
+
+    const fileSize = stat.size;
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Accept-Ranges', 'bytes');
     res.setHeader('Cache-Control', 'no-cache');
+
     if (req.method === 'HEAD') {
-      try {
-        res.setHeader('Content-Length', fs.statSync(filePath).size);
-      } catch {
-        // ignore missing size
-      }
+      res.setHeader('Content-Length', fileSize);
       res.statusCode = 200;
       res.end();
       return;
     }
+
+    const range = req.headers.range;
+    if (range) {
+      const match = /bytes=(\d*)-(\d*)/.exec(range);
+      if (!match) {
+        res.statusCode = 416;
+        res.setHeader('Content-Range', `bytes */${fileSize}`);
+        res.end();
+        return;
+      }
+
+      const start = match[1] ? parseInt(match[1], 10) : 0;
+      const end = match[2] ? parseInt(match[2], 10) : fileSize - 1;
+      if (Number.isNaN(start) || Number.isNaN(end) || start > end || start >= fileSize) {
+        res.statusCode = 416;
+        res.setHeader('Content-Range', `bytes */${fileSize}`);
+        res.end();
+        return;
+      }
+
+      const clampedEnd = Math.min(end, fileSize - 1);
+      const chunkSize = clampedEnd - start + 1;
+      res.statusCode = 206;
+      res.setHeader('Content-Range', `bytes ${start}-${clampedEnd}/${fileSize}`);
+      res.setHeader('Content-Length', chunkSize);
+      fs.createReadStream(filePath, { start, end: clampedEnd }).pipe(res);
+      return;
+    }
+
+    res.setHeader('Content-Length', fileSize);
+    res.statusCode = 200;
     fs.createReadStream(filePath).pipe(res);
   });
 }

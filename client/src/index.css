@@ -2440,12 +2440,15 @@ input:focus {
   justify-content: center;
   overflow: visible;
   background: transparent;
-  opacity: 0;
-  transition: opacity 60ms linear;
 }
 
-.attack-sparks-overlay.attack-sparks-ready {
-  opacity: 1;
+.attack-sparks-preload {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+  overflow: hidden;
 }
 
 .attack-sparks-video {
