@@ -2431,24 +2431,27 @@ input:focus {
 }
 
 .attack-sparks-overlay {
-  position: absolute;
+  position: fixed;
   transform: translate(-50%, -50%);
   pointer-events: none;
-  z-index: 26;
+  z-index: 40;
   display: flex;
   align-items: center;
   justify-content: center;
   overflow: visible;
   background: transparent;
+  mix-blend-mode: screen;
 }
 
 .attack-sparks-preload {
-  position: absolute;
+  position: fixed;
   width: 1px;
   height: 1px;
   opacity: 0;
   pointer-events: none;
   overflow: hidden;
+  left: -9999px;
+  top: -9999px;
 }
 
 .attack-sparks-video {
@@ -2456,7 +2459,6 @@ input:focus {
   height: 100%;
   object-fit: contain;
   background: transparent;
-  mix-blend-mode: screen;
 }
 
 .attack-arrow-line {

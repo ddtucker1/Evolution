@@ -634,7 +634,6 @@ export default function BattleView({
               toId={attackAnimation.defenderInstanceId}
             />
             <AttackSparks
-              containerRef={battlefieldRef}
               cardRefs={cardRefs}
               targetId={attackAnimation.defenderInstanceId}
               durationMs={attackAnimation.durationMs}

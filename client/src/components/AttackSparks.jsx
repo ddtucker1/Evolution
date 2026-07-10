@@ -26,7 +26,6 @@ function resolveAttackSparksUrl() {
 }
 
 export default function AttackSparks({
-  containerRef,
   cardRefs,
   targetId,
   durationMs,
@@ -73,17 +72,17 @@ export default function AttackSparks({
     }
 
     const update = () => {
-      const container = containerRef?.current;
       const targetEl = cardRefs?.current?.[targetId];
-      if (!container || !targetEl) {
+      if (!targetEl) {
         setPos(null);
         return;
       }
-      const cr = container.getBoundingClientRect();
       const tr = targetEl.getBoundingClientRect();
+      // Cards are position:fixed on desktop, so use viewport coordinates
+      // and a fixed overlay so mix-blend-mode composites over the card.
       setPos({
-        x: tr.left + tr.width / 2 - cr.left,
-        y: tr.top + tr.height / 2 - cr.top,
+        x: tr.left + tr.width / 2,
+        y: tr.top + tr.height / 2,
         size: Math.max(tr.width, tr.height) * 1.45,
       });
     };
@@ -91,11 +90,13 @@ export default function AttackSparks({
     update();
     const raf = requestAnimationFrame(update);
     window.addEventListener('resize', update);
+    window.addEventListener('scroll', update, true);
     return () => {
       cancelAnimationFrame(raf);
       window.removeEventListener('resize', update);
+      window.removeEventListener('scroll', update, true);
     };
-  }, [visible, targetId, containerRef, cardRefs]);
+  }, [visible, targetId, cardRefs]);
 
   useEffect(() => {
     const video = videoRef.current;
