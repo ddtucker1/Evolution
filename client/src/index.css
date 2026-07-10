@@ -2430,6 +2430,37 @@ input:focus {
   overflow: visible;
 }
 
+.attack-sparks-overlay {
+  position: fixed;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: visible;
+  background: transparent;
+  mix-blend-mode: screen;
+}
+
+.attack-sparks-preload {
+  position: fixed;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+  overflow: hidden;
+  left: -9999px;
+  top: -9999px;
+}
+
+.attack-sparks-video {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: transparent;
+}
+
 .attack-arrow-line {
   stroke: #f1c40f;
   stroke-width: 4.5;
