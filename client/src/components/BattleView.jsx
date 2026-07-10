@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import GameCard from './GameCard';
 import CardBack from './CardBack';
 import AttackArrow from './AttackArrow';
+import AttackSparks from './AttackSparks';
 import ChainFireAnimation from './ChainFireAnimation';
 import BloodSplatter from './BloodSplatter';
 import PoisonCloudAnimation from './PoisonCloudAnimation';
@@ -631,6 +632,13 @@ export default function BattleView({
               fromId={attackAnimation.attackerInstanceId}
               fromIds={attackAnimation.isChainAttack ? attackAnimation.attackerInstanceIds : undefined}
               toId={attackAnimation.defenderInstanceId}
+            />
+            <AttackSparks
+              containerRef={battlefieldRef}
+              cardRefs={cardRefs}
+              targetId={attackAnimation.defenderInstanceId}
+              durationMs={attackAnimation.durationMs}
+              paused={!!gamePaused}
             />
           </>
         )}

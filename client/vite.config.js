@@ -6,6 +6,7 @@ import react from '@vitejs/plugin-react';
 
 const AUDIO_EXTENSIONS = new Set(['.mp3', '.ogg', '.wav', '.m4a', '.aac', '.flac', '.webm']);
 const IMAGE_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.webp', '.gif', '.bmp']);
+const VIDEO_EXTENSIONS = ['.mp4', '.webm', '.mov', '.m4v', '.ogv'];
 
 function resolveDesktopDir(folderName) {
   const home = os.homedir();
@@ -14,6 +15,16 @@ function resolveDesktopDir(folderName) {
     path.join(home, 'desktop', folderName),
   ];
   return candidates.find((dir) => fs.existsSync(dir)) || candidates[0];
+}
+
+function listDesktopDirs() {
+  const home = os.homedir();
+  return [
+    path.join(home, 'Desktop'),
+    path.join(home, 'desktop'),
+    path.join(home, 'Desktop', 'Game'),
+    path.join(home, 'desktop', 'Game'),
+  ];
 }
 
 function listAudioFiles(dir) {
@@ -39,16 +50,16 @@ function contentTypeFor(filePath) {
     '.webp': 'image/webp',
     '.gif': 'image/gif',
     '.bmp': 'image/bmp',
+    '.mp4': 'video/mp4',
+    '.mov': 'video/quicktime',
+    '.m4v': 'video/mp4',
+    '.ogv': 'video/ogg',
   };
   return types[ext] || 'application/octet-stream';
 }
 
 function resolveDesktopImagePath() {
-  const home = os.homedir();
-  const desktopDirs = [
-    path.join(home, 'Desktop'),
-    path.join(home, 'desktop'),
-  ];
+  const desktopDirs = listDesktopDirs().filter((dir) => !dir.endsWith(`${path.sep}Game`));
   for (const dir of desktopDirs) {
     if (!fs.existsSync(dir)) continue;
     const exact = path.join(dir, 'image');
@@ -61,16 +72,47 @@ function resolveDesktopImagePath() {
   return null;
 }
 
+function normalizeAssetBaseName(name) {
+  return name.replace(path.extname(name), '').replace(/[\s_-]+/g, '').toLowerCase();
+}
+
+function resolveDesktopVideoPath(baseName) {
+  const wanted = normalizeAssetBaseName(baseName);
+  for (const dir of listDesktopDirs()) {
+    if (!fs.existsSync(dir) || !fs.statSync(dir).isDirectory()) continue;
+
+    for (const ext of VIDEO_EXTENSIONS) {
+      for (const candidate of [`${baseName}${ext}`, `${baseName.replace(/\s+/g, '-')}${ext}`, `${baseName.replace(/\s+/g, '_')}${ext}`]) {
+        const filePath = path.join(dir, candidate);
+        if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) return filePath;
+      }
+    }
+
+    const match = fs.readdirSync(dir).find((name) => {
+      const ext = path.extname(name).toLowerCase();
+      if (!VIDEO_EXTENSIONS.includes(ext)) return false;
+      return normalizeAssetBaseName(name) === wanted;
+    });
+    if (match) {
+      const filePath = path.join(dir, match);
+      if (fs.statSync(filePath).isFile()) return filePath;
+    }
+  }
+  return null;
+}
+
 function desktopAssetsPlugin() {
   return {
     name: 'desktop-assets',
     configureServer(server) {
       attachDesktopMusicMiddleware(server.middlewares);
       attachDesktopImageMiddleware(server.middlewares);
+      attachDesktopVideoMiddleware(server.middlewares);
     },
     configurePreviewServer(server) {
       attachDesktopMusicMiddleware(server.middlewares);
       attachDesktopImageMiddleware(server.middlewares);
+      attachDesktopVideoMiddleware(server.middlewares);
     },
   };
 }
@@ -127,6 +169,53 @@ function attachDesktopImageMiddleware(middlewares) {
     }
 
     res.setHeader('Content-Type', contentTypeFor(filePath));
+    fs.createReadStream(filePath).pipe(res);
+  });
+}
+
+function attachDesktopVideoMiddleware(middlewares) {
+  middlewares.use('/desktop-video', (req, res) => {
+    const url = (req.url || '').split('?')[0];
+    const parts = url.split('/').filter(Boolean);
+    if (parts.length < 1) {
+      res.statusCode = 404;
+      res.end('Not found');
+      return;
+    }
+
+    const baseName = decodeURIComponent(parts.join(' ')).replace(/[-_]+/g, ' ').trim();
+    const aliases = {
+      'attack sparks': 'attack sparks',
+      attacksparks: 'attack sparks',
+    };
+    const resolvedName = aliases[normalizeAssetBaseName(baseName)] || baseName;
+    const filePath = resolveDesktopVideoPath(resolvedName);
+    if (!filePath) {
+      res.statusCode = 404;
+      res.end('Not found');
+      return;
+    }
+
+    const ext = path.extname(filePath).toLowerCase();
+    const videoTypes = {
+      '.mp4': 'video/mp4',
+      '.webm': 'video/webm',
+      '.mov': 'video/quicktime',
+      '.m4v': 'video/mp4',
+      '.ogv': 'video/ogg',
+    };
+    res.setHeader('Content-Type', videoTypes[ext] || contentTypeFor(filePath));
+    res.setHeader('Cache-Control', 'no-cache');
+    if (req.method === 'HEAD') {
+      try {
+        res.setHeader('Content-Length', fs.statSync(filePath).size);
+      } catch {
+        // ignore missing size
+      }
+      res.statusCode = 200;
+      res.end();
+      return;
+    }
     fs.createReadStream(filePath).pipe(res);
   });
 }
