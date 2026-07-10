@@ -27,6 +27,7 @@ export default function AttackSparks({
 }) {
   const [videoUrl, setVideoUrl] = useState(null);
   const [visible, setVisible] = useState(false);
+  const [ready, setReady] = useState(false);
   const [pos, setPos] = useState(null);
   const videoRef = useRef(null);
   const delayRemainingRef = useRef(null);
@@ -47,6 +48,7 @@ export default function AttackSparks({
       attackActiveRef.current = false;
       delayRemainingRef.current = null;
       setVisible(false);
+      setReady(false);
       return undefined;
     }
 
@@ -54,6 +56,7 @@ export default function AttackSparks({
       attackActiveRef.current = true;
       delayRemainingRef.current = Math.max(0, durationMs / 2);
       setVisible(false);
+      setReady(false);
     }
 
     if (paused || delayRemainingRef.current == null || visible) return undefined;
@@ -91,7 +94,7 @@ export default function AttackSparks({
       setPos({
         x: tr.left + tr.width / 2 - cr.left,
         y: tr.top + tr.height / 2 - cr.top,
-        size: Math.max(tr.width, tr.height) * 1.35,
+        size: Math.max(tr.width, tr.height) * 1.45,
       });
     };
 
@@ -108,31 +111,56 @@ export default function AttackSparks({
     const video = videoRef.current;
     if (!visible || !video || !videoUrl) return undefined;
 
-    video.pause();
-    video.currentTime = 0;
-    const playPromise = video.play();
-    if (playPromise?.catch) playPromise.catch(() => {});
+    let cancelled = false;
+    setReady(false);
+
+    const tryPlay = () => {
+      if (cancelled) return;
+      video.muted = true;
+      video.currentTime = 0;
+      const playPromise = video.play();
+      if (playPromise?.catch) {
+        playPromise.catch(() => {
+          if (!cancelled) setReady(false);
+        });
+      }
+    };
+
+    const onPlaying = () => {
+      if (!cancelled) setReady(true);
+    };
+    const onEnded = () => {
+      if (!cancelled) setReady(false);
+    };
+
+    video.addEventListener('playing', onPlaying);
+    video.addEventListener('ended', onEnded);
+    tryPlay();
 
     return () => {
+      cancelled = true;
+      video.removeEventListener('playing', onPlaying);
+      video.removeEventListener('ended', onEnded);
       video.pause();
     };
   }, [visible, videoUrl, targetId]);
 
   useEffect(() => {
     const video = videoRef.current;
-    if (!video) return;
-    if (paused) video.pause();
-    else if (visible) {
-      const playPromise = video.play();
-      if (playPromise?.catch) playPromise.catch(() => {});
+    if (!video || !visible) return;
+    if (paused) {
+      video.pause();
+      return;
     }
+    const playPromise = video.play();
+    if (playPromise?.catch) playPromise.catch(() => {});
   }, [paused, visible]);
 
   if (!visible || !pos || !videoUrl) return null;
 
   return (
     <div
-      className="attack-sparks-overlay"
+      className={`attack-sparks-overlay${ready ? ' attack-sparks-ready' : ''}`}
       style={{
         left: pos.x,
         top: pos.y,
@@ -147,6 +175,7 @@ export default function AttackSparks({
         src={videoUrl}
         muted
         playsInline
+        autoPlay
         preload="auto"
       />
     </div>
