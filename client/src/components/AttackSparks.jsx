@@ -83,7 +83,7 @@ export default function AttackSparks({
       setPos({
         x: tr.left + tr.width / 2,
         y: tr.top + tr.height / 2,
-        size: Math.max(tr.width, tr.height) * 1.45,
+        size: Math.max(tr.width, tr.height) * 1.45 * 16,
       });
     };
 
